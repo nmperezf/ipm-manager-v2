@@ -723,6 +723,55 @@ class Respuesta(db.Model):
 # ---------------------------------------------------------------------------
 
 
+class Foto(db.Model):
+    """Una foto del banco.
+
+    Se cuelga de **(item de visita, equipo, clave de campo)** y no de la
+    Respuesta: cuando el técnico saca la foto el checklist todavía no se
+    guardó y esa fila no existe. Con esta tripleta el punto queda
+    identificado igual, y al guardar el checklist la foto ya está ahí.
+
+    `instalacion_id` se guarda aunque sea derivable, porque es lo que
+    permite listar y filtrar el banco sin encadenar joins en cada consulta.
+    """
+
+    __tablename__ = "fotos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    instalacion_id = db.Column(
+        db.Integer, db.ForeignKey("instalaciones.id"), nullable=False, index=True
+    )
+    equipo_id = db.Column(db.Integer, db.ForeignKey("equipos.id"), nullable=True, index=True)
+    item_visita_id = db.Column(
+        db.Integer, db.ForeignKey("items_visita.id"), nullable=True, index=True
+    )
+    # Clave del campo del formulario, para saber a qué punto pertenece.
+    clave_campo = db.Column(db.String(60), index=True)
+
+    archivo = db.Column(db.String(200), nullable=False)
+    nombre_original = db.Column(db.String(255))
+    descripcion = db.Column(db.String(300))
+    ancho = db.Column(db.Integer)
+    alto = db.Column(db.Integer)
+    bytes = db.Column(db.Integer)
+
+    tomada_por_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    instalacion = db.relationship("Instalacion", backref="fotos")
+    equipo = db.relationship("Equipo", backref="fotos")
+    item_visita = db.relationship("ItemVisita", backref="fotos")
+    tomada_por = db.relationship("Usuario")
+
+    @property
+    def tipo_equipo(self):
+        """El tipo al que pertenece, que es como se navega el banco."""
+        return self.equipo.tipo_equipo if self.equipo else None
+
+    def __repr__(self):
+        return f"<Foto {self.archivo}>"
+
+
 class Observacion(db.Model):
     """Banco de deficiencias del cliente.
 

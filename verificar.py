@@ -404,6 +404,57 @@ def main():
               bool(notas) and notas[0].clasificacion == "Comentario",
               notas[0].clasificacion if notas else "-")
 
+        print("\n12 - Banco de fotos ligado al equipo")
+        import io as _io
+        from PIL import Image as _Image
+        from werkzeug.datastructures import FileStorage
+        from app.fotos import FotoInvalida, guardar_archivo
+        from app.models import Equipo, Foto
+
+        def _imagen(ancho, alto):
+            buf = _io.BytesIO()
+            _Image.new("RGB", (ancho, alto), (70, 110, 150)).save(buf, "JPEG")
+            buf.seek(0)
+            return FileStorage(stream=buf, filename="IMG_0001.jpg")
+
+        # Una foto de tablet ronda los 4000 px de lado: se reescala.
+        nombre, an, al, peso = guardar_archivo(app, _imagen(4032, 3024), empresa.id)
+        check("Reescala la foto de tablet", (an, al) == (1600, 1200), f"{an}x{al}")
+        check("Y pesa poco", peso < 400 * 1024, f"{peso // 1024} KB")
+
+        item_f = item_para("Torre Ejecutiva", tecnico)
+        equipo_f = Equipo.query.filter_by(
+            instalacion_id=item_f.visita.instalacion_id).first()
+        foto = Foto(
+            instalacion_id=item_f.visita.instalacion_id,
+            equipo_id=equipo_f.id, item_visita_id=item_f.id,
+            clave_campo="temperatura", archivo=nombre,
+            ancho=an, alto=al, bytes=peso, tomada_por_id=tecnico.id,
+        )
+        db.session.add(foto)
+        db.session.commit()
+
+        check("Queda ligada al equipo", foto.equipo.id == equipo_f.id, equipo_f.etiqueta)
+        check("Y por eso se navega por tipo de equipo",
+              foto.tipo_equipo is not None and
+              foto.tipo_equipo.id == equipo_f.tipo_equipo_id,
+              foto.tipo_equipo.nombre if foto.tipo_equipo else "-")
+        check("Recuerda en qué punto se sacó", foto.clave_campo == "temperatura")
+
+        # Se cuelga del ítem y la clave, no de la Respuesta: cuando el
+        # técnico saca la foto el checklist todavía no se guardó.
+        check("No necesita que el checklist esté guardado",
+              foto.item_visita_id == item_f.id and
+              not any(f.respuestas for f in item_f.formularios))
+
+        for archivo, motivo in (("virus.exe", "extensión"), ("falsa.jpg", "contenido")):
+            malo = FileStorage(stream=_io.BytesIO(b"no soy una imagen"), filename=archivo)
+            try:
+                guardar_archivo(app, malo, empresa.id)
+                check(f"Rechaza {archivo} por {motivo}", False)
+            except FotoInvalida:
+                check(f"Rechaza {archivo} por {motivo}", True)
+
     print()
     if fallos:
         print(f"FALLARON {len(fallos)}: " + "; ".join(fallos))

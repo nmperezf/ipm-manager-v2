@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Banco de fotos — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Banco de fotos</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>Banco de fotos</h2>
+    <span class="sub">
+      Cada foto queda atada al equipo que se fotografió y al punto del checklist
+      donde se sacó. {{ fotos|length }} en pantalla.
+    </span>
+  </div>
+</div>
+
+{# Filtro por tipo de equipo: es la forma natural de navegar el banco
+   —"todas las fotos de controladores"— sin perder de vista de qué equipo
+   concreto es cada una. #}
+{% if tipos %}
+<div class="fila" style="margin-bottom:.7rem">
+  <a class="btn {{ 'ghost' if tipo_id }} sm"
+     href="{{ url_for('principal.banco_fotos', cliente=cliente_id) }}">Todos los tipos</a>
+  {% for t in tipos %}
+    <a class="btn {{ '' if tipo_id == t.id else 'ghost' }} sm"
+       href="{{ url_for('principal.banco_fotos', tipo=t.id, cliente=cliente_id) }}">{{ t.nombre }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if clientes %}
+<div class="fila" style="margin-bottom:.9rem">
+  <a class="btn {{ 'ghost' if cliente_id }} sm"
+     href="{{ url_for('principal.banco_fotos', tipo=tipo_id) }}">Todos los clientes</a>
+  {% for c in clientes %}
+    <a class="btn {{ '' if cliente_id == c.id else 'ghost' }} sm"
+       href="{{ url_for('principal.banco_fotos', tipo=tipo_id, cliente=c.id) }}">{{ c.nombre }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if fotos %}
+<div class="galeria">
+  {% for f in fotos %}
+    <figure>
+      <a href="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}"
+         target="_blank" rel="noopener">
+        <img src="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}"
+             alt="{{ f.equipo.etiqueta if f.equipo else f.instalacion.nombre }}" loading="lazy">
+      </a>
+      <figcaption>
+        {% if f.equipo %}
+          <b>{{ f.equipo.etiqueta }}</b>
+          <span class="pill com">{{ f.equipo.tipo_equipo.nombre }}</span>
+        {% else %}
+          <b>{{ f.instalacion.nombre }}</b>
+          <span class="pill com">sin equipo</span>
+        {% endif %}
+        <span style="display:block;margin-top:.3rem">
+          {{ f.instalacion.cliente.nombre }} · {{ f.instalacion.nombre }}
+        </span>
+        <span style="display:block" class="mono">
+          {{ f.fecha.strftime('%d/%m/%Y') }}
+          {%- if f.ancho %} · {{ f.ancho }}×{{ f.alto }}{% endif %}
+          {%- if f.bytes %} · {{ (f.bytes / 1024) | round | int }} KB{% endif %}
+        </span>
+        {% if f.clave_campo %}
+          <span style="display:block">punto: <span class="mono">{{ f.clave_campo }}</span></span>
+        {% endif %}
+        {% if current_user.puede_aprobar %}
+          <form method="post" action="{{ url_for('principal.foto_borrar', foto_id=f.id) }}"
+                style="margin-top:.4rem"
+                onsubmit="return confirm('¿Eliminar esta foto del banco?')">
+            <button class="btn peligro sm" type="submit">Eliminar</button>
+          </form>
+        {% endif %}
+      </figcaption>
+    </figure>
+  {% endfor %}
+</div>
+{% else %}
+<div class="vacio">
+  <span class="chip neu">{{ ico('galeria') }}</span>
+  <b>Todavía no hay fotos</b>
+  <p>
+    Se cargan desde el checklist: cada punto tiene su botón de cámara y de galería,
+    y la foto queda atada al equipo que estás inspeccionando.
+  </p>
+  <a class="btn" href="{{ url_for('principal.ordenes') }}">Ir a las órdenes</a>
+</div>
+{% endif %}
+{% endblock %}

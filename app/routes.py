@@ -8,12 +8,14 @@ from calendar import monthrange
 from datetime import date, datetime, timedelta
 
 from flask import (
-    Blueprint, abort, flash, redirect, render_template, request, url_for
+    Blueprint, abort, current_app, flash, jsonify, redirect, render_template,
+    request, url_for,
 )
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import or_
 
 from app.checklist import armar_bloques, guardar_checklist, nombre_campo
+from app.fotos import FotoInvalida, borrar_archivo, guardar_archivo, ruta_relativa
 from app.planificacion import (
     MESES,
     calendario_anual,
@@ -47,6 +49,7 @@ from app.models import (
     Cliente,
     Contrato,
     Equipo,
+    Foto,
     Instalacion,
     ItemVisita,
     Observacion,
@@ -913,6 +916,137 @@ def checklist(item_id):
 
     bloques = armar_bloques(item)
     return render_template("checklist.html", item=item, bloques=bloques)
+
+
+# ---------------------------------------------------------------------------
+# Banco de fotos
+# ---------------------------------------------------------------------------
+
+
+def fotos_de_punto(item, equipo, clave):
+    """Las fotos ya subidas para ese punto, para repintarlas al recargar."""
+    return (
+        Foto.query.filter_by(
+            item_visita_id=item.id,
+            equipo_id=equipo.id if equipo else None,
+            clave_campo=clave,
+        )
+        .order_by(Foto.id)
+        .all()
+    )
+
+
+principal.add_app_template_global(fotos_de_punto, "fotos_de_punto")
+principal.add_app_template_global(ruta_relativa, "ruta_foto")
+
+
+@principal.route("/foto/subir", methods=["POST"])
+@login_required
+def subir_foto():
+    """Sube una foto sola, apenas se saca.
+
+    No viaja con el formulario del checklist: una rutina anual con quince
+    fotos serían decenas de MB en un solo POST, y si la validación falla se
+    pierden todas. Devuelve JSON para que la pantalla muestre la miniatura
+    sin recargar.
+    """
+    item = db.session.get(ItemVisita, request.form.get("item_id", type=int) or 0)
+    if item is None:
+        return jsonify(ok=False, error="Ítem de visita inexistente."), 404
+    instalacion = item.visita.instalacion
+    if instalacion.cliente.empresa_id != current_user.empresa_id:
+        return jsonify(ok=False, error="Sin acceso."), 403
+
+    equipo = None
+    equipo_id = request.form.get("equipo_id", type=int)
+    if equipo_id:
+        equipo = db.session.get(Equipo, equipo_id)
+        if equipo is None or equipo.instalacion_id != instalacion.id:
+            return jsonify(ok=False, error="El equipo no es de esta instalación."), 400
+
+    try:
+        nombre, ancho, alto, peso = guardar_archivo(
+            current_app, request.files.get("foto"), current_user.empresa_id
+        )
+    except FotoInvalida as error:
+        return jsonify(ok=False, error=str(error)), 400
+
+    foto = Foto(
+        instalacion_id=instalacion.id,
+        equipo_id=equipo.id if equipo else None,
+        item_visita_id=item.id,
+        clave_campo=(request.form.get("clave") or "").strip() or None,
+        archivo=nombre,
+        nombre_original=(request.files["foto"].filename or "")[:255],
+        ancho=ancho, alto=alto, bytes=peso,
+        tomada_por_id=current_user.id,
+    )
+    db.session.add(foto)
+    db.session.commit()
+
+    return jsonify(
+        ok=True, id=foto.id,
+        url=url_for("static", filename=ruta_relativa(current_user.empresa_id, nombre)),
+        borrar=url_for("principal.foto_borrar", foto_id=foto.id),
+    )
+
+
+@principal.route("/foto/<int:foto_id>/borrar", methods=["POST"])
+@login_required
+def foto_borrar(foto_id):
+    foto = db.session.get(Foto, foto_id)
+    if foto is None:
+        return jsonify(ok=False, error="No existe."), 404
+    if foto.instalacion.cliente.empresa_id != current_user.empresa_id:
+        return jsonify(ok=False, error="Sin acceso."), 403
+
+    borrar_archivo(current_app, current_user.empresa_id, foto.archivo)
+    db.session.delete(foto)
+    db.session.commit()
+    if request.headers.get("X-Requested-With") == "fetch":
+        return jsonify(ok=True)
+    flash("Foto eliminada.", "ok")
+    return redirect(request.referrer or url_for("principal.banco_fotos"))
+
+
+@principal.route("/fotos")
+@login_required
+def banco_fotos():
+    """El banco, navegable por tipo de equipo."""
+    query = (
+        Foto.query.join(Instalacion, Foto.instalacion_id == Instalacion.id)
+        .join(Cliente, Instalacion.cliente_id == Cliente.id)
+        .filter(Cliente.empresa_id == current_user.empresa_id)
+    )
+
+    tipo_id = request.args.get("tipo", type=int)
+    if tipo_id:
+        query = query.join(Equipo, Foto.equipo_id == Equipo.id).filter(
+            Equipo.tipo_equipo_id == tipo_id
+        )
+    cliente_id = request.args.get("cliente", type=int)
+    if cliente_id:
+        query = query.filter(Cliente.id == cliente_id)
+
+    lista = query.order_by(Foto.fecha.desc(), Foto.id.desc()).limit(200).all()
+
+    # Solo los tipos que de verdad tienen fotos: un filtro con opciones
+    # vacías es ruido.
+    con_fotos = {f.equipo.tipo_equipo_id for f in query.all() if f.equipo}
+    tipos = (
+        TipoEquipo.query.filter(TipoEquipo.id.in_(con_fotos))
+        .order_by(TipoEquipo.categoria_id, TipoEquipo.orden).all()
+        if con_fotos else []
+    )
+    clientes_lista = (
+        Cliente.query.filter_by(empresa_id=current_user.empresa_id)
+        .order_by(Cliente.nombre).all()
+    )
+
+    return render_template(
+        "fotos.html", fotos=lista, tipos=tipos, clientes=clientes_lista,
+        tipo_id=tipo_id, cliente_id=cliente_id,
+    )
 
 
 # ---------------------------------------------------------------------------
