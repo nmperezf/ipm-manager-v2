@@ -726,10 +726,13 @@ class Respuesta(db.Model):
 class Foto(db.Model):
     """Una foto del banco.
 
-    Se cuelga de **(item de visita, equipo, clave de campo)** y no de la
-    Respuesta: cuando el técnico saca la foto el checklist todavía no se
-    guardó y esa fila no existe. Con esta tripleta el punto queda
-    identificado igual, y al guardar el checklist la foto ya está ahí.
+    Se saca al final del checklist, no punto por punto: el técnico termina
+    de recorrer la sala y ahí elige a qué equipo corresponde cada foto. Por
+    eso lo que importa es `equipo_id`, que es además como se navega el
+    banco ("todas las fotos de controladores").
+
+    `item_visita_id` guarda en qué inspección se tomó, pero es opcional:
+    una foto puede cargarse fuera de una visita.
 
     `instalacion_id` se guarda aunque sea derivable, porque es lo que
     permite listar y filtrar el banco sin encadenar joins en cada consulta.
@@ -745,8 +748,6 @@ class Foto(db.Model):
     item_visita_id = db.Column(
         db.Integer, db.ForeignKey("items_visita.id"), nullable=True, index=True
     )
-    # Clave del campo del formulario, para saber a qué punto pertenece.
-    clave_campo = db.Column(db.String(60), index=True)
 
     archivo = db.Column(db.String(200), nullable=False)
     nombre_original = db.Column(db.String(255))

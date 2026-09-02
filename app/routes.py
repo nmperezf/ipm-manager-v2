@@ -915,7 +915,18 @@ def checklist(item_id):
             flash(error, "error")
 
     bloques = armar_bloques(item)
-    return render_template("checklist.html", item=item, bloques=bloques)
+    # Equipos que aparecen en esta inspección: es entre esos que el técnico
+    # elige a cuál corresponde cada foto.
+    equipos_foto, vistos = [], set()
+    for bloque in bloques:
+        for seccion in bloque.secciones:
+            eq = seccion.equipo
+            if eq and eq.id not in vistos:
+                vistos.add(eq.id)
+                equipos_foto.append(eq)
+    return render_template(
+        "checklist.html", item=item, bloques=bloques, equipos_foto=equipos_foto
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -923,27 +934,19 @@ def checklist(item_id):
 # ---------------------------------------------------------------------------
 
 
-def fotos_de_punto(item, equipo, clave):
-    """Las fotos ya subidas para ese punto, para repintarlas al recargar."""
-    return (
-        Foto.query.filter_by(
-            item_visita_id=item.id,
-            equipo_id=equipo.id if equipo else None,
-            clave_campo=clave,
-        )
-        .order_by(Foto.id)
-        .all()
-    )
+def fotos_del_item(item):
+    """Las fotos ya cargadas en esa inspección, para repintarlas."""
+    return Foto.query.filter_by(item_visita_id=item.id).order_by(Foto.id).all()
 
 
-principal.add_app_template_global(fotos_de_punto, "fotos_de_punto")
+principal.add_app_template_global(fotos_del_item, "fotos_del_item")
 principal.add_app_template_global(ruta_relativa, "ruta_foto")
 
 
 @principal.route("/foto/subir", methods=["POST"])
 @login_required
 def subir_foto():
-    """Sube una foto sola, apenas se saca.
+    """Sube una foto sola, apenas se elige.
 
     No viaja con el formulario del checklist: una rutina anual con quince
     fotos serían decenas de MB en un solo POST, y si la validación falla se
@@ -975,7 +978,7 @@ def subir_foto():
         instalacion_id=instalacion.id,
         equipo_id=equipo.id if equipo else None,
         item_visita_id=item.id,
-        clave_campo=(request.form.get("clave") or "").strip() or None,
+        descripcion=(request.form.get("nota") or "").strip()[:300] or None,
         archivo=nombre,
         nombre_original=(request.files["foto"].filename or "")[:255],
         ancho=ancho, alto=alto, bytes=peso,
@@ -986,6 +989,8 @@ def subir_foto():
 
     return jsonify(
         ok=True, id=foto.id,
+        equipo=equipo.etiqueta if equipo else "sin equipo",
+        nota=foto.descripcion or "",
         url=url_for("static", filename=ruta_relativa(current_user.empresa_id, nombre)),
         borrar=url_for("principal.foto_borrar", foto_id=foto.id),
     )

@@ -10,8 +10,7 @@
   <div>
     <h2>Banco de fotos</h2>
     <span class="sub">
-      Cada foto queda atada al equipo que se fotografió y al punto del checklist
-      donde se sacó. {{ fotos|length }} en pantalla.
+      Cada foto queda atada al equipo que se fotografió. {{ fotos|length }} en pantalla.
     </span>
   </div>
 </div>
@@ -66,8 +65,8 @@
           {%- if f.ancho %} · {{ f.ancho }}×{{ f.alto }}{% endif %}
           {%- if f.bytes %} · {{ (f.bytes / 1024) | round | int }} KB{% endif %}
         </span>
-        {% if f.clave_campo %}
-          <span style="display:block">punto: <span class="mono">{{ f.clave_campo }}</span></span>
+        {% if f.descripcion %}
+          <span style="display:block;color:var(--ink)">{{ f.descripcion }}</span>
         {% endif %}
         {% if current_user.puede_aprobar %}
           <form method="post" action="{{ url_for('principal.foto_borrar', foto_id=f.id) }}"
@@ -85,8 +84,8 @@
   <span class="chip neu">{{ ico('galeria') }}</span>
   <b>Todavía no hay fotos</b>
   <p>
-    Se cargan desde el checklist: cada punto tiene su botón de cámara y de galería,
-    y la foto queda atada al equipo que estás inspeccionando.
+    Se cargan al final del checklist: elegís a qué equipo corresponde y las sacás
+    con la cámara o las tomás de la galería.
   </p>
   <a class="btn" href="{{ url_for('principal.ordenes') }}">Ir a las órdenes</a>
 </div>

@@ -181,35 +181,6 @@
                 </div>
               {% endif %}
 
-              {# La foto va al banco atada a este equipo y a este punto.
-                 Sube sola apenas se elige: no viaja con el formulario. #}
-              {% set ya = fotos_de_punto(item, equipo, campo.clave) %}
-              <div class="fotos" data-fotos>
-                {% for f in ya %}
-                  <div class="foto-mini" data-foto="{{ f.id }}">
-                    <a href="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}"
-                       target="_blank" rel="noopener">
-                      <img src="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}"
-                           alt="Foto de {{ campo.label }}" loading="lazy"></a>
-                    <button type="button" title="Eliminar foto"
-                            data-borrar="{{ url_for('principal.foto_borrar', foto_id=f.id) }}">×</button>
-                  </div>
-                {% endfor %}
-              </div>
-              <div class="foto-btns"
-                   data-subida="{{ url_for('principal.subir_foto') }}"
-                   data-item="{{ item.id }}"
-                   data-equipo="{{ equipo.id if equipo else '' }}"
-                   data-clave="{{ campo.clave }}">
-                <label>
-                  {{ ico('camara') }}Cámara
-                  <input type="file" accept="image/*" capture="environment" data-camara>
-                </label>
-                <label>
-                  {{ ico('galeria') }}Galería
-                  <input type="file" accept="image/*" multiple data-galeria>
-                </label>
-              </div>
             </div>
           {% endfor %}
           </div>
@@ -223,6 +194,64 @@
     <span class="tiny">Se puede guardar a medias y seguir después.</span>
   </div>
 </form>
+
+{# Las fotos van al final, no punto por punto: el técnico termina de
+   recorrer la sala y ahí carga lo que sacó, eligiendo a qué equipo
+   corresponde cada una. Fuera del <form> del checklist porque suben solas. #}
+<div class="card" id="bloque-fotos">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Fotos</h3>
+    <span class="sp"></span>
+    <span class="tiny">Van al banco ligadas al equipo que elijas</span>
+  </div>
+
+  <div class="rejilla" style="margin-bottom:.7rem">
+    <label class="campo">
+      <span class="rotulo">¿A qué equipo corresponde?</span>
+      <select id="foto-equipo">
+        <option value="">— toda la sala, sin equipo puntual —</option>
+        {% for eq in equipos_foto %}
+          <option value="{{ eq.id }}">{{ eq.etiqueta }} · {{ eq.tipo_equipo.nombre }}</option>
+        {% endfor %}
+      </select>
+      <span class="nota">Se puede cambiar entre foto y foto.</span>
+    </label>
+    <label class="campo">
+      <span class="rotulo">Nota</span>
+      <input id="foto-nota" placeholder="Ej. manómetro en zona baja">
+      <span class="nota">Opcional, para no perder el contexto después.</span>
+    </label>
+  </div>
+
+  <div class="foto-btns" data-subida="{{ url_for('principal.subir_foto') }}"
+       data-item="{{ item.id }}">
+    <label>
+      {{ ico('camara') }}Tomar foto
+      <input type="file" accept="image/*" capture="environment">
+    </label>
+    <label>
+      {{ ico('galeria') }}Elegir de galería
+      <input type="file" accept="image/*" multiple>
+    </label>
+  </div>
+
+  <div class="fotos" id="tira-fotos" style="margin-top:.7rem">
+    {% for f in fotos_del_item(item) %}
+      <div class="foto-mini" data-foto="{{ f.id }}"
+           title="{{ f.equipo.etiqueta if f.equipo else 'sin equipo' }}{% if f.descripcion %} — {{ f.descripcion }}{% endif %}">
+        <a href="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}"
+           target="_blank" rel="noopener">
+          <img src="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}"
+               alt="{{ f.equipo.etiqueta if f.equipo else 'Foto de la inspección' }}" loading="lazy"></a>
+        <button type="button" title="Eliminar foto"
+                data-borrar="{{ url_for('principal.foto_borrar', foto_id=f.id) }}">×</button>
+      </div>
+    {% endfor %}
+  </div>
+  <p class="tiny" id="fotos-vacio" style="margin-top:.5rem">
+    Cada foto sube sola apenas la elegís, sin esperar a guardar el checklist.
+  </p>
+</div>
 
 <script>
 (function () {
@@ -262,67 +291,6 @@
   form.addEventListener('input', actualizar);
   actualizar();
 
-  // --- fotos ---------------------------------------------------------
-  // Cada foto viaja sola apenas se elige. Si viajaran con el formulario,
-  // una rutina anual con quince fotos serían decenas de MB en un POST, y
-  // un error de validación las perdería todas.
-  function miniatura(datos, tira) {
-    var caja = document.createElement('div');
-    caja.className = 'foto-mini';
-    caja.dataset.foto = datos.id;
-    caja.innerHTML =
-      '<a href="' + datos.url + '" target="_blank" rel="noopener">' +
-      '<img src="' + datos.url + '" alt="Foto del punto"></a>' +
-      '<button type="button" title="Eliminar foto" data-borrar="' + datos.borrar + '">&times;</button>';
-    tira.appendChild(caja);
-  }
-
-  form.addEventListener('change', function (ev) {
-    var input = ev.target;
-    if (!input.matches('.foto-btns input[type=file]')) return;
-
-    var botones = input.closest('.foto-btns');
-    var tira = botones.previousElementSibling;
-    var archivos = Array.prototype.slice.call(input.files || []);
-    input.value = '';  // permite volver a elegir la misma foto
-
-    archivos.forEach(function (archivo) {
-      var esperando = document.createElement('div');
-      esperando.className = 'foto-mini subiendo';
-      esperando.textContent = 'subiendo…';
-      tira.appendChild(esperando);
-
-      var cuerpo = new FormData();
-      cuerpo.append('foto', archivo);
-      cuerpo.append('item_id', botones.dataset.item);
-      cuerpo.append('clave', botones.dataset.clave);
-      if (botones.dataset.equipo) cuerpo.append('equipo_id', botones.dataset.equipo);
-
-      fetch(botones.dataset.subida, { method: 'POST', body: cuerpo })
-        .then(function (r) { return r.json(); })
-        .then(function (datos) {
-          tira.removeChild(esperando);
-          if (datos.ok) miniatura(datos, tira);
-          else alert(datos.error || 'No se pudo subir la foto.');
-        })
-        .catch(function () {
-          esperando.textContent = 'sin conexión';
-          esperando.style.color = 'var(--ember)';
-        });
-    });
-  });
-
-  form.addEventListener('click', function (ev) {
-    var boton = ev.target.closest('[data-borrar]');
-    if (!boton) return;
-    ev.preventDefault();
-    if (!confirm('¿Eliminar esta foto?')) return;
-    var caja = boton.closest('.foto-mini');
-    fetch(boton.dataset.borrar, {
-      method: 'POST', headers: { 'X-Requested-With': 'fetch' }
-    }).then(function () { caja.remove(); });
-  });
-
   // Saltar al primer punto sin resolver, abriendo su bloque si hace falta.
   document.getElementById('ir-pendiente').addEventListener('click', function () {
     var pendiente = null;
@@ -335,6 +303,76 @@
     pendiente.scrollIntoView({ block: 'center', behavior: 'smooth' });
     var foco = pendiente.querySelector('input, select, textarea');
     if (foco) foco.focus({ preventScroll: true });
+  });
+})();
+
+// --- fotos ---------------------------------------------------------------
+// Van al final del checklist, no punto por punto. Cada una sube sola apenas
+// se elige: si viajaran con el formulario, una rutina anual con quince fotos
+// serian decenas de MB en un POST y un error de validacion las perderia.
+(function () {
+  var caja = document.getElementById('bloque-fotos');
+  if (!caja) return;
+
+  var botones = caja.querySelector('.foto-btns');
+  var tira = document.getElementById('tira-fotos');
+  var selectorEquipo = document.getElementById('foto-equipo');
+  var campoNota = document.getElementById('foto-nota');
+
+  function miniatura(datos) {
+    var mini = document.createElement('div');
+    mini.className = 'foto-mini';
+    mini.dataset.foto = datos.id;
+    mini.title = datos.equipo + (datos.nota ? ' — ' + datos.nota : '');
+    mini.innerHTML =
+      '<a href="' + datos.url + '" target="_blank" rel="noopener">' +
+      '<img src="' + datos.url + '" alt="' + datos.equipo + '"></a>' +
+      '<button type="button" title="Eliminar foto" data-borrar="' + datos.borrar + '">&times;</button>';
+    tira.appendChild(mini);
+  }
+
+  caja.addEventListener('change', function (ev) {
+    var input = ev.target;
+    if (!input.matches('.foto-btns input[type=file]')) return;
+
+    var archivos = Array.prototype.slice.call(input.files || []);
+    input.value = '';  // permite volver a elegir la misma foto
+
+    archivos.forEach(function (archivo) {
+      var esperando = document.createElement('div');
+      esperando.className = 'foto-mini subiendo';
+      esperando.textContent = 'subiendo…';
+      tira.appendChild(esperando);
+
+      var cuerpo = new FormData();
+      cuerpo.append('foto', archivo);
+      cuerpo.append('item_id', botones.dataset.item);
+      if (selectorEquipo.value) cuerpo.append('equipo_id', selectorEquipo.value);
+      if (campoNota.value.trim()) cuerpo.append('nota', campoNota.value.trim());
+
+      fetch(botones.dataset.subida, { method: 'POST', body: cuerpo })
+        .then(function (r) { return r.json(); })
+        .then(function (datos) {
+          tira.removeChild(esperando);
+          if (datos.ok) { miniatura(datos); campoNota.value = ''; }
+          else alert(datos.error || 'No se pudo subir la foto.');
+        })
+        .catch(function () {
+          esperando.textContent = 'sin conexion';
+          esperando.style.color = 'var(--ember)';
+        });
+    });
+  });
+
+  caja.addEventListener('click', function (ev) {
+    var boton = ev.target.closest('[data-borrar]');
+    if (!boton) return;
+    ev.preventDefault();
+    if (!confirm('¿Eliminar esta foto?')) return;
+    var mini = boton.closest('.foto-mini');
+    fetch(boton.dataset.borrar, {
+      method: 'POST', headers: { 'X-Requested-With': 'fetch' }
+    }).then(function () { mini.remove(); });
   });
 })();
 </script>

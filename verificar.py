@@ -428,7 +428,7 @@ def main():
         foto = Foto(
             instalacion_id=item_f.visita.instalacion_id,
             equipo_id=equipo_f.id, item_visita_id=item_f.id,
-            clave_campo="temperatura", archivo=nombre,
+            descripcion="Manómetro en zona baja", archivo=nombre,
             ancho=an, alto=al, bytes=peso, tomada_por_id=tecnico.id,
         )
         db.session.add(foto)
@@ -439,10 +439,11 @@ def main():
               foto.tipo_equipo is not None and
               foto.tipo_equipo.id == equipo_f.tipo_equipo_id,
               foto.tipo_equipo.nombre if foto.tipo_equipo else "-")
-        check("Recuerda en qué punto se sacó", foto.clave_campo == "temperatura")
+        check("Guarda la nota de contexto",
+              foto.descripcion == "Manómetro en zona baja")
 
-        # Se cuelga del ítem y la clave, no de la Respuesta: cuando el
-        # técnico saca la foto el checklist todavía no se guardó.
+        # Se cuelga del item y del equipo, no de la Respuesta: las fotos se
+        # cargan al final y el checklist puede no estar guardado todavia.
         check("No necesita que el checklist esté guardado",
               foto.item_visita_id == item_f.id and
               not any(f.respuestas for f in item_f.formularios))
