@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% set editando = categoria is not none %}
+{% block title %}{{ 'Editar categoría' if editando else 'Nueva categoría' }} — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.catalogo') }}">Catálogo</a>
+  {{ ico('chevron') }}<b>{{ categoria.nombre if editando else 'Nueva categoría' }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ 'Editar categoría' if editando else 'Nueva categoría' }}</h2>
+    <span class="sub">
+      Una categoría agrupa los tipos de equipo que se inspeccionan juntos, como
+      «Sala de bombas». Es lo que el técnico elige al arrancar una visita.
+    </span>
+  </div>
+</div>
+
+<form method="post" style="max-width:520px">
+  <div class="card">
+    <div class="rejilla">
+      <label class="campo ancho-total">
+        <span class="rotulo">Nombre <span class="req">*</span></span>
+        <input name="nombre" required autofocus
+               value="{{ categoria.nombre if editando else '' }}"
+               placeholder="Ej. Bocas de incendio">
+      </label>
+      <label class="campo">
+        <span class="rotulo">Orden</span>
+        <input name="orden" type="number" step="1" class="num"
+               value="{{ categoria.orden if editando else 0 }}">
+        <span class="nota">Menor primero, en listados y checklists.</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="fila">
+    <button class="btn" type="submit">{{ 'Guardar cambios' if editando else 'Crear' }}</button>
+    <a class="btn ghost" href="{{ url_for('principal.catalogo') }}">Cancelar</a>
+  </div>
+</form>
+
+{% if editando %}
+<form method="post" style="margin-top:1.2rem"
+      action="{{ url_for('principal.catalogo_borrar', tipo='categoria', objeto_id=categoria.id) }}"
+      onsubmit="return confirm('¿Eliminar esta categoría del catálogo?')">
+  <button class="btn peligro sm" type="submit">Eliminar</button>
+  <span class="tiny" style="display:block;margin-top:.3rem">
+    Solo si no tiene tipos de equipo colgando.
+  </span>
+</form>
+{% endif %}
+{% endblock %}

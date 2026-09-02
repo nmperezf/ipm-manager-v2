@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% set editando = formulario is not none %}
+{% block title %}{{ 'Editar formulario' if editando else 'Nuevo formulario' }} — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.catalogo') }}">Catálogo</a>
+  {{ ico('chevron') }}<b>{{ formulario.nombre if editando else 'Nuevo formulario' }}</b>
+</nav>
+{% endblock %}
+
+{# Una fila de punto. Sirve para los existentes y como molde del botón
+   "Agregar punto": el JS clona esta misma estructura desde un <template>,
+   así no hay dos versiones del marcado que se puedan desincronizar. #}
+{% macro fila(idx, campo=None) %}
+<div class="card punto-edit" style="margin:0;background:var(--surface-muted)">
+  <input type="hidden" name="idx" value="{{ idx }}">
+  {% if campo %}<input type="hidden" name="id_{{ idx }}" value="{{ campo.id }}">{% endif %}
+
+  <div class="rejilla">
+    <label class="campo">
+      <span class="rotulo">Etiqueta <span class="req">*</span></span>
+      <input name="label_{{ idx }}" value="{{ campo.label if campo else '' }}"
+             placeholder="Ej. Presión de succión">
+    </label>
+    <label class="campo">
+      <span class="rotulo">Clave <span class="req">*</span></span>
+      <input name="clave_{{ idx }}" class="mono" value="{{ campo.clave if campo else '' }}"
+             placeholder="p_succion">
+      <span class="nota">Interna, sin espacios.</span>
+    </label>
+    <label class="campo">
+      <span class="rotulo">Tipo</span>
+      <select name="tipo_{{ idx }}">
+        {% for t, etiqueta in [('estado','Solo conforme / no conforme'),
+                               ('numero','Número'), ('texto','Texto libre'),
+                               ('seleccion','Opción única'),
+                               ('multi_seleccion','Opción múltiple')] %}
+          <option value="{{ t }}" {{ 'selected' if campo and campo.tipo == t }}>{{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="campo">
+      <span class="rotulo">Unidad</span>
+      <input name="unidad_{{ idx }}" value="{{ (campo.unidad or '') if campo else '' }}"
+             placeholder="psi, °C, min">
+    </label>
+
+    <label class="campo">
+      <span class="rotulo">Rutina</span>
+      <select name="frecuencia_{{ idx }}">
+        <option value="">— la del formulario —</option>
+        {% for f in ['semanal','mensual','trimestral','semestral','anual'] %}
+          <option value="{{ f }}" {{ 'selected' if campo and campo.frecuencia == f }}>{{ f }}</option>
+        {% endfor %}
+      </select>
+      <span class="nota">Son acumulativas.</span>
+    </label>
+    <label class="campo">
+      <span class="rotulo">Orden</span>
+      <input name="orden_{{ idx }}" type="number" step="10" class="num"
+             value="{{ campo.orden if campo else 0 }}">
+    </label>
+
+    <label class="campo">
+      <span class="rotulo">Mínimo</span>
+      <input name="minimo_{{ idx }}" type="number" step="any" class="num"
+             value="{{ campo.minimo if campo and campo.minimo is not none else '' }}">
+    </label>
+    <label class="campo">
+      <span class="rotulo">Máximo</span>
+      <input name="maximo_{{ idx }}" type="number" step="any" class="num"
+             value="{{ campo.maximo if campo and campo.maximo is not none else '' }}">
+      <span class="nota">Fuera de rango abre la deficiencia sola.</span>
+    </label>
+    <label class="campo">
+      <span class="rotulo">Gravedad fuera de rango</span>
+      <select name="gravedad_{{ idx }}">
+        <option value="no_critica"
+          {{ 'selected' if not campo or campo.gravedad_fuera_rango != 'critica' }}>No crítica</option>
+        <option value="critica"
+          {{ 'selected' if campo and campo.gravedad_fuera_rango == 'critica' }}>Crítica</option>
+      </select>
+    </label>
+
+    <label class="campo ancho-total">
+      <span class="rotulo">Opciones</span>
+      <input name="opciones_{{ idx }}" value="{{ (campo.opciones_raw or '') if campo else '' }}"
+             placeholder="Test|Automático|Manual">
+      <span class="nota">Separadas por barra. Solo para opción única o múltiple.</span>
+    </label>
+    <label class="campo ancho-total">
+      <span class="rotulo">Ayuda</span>
+      <input name="ayuda_{{ idx }}" value="{{ (campo.ayuda or '') if campo else '' }}"
+             placeholder="Lo que el técnico tiene que saber en el momento">
+    </label>
+
+    <label class="fila ancho-total" style="gap:.5rem;cursor:pointer">
+      <input type="checkbox" name="con_estado_{{ idx }}" value="1"
+             style="width:auto;min-height:auto"
+             {{ 'checked' if not campo or campo.con_estado }}>
+      <span class="rotulo">Lleva control de conformidad</span>
+    </label>
+  </div>
+
+  <div class="fila" style="margin-top:.5rem">
+    <span class="sp"></span>
+    <button class="btn peligro sm" type="button" data-quitar>Quitar punto</button>
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ 'Editar formulario' if editando else 'Nuevo formulario' }}</h2>
+    <span class="sub">
+      Se define una vez a nivel empresa y sirve para todos los clientes.
+      Las rutinas del calendario salen de las frecuencias que pongas acá.
+    </span>
+  </div>
+</div>
+
+<form method="post">
+  <div class="card">
+    <h3 style="margin-bottom:.7rem">Datos del formulario</h3>
+    <div class="rejilla">
+      <label class="campo ancho-total">
+        <span class="rotulo">Nombre <span class="req">*</span></span>
+        <input name="nombre" required autofocus
+               value="{{ formulario.nombre if editando else '' }}"
+               placeholder="Ej. Bomba eléctrica — prueba sin flujo">
+      </label>
+
+      <label class="campo">
+        <span class="rotulo">Categoría</span>
+        <select name="categoria_id">
+          <option value="">— sin categoría —</option>
+          {% for c in categorias %}
+            <option value="{{ c.id }}"
+              {{ 'selected' if editando and formulario.categoria_id == c.id }}>{{ c.nombre }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="campo">
+        <span class="rotulo">Aplica al tipo de equipo</span>
+        <select name="tipo_equipo_id">
+          <option value="">— ninguno —</option>
+          {% for t in tipos_equipo %}
+            <option value="{{ t.id }}"
+              {{ 'selected' if editando and formulario.tipo_equipo_id == t.id }}>{{ t.nombre }}</option>
+          {% endfor %}
+        </select>
+        <span class="nota">Se ignora si no es por equipo.</span>
+      </label>
+
+      <label class="campo">
+        <span class="rotulo">Frecuencia base</span>
+        <select name="frecuencia">
+          <option value="">— sin definir —</option>
+          {% for f in ['semanal','mensual','trimestral','semestral','anual'] %}
+            <option value="{{ f }}"
+              {{ 'selected' if editando and formulario.frecuencia == f }}>{{ f }}</option>
+          {% endfor %}
+        </select>
+        <span class="nota">La usan los puntos sin rutina propia.</span>
+      </label>
+
+      <label class="campo">
+        <span class="rotulo">Orden</span>
+        <input name="orden" type="number" step="1" class="num"
+               value="{{ formulario.orden if editando else 0 }}">
+        <span class="nota">Define el recorrido dentro del conjunto.</span>
+      </label>
+
+      <label class="campo ancho-total">
+        <span class="rotulo">Referencia normativa</span>
+        <input name="referencia"
+               value="{{ (formulario.referencia_normativa or '') if editando else '' }}"
+               placeholder="NFPA 25 · cap. 8">
+      </label>
+
+      <label class="campo ancho-total">
+        <span class="rotulo">Descripción</span>
+        <textarea name="descripcion" rows="2">{{ (formulario.descripcion or '') if editando else '' }}</textarea>
+      </label>
+
+      <label class="fila ancho-total" style="gap:.5rem;cursor:pointer">
+        <input type="checkbox" name="por_equipo" value="1" style="width:auto;min-height:auto"
+               {{ 'checked' if not editando or formulario.por_equipo }}>
+        <span>
+          <b style="font-size:var(--t-base)">Se carga por equipo</b>
+          <span class="nota" style="display:block">
+            Si no, se carga una sola vez para todo el recinto.
+          </span>
+        </span>
+      </label>
+
+      <label class="fila ancho-total" style="gap:.5rem;cursor:pointer">
+        <input type="checkbox" name="incluir_en_paquete" value="1" style="width:auto;min-height:auto"
+               {{ 'checked' if not editando or formulario.incluir_en_paquete }}>
+        <span>
+          <b style="font-size:var(--t-base)">Entra en la rutina</b>
+          <span class="nota" style="display:block">
+            Desmarcado queda fuera, como la prueba anual de caudal.
+          </span>
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <div class="seccion-tit">
+    <h3>Puntos de inspección</h3>
+    <span class="pill com" id="cuenta-puntos">
+      {{ formulario.campos|length if editando else 0 }}</span>
+    <span class="linea"></span>
+    <button class="btn sm" type="button" id="agregar-punto">{{ ico('mas') }}Agregar punto</button>
+  </div>
+
+  <div class="stack" id="puntos">
+    {% if editando %}
+      {% for campo in formulario.campos %}{{ fila(campo.id, campo) }}{% endfor %}
+    {% endif %}
+  </div>
+
+  <template id="molde-punto">{{ fila('PLANTILLA') }}</template>
+
+  <div class="barra-guardar">
+    <button class="btn" type="submit">{{ 'Guardar cambios' if editando else 'Crear formulario' }}</button>
+    <a class="btn ghost" href="{{ url_for('principal.catalogo') }}">Cancelar</a>
+  </div>
+</form>
+
+{% if editando %}
+<form method="post" style="margin-top:1.2rem"
+      action="{{ url_for('principal.catalogo_borrar', tipo='formulario', objeto_id=formulario.id) }}"
+      onsubmit="return confirm('¿Eliminar este formulario y todos sus puntos?')">
+  <button class="btn peligro sm" type="submit">Eliminar formulario</button>
+  <span class="tiny" style="display:block;margin-top:.3rem">
+    Solo si no se cargó todavía en ninguna visita.
+  </span>
+</form>
+{% endif %}
+
+<script>
+(function () {
+  var lista = document.getElementById('puntos');
+  var molde = document.getElementById('molde-punto');
+  var cuenta = document.getElementById('cuenta-puntos');
+  var nuevos = 0;
+
+  function actualizar() {
+    cuenta.textContent = lista.querySelectorAll('.punto-edit').length;
+  }
+
+  document.getElementById('agregar-punto').addEventListener('click', function () {
+    // Se clona el mismo marcado que usan los puntos existentes, con un
+    // índice nuevo: así el servidor los procesa por el mismo camino.
+    var idx = 'n' + (nuevos++);
+    var html = molde.innerHTML.split('PLANTILLA').join(idx);
+    var envoltorio = document.createElement('div');
+    envoltorio.innerHTML = html;
+    var fila = envoltorio.firstElementChild;
+    lista.appendChild(fila);
+    actualizar();
+    var primero = fila.querySelector('input:not([type=hidden])');
+    if (primero) primero.focus();
+  });
+
+  lista.addEventListener('click', function (ev) {
+    var boton = ev.target.closest('[data-quitar]');
+    if (!boton) return;
+    // Sin confirmación: nada se borra hasta guardar el formulario.
+    boton.closest('.punto-edit').remove();
+    actualizar();
+  });
+
+  actualizar();
+})();
+</script>
+{% endblock %}

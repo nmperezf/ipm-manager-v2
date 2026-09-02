@@ -45,15 +45,18 @@ from app.models import (
     OT_EN_REVISION,
     OT_PENDIENTE,
     OT_PREVENTIVO,
+    CampoFormulario,
     CategoriaEquipo,
     Cliente,
     Contrato,
     Equipo,
     Foto,
     Instalacion,
+    Formulario,
     ItemVisita,
     Observacion,
     OrdenTrabajo,
+    Respuesta,
     ServicioContrato,
     TipoEquipo,
     TipoFormulario,
@@ -1151,6 +1154,239 @@ def catalogo():
         "catalogo.html", categorias=categorias,
         tipos_equipo=tipos_equipo, formularios=formularios,
     )
+
+
+@principal.route("/catalogo/categoria/nueva", methods=["GET", "POST"])
+@principal.route("/catalogo/categoria/<int:categoria_id>", methods=["GET", "POST"])
+@login_required
+def categoria_form(categoria_id=None):
+    _solo_gestion()
+    obj = None
+    if categoria_id:
+        obj = db.session.get(CategoriaEquipo, categoria_id)
+        if obj is None:
+            abort(404)
+        _verificar_empresa(obj.empresa_id)
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        if not nombre:
+            flash("La categoría necesita un nombre.", "error")
+            return render_template("categoria_form.html", categoria=obj)
+        if obj is None:
+            obj = CategoriaEquipo(empresa_id=current_user.empresa_id)
+            db.session.add(obj)
+        obj.nombre = nombre
+        obj.orden = request.form.get("orden", type=int) or 0
+        db.session.commit()
+        flash("Categoría guardada.", "ok")
+        return redirect(url_for("principal.catalogo"))
+
+    return render_template("categoria_form.html", categoria=obj)
+
+
+@principal.route("/catalogo/tipo-equipo/nuevo", methods=["GET", "POST"])
+@principal.route("/catalogo/tipo-equipo/<int:tipo_id>", methods=["GET", "POST"])
+@login_required
+def tipo_equipo_form(tipo_id=None):
+    _solo_gestion()
+    obj = None
+    if tipo_id:
+        obj = db.session.get(TipoEquipo, tipo_id)
+        if obj is None:
+            abort(404)
+        _verificar_empresa(obj.empresa_id)
+
+    categorias = categorias_disponibles(current_user.empresa_id)
+    # Un tipo no puede colgar de sí mismo.
+    posibles_padres = (
+        TipoEquipo.query.filter_by(empresa_id=current_user.empresa_id)
+        .filter(TipoEquipo.id != (obj.id if obj else 0))
+        .order_by(TipoEquipo.categoria_id, TipoEquipo.orden).all()
+    )
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        if not nombre:
+            flash("El tipo de equipo necesita un nombre.", "error")
+            return render_template("tipo_equipo_form.html", tipo=obj,
+                                   categorias=categorias, padres=posibles_padres)
+        if obj is None:
+            obj = TipoEquipo(empresa_id=current_user.empresa_id)
+            db.session.add(obj)
+        obj.nombre = nombre
+        obj.categoria_id = request.form.get("categoria_id", type=int) or None
+        obj.tipo_padre_id = request.form.get("tipo_padre_id", type=int) or None
+        obj.encabeza_conjunto = bool(request.form.get("encabeza_conjunto"))
+        obj.orden = request.form.get("orden", type=int) or 0
+        db.session.commit()
+        flash("Tipo de equipo guardado.", "ok")
+        return redirect(url_for("principal.catalogo"))
+
+    return render_template("tipo_equipo_form.html", tipo=obj,
+                           categorias=categorias, padres=posibles_padres)
+
+
+@principal.route("/catalogo/formulario/nuevo", methods=["GET", "POST"])
+@principal.route("/catalogo/formulario/<int:formulario_id>", methods=["GET", "POST"])
+@login_required
+def formulario_form(formulario_id=None):
+    """Metadatos del formulario y sus campos, en una sola pantalla.
+
+    Separarlos obligaría a guardar dos veces para dar de alta un checklist,
+    y a navegar entre pantallas para algo que se piensa junto.
+    """
+    _solo_gestion()
+    obj = None
+    if formulario_id:
+        obj = db.session.get(TipoFormulario, formulario_id)
+        if obj is None:
+            abort(404)
+        _verificar_empresa(obj.empresa_id)
+
+    categorias = categorias_disponibles(current_user.empresa_id)
+    tipos_equipo = (
+        TipoEquipo.query.filter_by(empresa_id=current_user.empresa_id)
+        .order_by(TipoEquipo.categoria_id, TipoEquipo.orden).all()
+    )
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        if not nombre:
+            flash("El formulario necesita un nombre.", "error")
+            return render_template("formulario_form.html", formulario=obj,
+                                   categorias=categorias, tipos_equipo=tipos_equipo)
+        if obj is None:
+            obj = TipoFormulario(empresa_id=current_user.empresa_id)
+            db.session.add(obj)
+
+        obj.nombre = nombre
+        obj.descripcion = (request.form.get("descripcion") or "").strip() or None
+        obj.categoria_id = request.form.get("categoria_id", type=int) or None
+        obj.por_equipo = bool(request.form.get("por_equipo"))
+        obj.tipo_equipo_id = (
+            request.form.get("tipo_equipo_id", type=int) if obj.por_equipo else None
+        ) or None
+        obj.frecuencia = (request.form.get("frecuencia") or "").strip() or None
+        obj.referencia_normativa = (request.form.get("referencia") or "").strip() or None
+        obj.orden = request.form.get("orden", type=int) or 0
+        obj.incluir_en_paquete = bool(request.form.get("incluir_en_paquete"))
+        db.session.flush()
+
+        _guardar_campos(obj)
+        db.session.commit()
+        flash(f"Formulario guardado con {len(obj.campos)} punto(s).", "ok")
+        return redirect(url_for("principal.catalogo"))
+
+    return render_template("formulario_form.html", formulario=obj,
+                           categorias=categorias, tipos_equipo=tipos_equipo)
+
+
+def _guardar_campos(formulario):
+    """Reescribe los campos desde el formulario.
+
+    Cada fila lleva su índice en el nombre (`clave_<idx>`) en vez de ir en
+    arrays paralelos: con arrays, una casilla sin marcar no se envía y las
+    columnas se desalinean en silencio.
+    """
+    existentes = {c.id: c for c in formulario.campos}
+    vistos = set()
+
+    for idx in request.form.getlist("idx"):
+        clave = (request.form.get(f"clave_{idx}") or "").strip()
+        label = (request.form.get(f"label_{idx}") or "").strip()
+        if not clave or not label:
+            continue  # fila vacía: se descarta sin ruido
+
+        # El índice de una fila existente ES su id. Se acepta también el
+        # campo oculto `id_<idx>`, pero no se depende de él: si faltara,
+        # el punto se recrearía y sus respuestas históricas quedarían
+        # colgando de una fila que ya no existe.
+        campo_id = request.form.get(f"id_{idx}", type=int)
+        if not campo_id and idx.isdigit():
+            campo_id = int(idx)
+        campo = existentes.get(campo_id) if campo_id else None
+        if campo is None:
+            campo = CampoFormulario(tipo_formulario_id=formulario.id)
+            db.session.add(campo)
+        else:
+            vistos.add(campo.id)
+
+        campo.clave = clave
+        campo.label = label
+        campo.tipo = request.form.get(f"tipo_{idx}") or CAMPO_ESTADO
+        campo.unidad = (request.form.get(f"unidad_{idx}") or "").strip() or None
+        campo.opciones_raw = (request.form.get(f"opciones_{idx}") or "").strip() or None
+        campo.con_estado = bool(request.form.get(f"con_estado_{idx}"))
+        campo.minimo = _numero(request.form.get(f"minimo_{idx}"))
+        campo.maximo = _numero(request.form.get(f"maximo_{idx}"))
+        campo.gravedad_fuera_rango = (
+            request.form.get(f"gravedad_{idx}") or GRAVEDAD_NO_CRITICA
+        )
+        campo.frecuencia = (request.form.get(f"frecuencia_{idx}") or "").strip() or None
+        campo.ayuda = (request.form.get(f"ayuda_{idx}") or "").strip() or None
+        campo.orden = request.form.get(f"orden_{idx}", type=int) or 0
+
+    # Un punto ya respondido no se borra: sus respuestas quedarían colgando
+    # y el histórico de esa inspección perdería sentido. Se avisa en vez de
+    # romper en silencio.
+    conservados = []
+    for campo_id, campo in existentes.items():
+        if campo_id in vistos:
+            continue
+        if Respuesta.query.filter_by(campo_id=campo_id).count():
+            conservados.append(campo.label)
+            continue
+        db.session.delete(campo)
+
+    if conservados:
+        flash(
+            "No se quitaron estos puntos porque ya tienen respuestas cargadas: "
+            + ", ".join(f"«{n}»" for n in conservados) + ".",
+            "error",
+        )
+
+
+@principal.route("/catalogo/<tipo>/<int:objeto_id>/borrar", methods=["POST"])
+@login_required
+def catalogo_borrar(tipo, objeto_id):
+    """Borra solo lo que no está en uso. Un tipo de equipo con equipos
+    cargados o un formulario ya usado en visitas no se puede borrar sin
+    romper el histórico: se avisa en vez de fallar."""
+    _solo_gestion()
+    modelos = {
+        "categoria": CategoriaEquipo,
+        "tipo-equipo": TipoEquipo,
+        "formulario": TipoFormulario,
+    }
+    modelo = modelos.get(tipo)
+    if modelo is None:
+        abort(404)
+    obj = db.session.get(modelo, objeto_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.empresa_id)
+
+    if tipo == "tipo-equipo":
+        usados = Equipo.query.filter_by(tipo_equipo_id=obj.id).count()
+        if usados:
+            flash(f"No se puede borrar: hay {usados} equipo(s) de este tipo cargados.", "error")
+            return redirect(url_for("principal.catalogo"))
+    elif tipo == "formulario":
+        usados = Formulario.query.filter_by(tipo_formulario_id=obj.id).count()
+        if usados:
+            flash(f"No se puede borrar: ya se cargó {usados} vez/veces en visitas.", "error")
+            return redirect(url_for("principal.catalogo"))
+    elif tipo == "categoria":
+        usados = TipoEquipo.query.filter_by(categoria_id=obj.id).count()
+        if usados:
+            flash(f"No se puede borrar: tiene {usados} tipo(s) de equipo.", "error")
+            return redirect(url_for("principal.catalogo"))
+
+    db.session.delete(obj)
+    db.session.commit()
+    flash("Eliminado del catálogo.", "ok")
+    return redirect(url_for("principal.catalogo"))
 
 
 @principal.route("/cuenta")

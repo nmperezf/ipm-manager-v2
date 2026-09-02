@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% set editando = tipo is not none %}
+{% block title %}{{ 'Editar tipo de equipo' if editando else 'Nuevo tipo de equipo' }} — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.catalogo') }}">Catálogo</a>
+  {{ ico('chevron') }}<b>{{ tipo.nombre if editando else 'Nuevo tipo de equipo' }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ 'Editar tipo de equipo' if editando else 'Nuevo tipo de equipo' }}</h2>
+    <span class="sub">
+      El tipo decide qué formularios se le cargan a un equipo en la visita.
+    </span>
+  </div>
+</div>
+
+<form method="post" style="max-width:680px">
+  <div class="card">
+    <div class="rejilla">
+      <label class="campo">
+        <span class="rotulo">Nombre <span class="req">*</span></span>
+        <input name="nombre" required autofocus
+               value="{{ tipo.nombre if editando else '' }}"
+               placeholder="Ej. Válvula de retención">
+      </label>
+
+      <label class="campo">
+        <span class="rotulo">Categoría</span>
+        <select name="categoria_id">
+          <option value="">— sin categoría —</option>
+          {% for c in categorias %}
+            <option value="{{ c.id }}"
+              {{ 'selected' if editando and tipo.categoria_id == c.id }}>{{ c.nombre }}</option>
+          {% endfor %}
+        </select>
+        <span class="nota">Sin categoría no se puede inspeccionar.</span>
+      </label>
+
+      <label class="campo">
+        <span class="rotulo">Cuelga de</span>
+        <select name="tipo_padre_id">
+          <option value="">— es independiente —</option>
+          {% for p in padres %}
+            <option value="{{ p.id }}"
+              {{ 'selected' if editando and tipo.tipo_padre_id == p.id }}>{{ p.nombre }}</option>
+          {% endfor %}
+        </select>
+        <span class="nota">Ej. un controlador cuelga de su bomba.</span>
+      </label>
+
+      <label class="campo">
+        <span class="rotulo">Orden</span>
+        <input name="orden" type="number" step="1" class="num"
+               value="{{ tipo.orden if editando else 0 }}">
+      </label>
+
+      <label class="fila ancho-total" style="gap:.5rem;cursor:pointer">
+        <input type="checkbox" name="encabeza_conjunto" value="1"
+               style="width:auto;min-height:auto"
+               {{ 'checked' if editando and tipo.encabeza_conjunto }}>
+        <span>
+          <b style="font-size:var(--t-base)">Encabeza conjunto</b>
+          <span class="nota" style="display:block">
+            Los equipos de este tipo arrastran a sus hijos en el checklist: el
+            técnico recorre la bomba con su controlador y su tanque, en vez de
+            todos los controladores juntos.
+          </span>
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <div class="fila">
+    <button class="btn" type="submit">{{ 'Guardar cambios' if editando else 'Crear' }}</button>
+    <a class="btn ghost" href="{{ url_for('principal.catalogo') }}">Cancelar</a>
+  </div>
+</form>
+
+{% if editando %}
+<form method="post" style="margin-top:1.2rem"
+      action="{{ url_for('principal.catalogo_borrar', tipo='tipo-equipo', objeto_id=tipo.id) }}"
+      onsubmit="return confirm('¿Eliminar este tipo de equipo del catálogo?')">
+  <button class="btn peligro sm" type="submit">Eliminar</button>
+  <span class="tiny" style="display:block;margin-top:.3rem">
+    Solo si no hay equipos cargados de este tipo.
+  </span>
+</form>
+{% endif %}
+{% endblock %}
