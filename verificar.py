@@ -15,7 +15,7 @@ from pathlib import Path
 from werkzeug.datastructures import MultiDict
 
 from app import crear_app
-from app.catalogo_seed import CATEGORIA, sembrar_demo
+from app.catalogo_seed import CATEGORIA, CATEGORIA_ECA, sembrar_demo
 from app.checklist import armar_bloques, guardar_checklist, nombre_campo
 from app.models import (
     CAMPO_SELECCION,
@@ -203,6 +203,59 @@ def main():
         check("Gravedad por defecto: no critica",
               bool(o4) and o4[0].clasificacion == CLASIF_NO_CRITICA,
               o4[0].clasificacion if o4 else "-")
+
+        print("\n8 - Estaciones de control y alarma: tres arquitecturas, un paquete")
+        cat_eca = CategoriaEquipo.query.filter_by(nombre=CATEGORIA_ECA).one()
+        inst_eca = (
+            Instalacion.query.join(Cliente)
+            .filter(Cliente.nombre == "Centro Comercial Sur").one()
+        )
+        visita = Visita(instalacion_id=inst_eca.id, fecha=date.today(), tecnico_id=tecnico.id)
+        db.session.add(visita)
+        db.session.flush()
+        item_eca = ItemVisita(visita_id=visita.id, categoria_id=cat_eca.id)
+        db.session.add(item_eca)
+        db.session.commit()
+
+        beca = armar_bloques(item_eca)
+        total = sum(len(b.secciones) for b in beca)
+        check("Cuarto de valvulas: 6 secciones", total == 6, f"bloques: {len(beca)}")
+
+        titulos = [b.titulo for b in beca]
+        check("Un bloque por estacion + el recinto", len(beca) == 4, " | ".join(titulos))
+
+        conj = {b.titulo: [s.tipo_formulario.nombre for s in b.secciones] for b in beca}
+        preaccion = next((v for k, v in conj.items() if "ECA-02" in k), [])
+        check("Preaccion: panel antes de la estacion",
+              preaccion == ["Panel de detección", "Estación de control de preacción"],
+              " -> ".join(preaccion))
+        seca = next((v for k, v in conj.items() if "ECA-03" in k), [])
+        check("Seca: estacion + compresor",
+              seca == ["Estación de control seca", "Compresor de aire"],
+              " -> ".join(seca))
+        humeda = next((v for k, v in conj.items() if "ECA-01" in k), [])
+        check("Humeda va sola - sin aire ni deteccion",
+              humeda == ["Estación de control húmeda"], " -> ".join(humeda))
+
+        print("\n8b - Un umbral propio de la categoria")
+        t_agua = CampoFormulario.query.filter_by(clave="tiempo_agua").one()
+        check("Llegada de agua: maximo 60 s", t_agua.maximo == 60)
+        check("75 s dispara deficiencia critica",
+              t_agua.fuera_de_rango(75) and t_agua.gravedad_fuera_rango == GRAVEDAD_CRITICA)
+        restablecimiento = CampoFormulario.query.filter_by(clave="restablecimiento").one()
+        check("Compresor: maximo 30 min", restablecimiento.maximo == 30)
+
+        print("\n8c - Las dos categorias no se mezclan")
+        item_bombas = item_para("Hospital Central", tecnico)
+        nombres_bombas = {
+            s.tipo_formulario.categoria.nombre
+            for b in armar_bloques(item_bombas) for s in b.secciones
+        }
+        nombres_eca = {
+            s.tipo_formulario.categoria.nombre for b in beca for s in b.secciones
+        }
+        check("Sala de bombas solo trae sus formularios", nombres_bombas == {CATEGORIA})
+        check("El cuarto de valvulas solo los suyos", nombres_eca == {CATEGORIA_ECA})
 
     print()
     if fallos:

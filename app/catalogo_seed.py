@@ -307,6 +307,237 @@ def sembrar_catalogo(empresa):
 
 
 # ---------------------------------------------------------------------------
+# Estaciones de control y alarma
+# ---------------------------------------------------------------------------
+
+CATEGORIA_ECA = "Estaciones de control y alarma"
+
+T_ECA_HUMEDA = "Estación de control húmeda"
+T_ECA_PREACCION = "Estación de control de preacción"
+T_ECA_SECA = "Estación de control seca"
+T_COMPRESOR = "Compresor de aire"
+T_PANEL = "Panel de detección"
+
+
+def sembrar_catalogo_eca(empresa):
+    """Categoría de estaciones de control y alarma.
+
+    Tres arquitecturas distintas de estación, cada una con su formulario:
+
+    - **Húmeda**: tubería siempre con agua. Lo que se prueba es el paso de
+      agua y que la alarma suene.
+    - **Preacción**: el agua no entra hasta que la detección lo ordena. Se
+      agrega todo lo que hace de gatillo: aire de supervisión, solenoide,
+      enclavamiento y el panel que lo comanda.
+    - **Seca**: el aire mantiene cerrada la válvula por diferencial. Se
+      agrega el agua de cebado, el dispositivo de apertura rápida y el
+      tiempo que tarda el agua en llegar a la conexión de prueba.
+
+    El panel de detección y el compresor se cargan como equipos hijos de su
+    estación, así el técnico los recorre en el mismo conjunto. El panel va
+    antes de la estación de preacción por el mismo criterio que el
+    controlador antes de su bomba: es lo que la comanda.
+    """
+    ya = CategoriaEquipo.query.filter_by(empresa_id=empresa.id, nombre=CATEGORIA_ECA).first()
+    if ya:
+        return ya
+
+    categoria = CategoriaEquipo(empresa_id=empresa.id, nombre=CATEGORIA_ECA, orden=20)
+    db.session.add(categoria)
+    db.session.flush()
+
+    def tipo_equipo(nombre, orden, encabeza=False):
+        te = TipoEquipo(
+            empresa_id=empresa.id, categoria_id=categoria.id, nombre=nombre,
+            orden=orden, encabeza_conjunto=encabeza,
+        )
+        db.session.add(te)
+        db.session.flush()
+        return te
+
+    te_humeda = tipo_equipo(T_ECA_HUMEDA, 10, encabeza=True)
+    te_preaccion = tipo_equipo(T_ECA_PREACCION, 20, encabeza=True)
+    te_seca = tipo_equipo(T_ECA_SECA, 30, encabeza=True)
+    te_compresor = tipo_equipo(T_COMPRESOR, 40)
+    te_panel = tipo_equipo(T_PANEL, 50)
+
+    # ---- 1 · Cuarto de válvulas (sala completa) --------------------------
+    _formulario(
+        empresa, categoria, "Condiciones del cuarto de válvulas", 10,
+        por_equipo=False, frecuencia="trimestral", referencia="NFPA 25 · cap. 5 y 13",
+        descripcion="Se carga una vez para todo el cuarto de válvulas.",
+        campos=[
+            _campo("temperatura", "Temperatura del local", CAMPO_NUMERO, 10,
+                   unidad="°C", minimo=4, gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Mín. 4 °C — por debajo congela el agua de cebado de secas y preacción"),
+            _campo("iluminacion", "Iluminación", CAMPO_ESTADO, 20),
+            _campo("acceso", "Acceso libre y despejado", CAMPO_ESTADO, 30),
+            _campo("identificacion", "Identificación de zonas y carteles", CAMPO_ESTADO, 40,
+                   ayuda="Cada estación rotulada con el área que cubre"),
+            _campo("planos", "Planos hidráulicos disponibles", CAMPO_ESTADO, 50),
+            _campo("drenaje", "Drenaje del piso", CAMPO_ESTADO, 60,
+                   ayuda="Con capacidad para el caudal del drenaje principal"),
+            _campo("observaciones", "Observaciones generales", CAMPO_TEXTO, 70,
+                   con_estado=False),
+        ],
+    )
+
+    # ---- 2 · Estación húmeda ---------------------------------------------
+    _formulario(
+        empresa, categoria, "Estación de control húmeda", 20,
+        tipo_equipo=te_humeda, frecuencia="trimestral", referencia="NFPA 25 · cap. 5 y 13",
+        descripcion="Tubería permanentemente con agua. Se verifica el paso de "
+                    "agua y que la alarma de flujo opere.",
+        campos=[
+            _campo("valvula_principal", "Válvula principal abierta y trabada",
+                   CAMPO_ESTADO, 10, gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Punto crítico: cerrada deja el sector sin protección"),
+            _campo("p_suministro", "Presión de suministro", CAMPO_NUMERO, 20, unidad="psi",
+                   ayuda="Manómetro por debajo de la válvula"),
+            _campo("p_sistema", "Presión del sistema", CAMPO_NUMERO, 30, unidad="psi",
+                   ayuda="Manómetro por encima de la válvula"),
+            _campo("manometros", "Manómetros dentro de fecha de calibración",
+                   CAMPO_ESTADO, 40),
+            _campo("fugas_trim", "Trim sin fugas", CAMPO_ESTADO, 50),
+            _campo("camara_retardo", "Cámara de retardo drena libremente",
+                   CAMPO_ESTADO, 60),
+            _campo("drenaje_estatica", "Drenaje principal — presión estática",
+                   CAMPO_NUMERO, 70, unidad="psi"),
+            _campo("drenaje_residual", "Drenaje principal — presión residual",
+                   CAMPO_NUMERO, 80, unidad="psi",
+                   ayuda="Una caída mayor a la histórica sugiere obstrucción"),
+            _campo("drenaje_restablecimiento", "Tiempo de restablecimiento",
+                   CAMPO_NUMERO, 90, unidad="s"),
+            _campo("alarma_tiempo", "Prueba de alarma — tiempo hasta que suena",
+                   CAMPO_NUMERO, 100, unidad="s", maximo=90,
+                   ayuda="Umbral a confirmar contra la edición vigente"),
+            _campo("gong", "Alarma hidráulica audible", CAMPO_ESTADO, 110),
+            _campo("presostato", "Presostato de flujo opera", CAMPO_ESTADO, 120),
+            _campo("drenaje_cerrado", "Válvula de drenaje cerrada al terminar",
+                   CAMPO_ESTADO, 130, gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Punto crítico: olvidarla abierta despresuriza el sistema"),
+        ],
+    )
+
+    # ---- 3 · Panel de detección — antes de la estación de preacción ------
+    _formulario(
+        empresa, categoria, "Panel de detección", 25,
+        tipo_equipo=te_panel, frecuencia="trimestral", referencia="NFPA 25 · cap. 13",
+        descripcion="Se carga antes de su estación: es lo que ordena el disparo, "
+                    "igual que el controlador respecto de su bomba.",
+        campos=[
+            _campo("sin_averias", "Panel sin averías ni señales de falla",
+                   CAMPO_ESTADO, 10, gravedad=GRAVEDAD_CRITICA),
+            _campo("bateria", "Tensión de batería de respaldo", CAMPO_NUMERO, 20, unidad="V"),
+            _campo("detectores", "Prueba de detectores de la zona", CAMPO_ESTADO, 30),
+            _campo("monitoreo", "Señal a central de monitoreo", CAMPO_ESTADO, 40),
+            _campo("enclavamiento", "Enclavamiento con la estación verificado",
+                   CAMPO_ESTADO, 50, gravedad=GRAVEDAD_CRITICA),
+        ],
+    )
+
+    # ---- 4 · Estación de preacción ---------------------------------------
+    _formulario(
+        empresa, categoria, "Estación de control de preacción", 30,
+        tipo_equipo=te_preaccion, frecuencia="trimestral", referencia="NFPA 25 · cap. 13",
+        descripcion="El agua no entra a la red hasta que la detección lo ordena. "
+                    "Se verifica toda la cadena de disparo.",
+        campos=[
+            _campo("enclavamiento", "Tipo de enclavamiento", CAMPO_SELECCION, 10,
+                   opciones=["Simple", "Doble", "No enclavado"],
+                   ayuda="Determina qué debe ocurrir para que entre el agua"),
+            _campo("valvula_principal", "Válvula principal abierta y trabada",
+                   CAMPO_ESTADO, 20, gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Punto crítico: cerrada deja el sector sin protección"),
+            _campo("p_suministro", "Presión de suministro", CAMPO_NUMERO, 30, unidad="psi"),
+            _campo("p_supervision", "Presión de aire de supervisión", CAMPO_NUMERO, 40,
+                   unidad="psi", ayuda="Contra el valor de diseño de la estación"),
+            _campo("agua_cebado", "Nivel de agua de cebado", CAMPO_ESTADO, 50,
+                   gravedad=GRAVEDAD_CRITICA),
+            _campo("manometros", "Manómetros dentro de fecha de calibración",
+                   CAMPO_ESTADO, 60),
+            _campo("trim", "Válvulas de trim en posición correcta", CAMPO_ESTADO, 70),
+            _campo("solenoide", "Solenoide acciona al recibir la señal",
+                   CAMPO_ESTADO, 80, gravedad=GRAVEDAD_CRITICA),
+            _campo("estacion_manual", "Estación manual de disparo", CAMPO_ESTADO, 90),
+            _campo("baja_presion", "Alarma de baja presión de aire — presión de disparo",
+                   CAMPO_NUMERO, 100, unidad="psi"),
+            _campo("tiempo_disparo", "Prueba de disparo — tiempo hasta apertura",
+                   CAMPO_NUMERO, 110, unidad="s"),
+            _campo("drenaje_estatica", "Drenaje principal — presión estática",
+                   CAMPO_NUMERO, 120, unidad="psi"),
+            _campo("drenaje_residual", "Drenaje principal — presión residual",
+                   CAMPO_NUMERO, 130, unidad="psi"),
+            _campo("alarma_flujo", "Alarma de flujo opera", CAMPO_ESTADO, 140),
+            _campo("reposicion", "Estación repuesta y en servicio al terminar",
+                   CAMPO_ESTADO, 150, gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Punto crítico: sin reponer, el sector queda sin protección"),
+        ],
+    )
+
+    # ---- 5 · Estación seca ------------------------------------------------
+    _formulario(
+        empresa, categoria, "Estación de control seca", 40,
+        tipo_equipo=te_seca, frecuencia="trimestral", referencia="NFPA 25 · cap. 13",
+        descripcion="El aire mantiene cerrada la válvula por diferencial de "
+                    "presión. Lo que más importa es el tiempo que tarda el agua "
+                    "en llegar al punto más lejano.",
+        campos=[
+            _campo("valvula_principal", "Válvula principal abierta y trabada",
+                   CAMPO_ESTADO, 10, gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Punto crítico: cerrada deja el sector sin protección"),
+            _campo("p_agua", "Presión de agua de suministro", CAMPO_NUMERO, 20, unidad="psi"),
+            _campo("p_aire", "Presión de aire del sistema", CAMPO_NUMERO, 30, unidad="psi"),
+            _campo("diferencial", "Relación aire/agua conforme al diferencial de diseño",
+                   CAMPO_ESTADO, 40, gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Aire insuficiente dispara la válvula sin incendio"),
+            _campo("agua_cebado", "Nivel de agua de cebado", CAMPO_ESTADO, 50,
+                   gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Punto crítico: sin cebado el asiento no sella"),
+            _campo("manometros", "Manómetros dentro de fecha de calibración",
+                   CAMPO_ESTADO, 60),
+            _campo("apertura_rapida", "Dispositivo de apertura rápida", CAMPO_ESTADO, 70,
+                   ayuda="Acelerador o exhaustor, si la estación lo tiene"),
+            _campo("baja_presion", "Alarma de baja presión de aire — presión de disparo",
+                   CAMPO_NUMERO, 80, unidad="psi"),
+            _campo("tiempo_disparo", "Prueba de disparo — tiempo hasta apertura",
+                   CAMPO_NUMERO, 90, unidad="s"),
+            _campo("tiempo_agua", "Tiempo de llegada de agua a la conexión de prueba",
+                   CAMPO_NUMERO, 100, unidad="s", maximo=60, gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Umbral a confirmar según el volumen del sistema"),
+            _campo("drenajes_bajos", "Drenajes de punto bajo purgados", CAMPO_ESTADO, 110,
+                   ayuda="El agua condensada acumulada congela y bloquea la red"),
+            _campo("camara_goteo", "Cámara de goteo purgada", CAMPO_ESTADO, 120),
+            _campo("drenaje_cerrado", "Válvula de drenaje cerrada al terminar",
+                   CAMPO_ESTADO, 130, gravedad=GRAVEDAD_CRITICA),
+            _campo("reposicion", "Estación repuesta y en servicio al terminar",
+                   CAMPO_ESTADO, 140, gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Punto crítico: sin reponer, el sector queda sin protección"),
+        ],
+    )
+
+    # ---- 6 · Compresor de aire — cuelga de secas y preacción -------------
+    _formulario(
+        empresa, categoria, "Compresor de aire", 45,
+        tipo_equipo=te_compresor, frecuencia="trimestral", referencia="NFPA 25 · cap. 13",
+        campos=[
+            _campo("p_arranque", "Presión de arranque", CAMPO_NUMERO, 10, unidad="psi"),
+            _campo("p_parada", "Presión de parada", CAMPO_NUMERO, 20, unidad="psi"),
+            _campo("restablecimiento", "Tiempo de restablecimiento de presión normal",
+                   CAMPO_NUMERO, 30, unidad="min", maximo=30,
+                   ayuda="Máx. 30 min — umbral a confirmar contra la edición vigente"),
+            _campo("presostato", "Presostato de control opera", CAMPO_ESTADO, 40),
+            _campo("filtro", "Filtro de aire", CAMPO_ESTADO, 50),
+            _campo("fugas", "Línea de aire sin fugas", CAMPO_ESTADO, 60,
+                   ayuda="Un compresor que arranca seguido delata una fuga"),
+        ],
+    )
+
+    db.session.commit()
+    return categoria
+
+
+# ---------------------------------------------------------------------------
 # Datos de demostración
 # ---------------------------------------------------------------------------
 
@@ -336,6 +567,7 @@ def sembrar_demo():
     db.session.flush()
 
     sembrar_catalogo(empresa)
+    sembrar_catalogo_eca(empresa)
 
     def te(nombre):
         return TipoEquipo.query.filter_by(empresa_id=empresa.id, nombre=nombre).one()
@@ -394,6 +626,19 @@ def sembrar_demo():
     equipo(c, te(T_TANQUE), "TQ-01", "Tanque de combustible", padre=c3)
     equipo(c, te(T_JOCKEY), "JK-01", "Bomba jockey", "Nivel -2")
     equipo(c, te(T_RESERVA), "RES-01", "Reserva de agua", "Azotea")
+
+    # --- Sala de válvulas con las tres arquitecturas de estación ---------
+    # Muestra que el mismo paquete se adapta: la húmeda va sola, la de
+    # preacción arrastra su panel de detección, y la seca su compresor.
+    d = instalacion("Centro Comercial Sur", "Cuarto de válvulas")
+    equipo(d, te(T_ECA_HUMEDA), "ECA-01", "Estación húmeda — locales planta baja",
+           "Cuarto de válvulas")
+    pre = equipo(d, te(T_ECA_PREACCION), "ECA-02", "Estación de preacción — sala de servidores",
+                 "Cuarto de válvulas")
+    equipo(d, te(T_PANEL), "PD-01", "Panel de detección — sala de servidores", padre=pre)
+    seca = equipo(d, te(T_ECA_SECA), "ECA-03", "Estación seca — playa de estacionamiento",
+                  "Cuarto de válvulas")
+    equipo(d, te(T_COMPRESOR), "CP-01", "Compresor de aire", padre=seca)
 
     db.session.commit()
     return empresa
