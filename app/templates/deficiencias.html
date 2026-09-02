@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Banco de deficiencias — IPM Manager v2{% endblock %}
+
+{% block content %}
+<h2>Banco de deficiencias</h2>
+<p class="muted">
+  El cliente solo ve las aprobadas. Las carga un técnico y las aprueba un jefe técnico —
+  salvo que la visita la haya hecho un jefe, en cuyo caso quedan aprobadas al guardar.
+</p>
+
+<p style="margin:.6rem 0 1rem">
+  <a class="btn ghost sm" href="{{ url_for('principal.deficiencias') }}">Todos</a>
+  {% for c in clientes %}
+    <a class="btn {{ '' if cliente_id == c.id else 'ghost' }} sm"
+       href="{{ url_for('principal.deficiencias', cliente_id=c.id) }}">{{ c.nombre }}</a>
+  {% endfor %}
+</p>
+
+<div class="tabla-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Clase</th><th>Descripción</th><th>Equipo</th>
+      <th>Fecha</th><th>Estado</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for o in observaciones %}
+    <tr>
+      <td>
+        {% if o.clasificacion == CLASIF_CRITICA %}
+          <span class="pill crit">Crítica</span>
+        {% elif o.clasificacion == 'Deficiencia no crítica' %}
+          <span class="pill nocrit">No crítica</span>
+        {% else %}
+          <span class="pill com">{{ o.clasificacion }}</span>
+        {% endif %}
+      </td>
+      <td>
+        {{ o.descripcion }}
+        <span class="tiny" style="display:block">{{ o.instalacion.cliente.nombre }} · {{ o.instalacion.nombre }}</span>
+      </td>
+      <td class="mono">{{ o.equipo.codigo if o.equipo and o.equipo.codigo else '—' }}</td>
+      <td class="mono">{{ o.fecha_carga.strftime('%d/%m/%y') }}</td>
+      <td>
+        {% if o.estado_revision == REVISION_APROBADA %}
+          <span class="pill ok">Aprobada</span>
+          {% if o.aprobacion_automatica %}
+            <span class="tiny" style="display:block">automática — la cargó un jefe</span>
+          {% elif o.aprobada_por %}
+            <span class="tiny" style="display:block">por {{ o.aprobada_por.nombre_completo }}</span>
+          {% endif %}
+        {% else %}
+          <span class="pill com">Pendiente</span>
+          <span class="tiny" style="display:block">el cliente no la ve</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if o.estado_revision != REVISION_APROBADA and current_user.puede_aprobar %}
+          <form method="post" action="{{ url_for('principal.aprobar', observacion_id=o.id) }}">
+            <button class="btn sm" type="submit">Aprobar</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">Todavía no hay deficiencias cargadas.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

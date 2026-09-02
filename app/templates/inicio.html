@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Instalaciones — IPM Manager v2{% endblock %}
+
+{% block content %}
+<h2>Instalaciones</h2>
+<p class="muted">
+  El mismo paquete de formularios produce un checklist distinto en cada sala,
+  según los equipos que tenga cargados.
+  {% if pendientes %}
+    · <a href="{{ url_for('principal.deficiencias') }}">{{ pendientes }} deficiencia(s) pendiente(s) de aprobación</a>
+  {% endif %}
+</p>
+
+{% for inst in instalaciones %}
+  {% set categorias = categorias_de(inst) %}
+  <div class="card">
+    <h3>{{ inst.cliente.nombre }}</h3>
+    <p class="muted" style="margin:.15rem 0 .5rem">
+      {{ inst.nombre }} ·
+      <span class="mono">{{ inst.equipos | selectattr('activo') | list | length }}</span> equipos
+    </p>
+
+    {% if categorias %}
+      {% for categoria in categorias %}
+        <form method="post"
+              action="{{ url_for('principal.abrir_inspeccion', instalacion_id=inst.id, categoria_id=categoria.id) }}"
+              style="display:inline">
+          <button class="btn sm" type="submit">Inspeccionar {{ categoria.nombre }}</button>
+        </form>
+      {% endfor %}
+    {% else %}
+      <p class="tiny">Sin equipos cargados — no hay nada que inspeccionar todavía.</p>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="card">
+    <h3>Todavía no hay instalaciones</h3>
+    <p class="muted" style="margin:.4rem 0 0">
+      Corré <span class="mono">flask seed</span> para cargar el catálogo y las salas de ejemplo.
+    </p>
+  </div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% set inst = item.visita.instalacion %}
+{% block title %}{{ item.categoria.nombre }} — {{ inst.nombre }}{% endblock %}
+
+{% block content %}
+<p class="crumbs">
+  <a href="{{ url_for('principal.inicio') }}">Instalaciones</a> ›
+  {{ inst.cliente.nombre }} › {{ inst.nombre }} › <b>{{ item.categoria.nombre }}</b>
+</p>
+
+<h2>{{ item.categoria.nombre }}</h2>
+<p class="muted">
+  Visita del {{ item.visita.fecha.strftime('%d/%m/%Y') }} ·
+  {{ item.visita.tecnico.nombre_completo if item.visita.tecnico else 'sin técnico' }}
+  {% if current_user.puede_aprobar %}
+    · <span class="tiny">las deficiencias que cargues quedan aprobadas automáticamente</span>
+  {% endif %}
+</p>
+
+{% if not bloques %}
+  <div class="card">
+    <h3>No hay nada que inspeccionar acá</h3>
+    <p class="muted" style="margin:.4rem 0 0">
+      Esta instalación no tiene equipos cargados de los tipos que cubre
+      «{{ item.categoria.nombre }}». Cargá los equipos y el checklist aparece solo.
+    </p>
+  </div>
+{% endif %}
+
+<form method="post" novalidate>
+{% for bloque in bloques %}
+  <section class="bloque">
+    <header>
+      <b>{{ bloque.titulo }}</b>
+      <span class="sub">{{ bloque.subtitulo }}</span>
+    </header>
+
+    {% for seccion in bloque.secciones %}
+      {% set tipo = seccion.tipo_formulario %}
+      {% set equipo = seccion.equipo %}
+      <div class="seccion">
+        <h4>{{ tipo.nombre }}</h4>
+        <div class="meta">
+          {% if equipo %}{{ equipo.etiqueta }} · {% endif %}
+          {{ tipo.frecuencia or 'sin frecuencia' }}
+          {% if tipo.referencia_normativa %} · {{ tipo.referencia_normativa }}{% endif %}
+        </div>
+
+        {% for campo in tipo.campos %}
+          {% set r = seccion.respuestas.get(campo.id) %}
+          {% set es_nc = r and r.estado == ESTADO_NO_CONFORME %}
+          <div class="punto {{ 'no-conforme' if es_nc }}">
+            <span class="lbl">{{ campo.label }}</span>
+            {% if campo.ayuda %}<span class="ayuda">{{ campo.ayuda }}</span>{% endif %}
+
+            {# --- el valor, según el tipo de campo --- #}
+            {% if campo.tipo == CAMPO_NUMERO %}
+              <input type="number" step="any" inputmode="decimal"
+                     name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
+                     value="{{ r.valor_numero if r and r.valor_numero is not none else '' }}"
+                     aria-label="{{ campo.label }}">
+              {% if campo.unidad or campo.tiene_rango %}
+                <span class="rango">
+                  {%- if campo.unidad %}{{ campo.unidad }}{% endif -%}
+                  {%- if campo.tiene_rango %} · esperado {{ campo.texto_rango() }}{% endif -%}
+                </span>
+              {% endif %}
+
+            {% elif campo.tipo == CAMPO_SELECCION %}
+              <select name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}" aria-label="{{ campo.label }}">
+                <option value="">— elegir —</option>
+                {% for opcion in campo.opciones %}
+                  <option value="{{ opcion }}" {{ 'selected' if r and r.valor_texto == opcion }}>{{ opcion }}</option>
+                {% endfor %}
+              </select>
+
+            {% elif campo.tipo == CAMPO_MULTI %}
+              {% set puestas = (r.valor_texto or '').split(' | ') if r else [] %}
+              {% for opcion in campo.opciones %}
+                <label class="tiny">
+                  <input type="checkbox" name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
+                         value="{{ opcion }}" {{ 'checked' if opcion in puestas }}> {{ opcion }}
+                </label>
+              {% endfor %}
+
+            {% elif campo.tipo != CAMPO_ESTADO %}
+              <textarea rows="2" name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
+                        aria-label="{{ campo.label }}">{{ r.valor_texto if r else '' }}</textarea>
+            {% endif %}
+
+            {# --- conforme / no conforme / n-a --- #}
+            {% if campo.lleva_estado %}
+              {% set n_estado = nombre_campo(tipo, equipo, campo, 'estado') %}
+              <div class="tri">
+                <label>
+                  <input type="radio" name="{{ n_estado }}" value="{{ ESTADO_CONFORME }}"
+                         data-estado="{{ ESTADO_CONFORME }}"
+                         {{ 'checked' if r and r.estado == ESTADO_CONFORME }}>
+                  <span class="ok">Conforme</span>
+                </label>
+                <label>
+                  <input type="radio" name="{{ n_estado }}" value="{{ ESTADO_NO_CONFORME }}"
+                         data-estado="{{ ESTADO_NO_CONFORME }}" {{ 'checked' if es_nc }}>
+                  <span class="no">No conforme</span>
+                </label>
+                <label>
+                  <input type="radio" name="{{ n_estado }}" value="{{ ESTADO_NA }}"
+                         data-estado="{{ ESTADO_NA }}"
+                         {{ 'checked' if r and r.estado == ESTADO_NA }}>
+                  <span class="na">N/A</span>
+                </label>
+              </div>
+
+              {# Solo visible con No conforme. La gravedad es lo que decide
+                 si la observación entra al banco como crítica o no crítica. #}
+              <div class="detalle">
+                <span class="lbl-nc">Comentario · obligatorio</span>
+                <textarea rows="2" data-comentario
+                          name="{{ nombre_campo(tipo, equipo, campo, 'comentario') }}"
+                          {{ 'required' if es_nc }}
+                          placeholder="Qué encontraste">{{ r.comentario if r else '' }}</textarea>
+                <span class="lbl-nc">Gravedad</span>
+                {% set n_grav = nombre_campo(tipo, equipo, campo, 'gravedad') %}
+                <div class="grav">
+                  <label>
+                    <input type="radio" name="{{ n_grav }}" value="{{ GRAVEDAD_CRITICA }}"
+                           {{ 'checked' if r and r.gravedad == GRAVEDAD_CRITICA }}>
+                    <span class="crit">Crítica</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="{{ n_grav }}" value="{{ GRAVEDAD_NO_CRITICA }}"
+                           {{ 'checked' if not r or r.gravedad != GRAVEDAD_CRITICA }}>
+                    <span class="nocrit">No crítica</span>
+                  </label>
+                </div>
+                {% if r and r.disparo_automatico %}
+                  <span class="tiny">Marcado solo por estar fuera del rango esperado.</span>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </section>
+{% endfor %}
+
+{% if bloques %}
+  <div class="barra-guardar">
+    <button class="btn" type="submit">Guardar checklist</button>
+  </div>
+{% endif %}
+</form>
+{% endblock %}
