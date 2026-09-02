@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% set editando = contrato is not none %}
+{% block title %}{{ 'Editar contrato' if editando else 'Nuevo contrato' }} — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.clientes') }}">Clientes</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.cliente', cliente_id=instalacion.cliente_id) }}">{{ instalacion.cliente.nombre }}</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.instalacion', instalacion_id=instalacion.id) }}">{{ instalacion.nombre }}</a>
+  {{ ico('chevron') }}<b>{{ 'Editar contrato' if editando else 'Nuevo contrato' }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ 'Editar contrato' if editando else 'Nuevo contrato' }}</h2>
+    <span class="sub">{{ instalacion.cliente.nombre }} · {{ instalacion.nombre }}</span>
+  </div>
+</div>
+
+<form method="post">
+  <div class="card">
+    <h3 style="margin-bottom:.7rem">Vigencia</h3>
+    <div class="rejilla">
+      <label class="campo">
+        <span class="rotulo">Desde</span>
+        <input type="date" name="desde"
+               value="{{ contrato.desde.isoformat() if editando else '' }}">
+      </label>
+      <label class="campo">
+        <span class="rotulo">Hasta</span>
+        <input type="date" name="hasta"
+               value="{{ contrato.hasta.isoformat() if editando and contrato.hasta else '' }}">
+        <span class="nota">Vacío = sin vencimiento</span>
+      </label>
+      <label class="campo ancho-total">
+        <span class="rotulo">Notas</span>
+        <textarea name="notas" rows="2">{{ contrato.notas if editando and contrato.notas else '' }}</textarea>
+      </label>
+      <label class="fila ancho-total" style="gap:.5rem;cursor:pointer">
+        <input type="checkbox" name="activo" value="1" style="width:auto;min-height:auto"
+               {{ 'checked' if not editando or contrato.activo }}>
+        <span class="rotulo">Contrato activo</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="fila" style="margin-bottom:.5rem">
+      <h3>Categorías cubiertas</h3>
+      <span class="sp"></span>
+      <span class="tiny">El mes ancla define el calendario</span>
+    </div>
+    <p class="muted" style="margin-bottom:.8rem">
+      El contrato no declara una frecuencia. Las rutinas son acumulativas y cada
+      categoría tiene varias cadencias según la norma, así que basta con decir
+      <b>desde qué mes arranca el ciclo</b>: el resto sale del catálogo.
+    </p>
+
+    <div class="stack">
+      {% for cat in categorias %}
+        {% set ns = namespace(servicio=None) %}
+        {% for s in (contrato.servicios if editando else []) %}
+          {% if s.categoria_id == cat.id %}{% set ns.servicio = s %}{% endif %}
+        {% endfor %}
+        {% set marcada = ns.servicio is not none %}
+
+        <div class="card" style="margin:0;background:var(--surface-muted)">
+          <div class="fila">
+            <label class="fila" style="gap:.5rem;flex:1;min-width:12rem;cursor:pointer">
+              <input type="checkbox" name="categoria" value="{{ cat.id }}"
+                     style="width:auto;min-height:auto" {{ 'checked' if marcada }}>
+              <b style="font-family:var(--display);font-size:var(--t-med)">{{ cat.nombre }}</b>
+            </label>
+            <label class="campo" style="min-width:10rem">
+              <span class="rotulo">Mes ancla</span>
+              <select name="ancla_{{ cat.id }}">
+                {% for m in range(1, 13) %}
+                  {% set puesto = ns.servicio.mes_ancla if marcada else 1 %}
+                  <option value="{{ m }}" {{ 'selected' if m == puesto }}>
+                    {{ MESES[m] | capitalize }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+
+          {# La predicción, visible antes de guardar nada. #}
+          {% if marcada and calendarios.get(cat.id) %}
+            <div class="tiny" style="margin-top:.6rem">Calendario {{ anio }}</div>
+            <div class="fila" style="gap:.25rem;margin-top:.3rem">
+              {% for m, rutina in calendarios[cat.id] %}
+                <span class="pill {{ 'crit' if rutina == 'anual' else ('nocrit' if rutina == 'semestral' else ('com' if rutina else '')) }}"
+                      title="{{ MESES[m] | capitalize }}: {{ rutina or 'sin visita' }}"
+                      style="{{ 'opacity:.35' if not rutina }}">
+                  {{ MESES[m][:3] }}{% if rutina %} · {{ rutina[:3] }}{% endif %}
+                </span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      {% else %}
+        <p class="muted" style="margin:0">
+          No hay categorías en el catálogo. Cargalas antes de armar el contrato.
+        </p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="fila">
+    <button class="btn" type="submit">{{ 'Guardar cambios' if editando else 'Crear contrato' }}</button>
+    <a class="btn ghost" href="{{ url_for('principal.instalacion', instalacion_id=instalacion.id) }}">
+      Cancelar</a>
+  </div>
+</form>
+
+{% if editando %}
+<form method="post" action="{{ url_for('principal.contrato_baja', contrato_id=contrato.id) }}"
+      style="margin-top:1.2rem"
+      onsubmit="return confirm('¿Dar de baja el contrato? Deja de generar pendientes de coordinación.')">
+  <button class="btn peligro sm" type="submit">Dar de baja</button>
+  <span class="tiny" style="display:block;margin-top:.3rem">
+    Las visitas ya hechas se conservan. Solo deja de aparecer en coordinación.
+  </span>
+</form>
+{% endif %}
+{% endblock %}

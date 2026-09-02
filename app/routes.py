@@ -4,7 +4,8 @@ Estructura del CMMS: panorama, clientes e instalaciones, visitas con su
 checklist, banco de deficiencias y catálogo de la empresa.
 """
 
-from datetime import date, timedelta
+from calendar import monthrange
+from datetime import date, datetime, timedelta
 
 from flask import (
     Blueprint, abort, flash, redirect, render_template, request, url_for
@@ -13,6 +14,13 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import or_
 
 from app.checklist import armar_bloques, guardar_checklist, nombre_campo
+from app.planificacion import (
+    MESES,
+    calendario_anual,
+    categorias_disponibles,
+    coordinar,
+    pendientes_del_mes,
+)
 from app.models import (
     CAMPO_ESTADO,
     CAMPO_MULTI,
@@ -37,11 +45,13 @@ from app.models import (
     OT_PREVENTIVO,
     CategoriaEquipo,
     Cliente,
+    Contrato,
     Equipo,
     Instalacion,
     ItemVisita,
     Observacion,
     OrdenTrabajo,
+    ServicioContrato,
     TipoEquipo,
     TipoFormulario,
     Usuario,
@@ -317,6 +327,159 @@ def abrir_inspeccion(instalacion_id, categoria_id):
 
 
 # ---------------------------------------------------------------------------
+# Contratos
+# ---------------------------------------------------------------------------
+
+
+@principal.route("/instalacion/<int:instalacion_id>/contrato", methods=["GET", "POST"])
+@login_required
+def contrato_nuevo(instalacion_id):
+    _solo_gestion()
+    inst = db.session.get(Instalacion, instalacion_id)
+    if inst is None:
+        abort(404)
+    _verificar_empresa(inst.cliente.empresa_id)
+    return _guardar_contrato(inst, None)
+
+
+@principal.route("/contrato/<int:contrato_id>/editar", methods=["GET", "POST"])
+@login_required
+def contrato_editar(contrato_id):
+    _solo_gestion()
+    obj = db.session.get(Contrato, contrato_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.instalacion.cliente.empresa_id)
+    return _guardar_contrato(obj.instalacion, obj)
+
+
+def _guardar_contrato(inst, contrato):
+    categorias = categorias_disponibles(current_user.empresa_id)
+
+    if request.method == "POST":
+        if contrato is None:
+            contrato = Contrato(instalacion_id=inst.id)
+            db.session.add(contrato)
+
+        contrato.desde = _fecha(request.form.get("desde")) or date.today()
+        contrato.hasta = _fecha(request.form.get("hasta"))
+        contrato.activo = bool(request.form.get("activo"))
+        contrato.notas = (request.form.get("notas") or "").strip() or None
+        db.session.flush()
+
+        # Las categorías cubiertas se reescriben enteras: es más simple que
+        # diferenciar altas y bajas, y el servicio no guarda historia propia.
+        existentes = {s.categoria_id: s for s in contrato.servicios}
+        marcadas = set(request.form.getlist("categoria", type=int))
+        for cat_id in marcadas:
+            ancla = request.form.get(f"ancla_{cat_id}", type=int) or 1
+            ancla = min(12, max(1, ancla))
+            if cat_id in existentes:
+                existentes[cat_id].mes_ancla = ancla
+            else:
+                db.session.add(ServicioContrato(
+                    contrato_id=contrato.id, categoria_id=cat_id, mes_ancla=ancla))
+        for cat_id, servicio in existentes.items():
+            if cat_id not in marcadas:
+                db.session.delete(servicio)
+
+        db.session.commit()
+        flash("Contrato guardado. El calendario se recalcula solo.", "ok")
+        return redirect(url_for("principal.instalacion", instalacion_id=inst.id))
+
+    anio = date.today().year
+    calendarios = {
+        s.categoria_id: calendario_anual(s, anio) for s in (contrato.servicios if contrato else [])
+    }
+    return render_template(
+        "contrato_form.html", instalacion=inst, contrato=contrato,
+        categorias=categorias, calendarios=calendarios, anio=anio, MESES=MESES,
+    )
+
+
+@principal.route("/contrato/<int:contrato_id>/baja", methods=["POST"])
+@login_required
+def contrato_baja(contrato_id):
+    _solo_gestion()
+    obj = db.session.get(Contrato, contrato_id)
+    if obj is None:
+        abort(404)
+    inst = obj.instalacion
+    _verificar_empresa(inst.cliente.empresa_id)
+    obj.activo = False
+    db.session.commit()
+    flash("Contrato dado de baja. Deja de generar pendientes.", "ok")
+    return redirect(url_for("principal.instalacion", instalacion_id=inst.id))
+
+
+# ---------------------------------------------------------------------------
+# Coordinación
+# ---------------------------------------------------------------------------
+
+
+@principal.route("/coordinacion")
+@login_required
+def coordinacion():
+    """Lo que los contratos mandan hacer este mes y todavía no se hizo.
+
+    No hay tabla de solicitudes: se calcula. Cambiar un contrato se refleja
+    en el acto y no queda nada viejo dando vueltas.
+    """
+    _solo_gestion()
+    hoy = date.today()
+    anio = request.args.get("anio", type=int) or hoy.year
+    mes = request.args.get("mes", type=int) or hoy.month
+    mes = min(12, max(1, mes))
+
+    pendientes = pendientes_del_mes(current_user.empresa_id, anio, mes)
+    tecnicos = (
+        Usuario.query.filter_by(empresa_id=current_user.empresa_id, activo=True)
+        .filter(Usuario.rol.in_(("Técnico", "Jefe técnico")))
+        .order_by(Usuario.nombre_completo).all()
+    )
+    # Lo ya coordinado del mes, para no dejar la pantalla en blanco cuando
+    # se terminó de coordinar todo.
+    primero = date(anio, mes, 1)
+    ultimo = date(anio, mes, monthrange(anio, mes)[1])
+    coordinadas = (
+        _ordenes_empresa()
+        .filter(Visita.fecha >= primero, Visita.fecha <= ultimo)
+        .order_by(Visita.fecha).all()
+    )
+
+    return render_template(
+        "coordinacion.html", pendientes=pendientes, coordinadas=coordinadas,
+        tecnicos=tecnicos, anio=anio, mes=mes, MESES=MESES,
+        hoy=hoy, sugerida=max(hoy, primero) if hoy <= ultimo else primero,
+    )
+
+
+@principal.route("/coordinar/<int:servicio_id>", methods=["POST"])
+@login_required
+def coordinar_servicio(servicio_id):
+    _solo_gestion()
+    servicio = db.session.get(ServicioContrato, servicio_id)
+    if servicio is None:
+        abort(404)
+    _verificar_empresa(servicio.contrato.instalacion.cliente.empresa_id)
+
+    fecha = _fecha(request.form.get("fecha"))
+    if fecha is None:
+        flash("Hace falta una fecha para coordinar.", "error")
+        return redirect(request.referrer or url_for("principal.coordinacion"))
+
+    rutina = request.form.get("rutina") or FRECUENCIA_MENSUAL
+    tecnico = db.session.get(Usuario, request.form.get("tecnico_id", type=int) or 0)
+    if tecnico and tecnico.empresa_id != current_user.empresa_id:
+        tecnico = None
+
+    orden = coordinar(servicio, fecha, rutina, tecnico, current_user.empresa_id)
+    flash(f"{orden.numero} creada para el {fecha.strftime('%d/%m/%Y')}.", "ok")
+    return redirect(url_for("principal.coordinacion",
+                            anio=fecha.year, mes=fecha.month))
+
+
+# ---------------------------------------------------------------------------
 # Órdenes de trabajo
 # ---------------------------------------------------------------------------
 
@@ -395,6 +558,17 @@ def orden_estado(orden_id):
 def _solo_gestion():
     if not current_user.puede_aprobar:
         abort(403)
+
+
+def _fecha(valor):
+    """Los <input type=date> llegan como aaaa-mm-dd, o vacíos."""
+    valor = (valor or "").strip()
+    if not valor:
+        return None
+    try:
+        return datetime.strptime(valor, "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def _numero(valor):

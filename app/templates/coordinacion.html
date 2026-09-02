@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Coordinación — IPM Manager v2{% endblock %}
+
+{% set mes_ant = 12 if mes == 1 else mes - 1 %}
+{% set anio_ant = anio - 1 if mes == 1 else anio %}
+{% set mes_sig = 1 if mes == 12 else mes + 1 %}
+{% set anio_sig = anio + 1 if mes == 12 else anio %}
+
+{% block migas %}
+<nav class="migas"><b>Coordinación</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ MESES[mes] | capitalize }} {{ anio }}</h2>
+    <span class="sub">
+      Lo que los contratos mandan hacer este mes. Se calcula: cambiar un contrato
+      se refleja en el acto.
+    </span>
+  </div>
+  <span class="sp"></span>
+  <a class="btn ghost sm" href="{{ url_for('principal.coordinacion', anio=anio_ant, mes=mes_ant) }}">
+    ← {{ MESES[mes_ant] | capitalize }}</a>
+  <a class="btn ghost sm" href="{{ url_for('principal.coordinacion') }}">Hoy</a>
+  <a class="btn ghost sm" href="{{ url_for('principal.coordinacion', anio=anio_sig, mes=mes_sig) }}">
+    {{ MESES[mes_sig] | capitalize }} →</a>
+</div>
+
+<div class="seccion-tit">
+  <h3>A coordinar</h3>
+  <span class="pill {{ 'nocrit' if pendientes else 'ok' }}">{{ pendientes|length }}</span>
+  <span class="linea"></span>
+</div>
+
+{% for p in pendientes %}
+  <div class="card destacada">
+    <form method="post" action="{{ url_for('principal.coordinar_servicio', servicio_id=p.servicio.id) }}"
+          class="fila">
+      <span class="chip neu">{{ ico('visitas') }}</span>
+      <div style="flex:1;min-width:14rem">
+        <b style="font-family:var(--display);font-size:var(--t-med);display:block">
+          {{ p.instalacion.cliente.nombre }} · {{ p.instalacion.nombre }}</b>
+        <span class="tiny">
+          {{ p.categoria.nombre }} ·
+          {# La rutina no se elige a dedo: sale del mes ancla del contrato
+             cruzado con las cadencias del catálogo. #}
+          rutina <b>{{ p.rutina }}</b> según contrato
+        </span>
+      </div>
+
+      <label class="campo" style="min-width:9rem">
+        <span class="rotulo">Fecha acordada</span>
+        <input type="date" name="fecha" required value="{{ sugerida.isoformat() }}">
+      </label>
+
+      <label class="campo" style="min-width:9rem">
+        <span class="rotulo">Rutina</span>
+        <select name="rutina">
+          {% for f in FRECUENCIAS %}
+            {% if f in ('mensual', 'trimestral', 'semestral', 'anual') %}
+              <option value="{{ f }}" {{ 'selected' if f == p.rutina }}>{{ f }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="campo" style="min-width:10rem">
+        <span class="rotulo">Técnico</span>
+        <select name="tecnico_id">
+          <option value="">— sin asignar —</option>
+          {% for t in tecnicos %}
+            <option value="{{ t.id }}">{{ t.nombre_completo or t.username }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <button class="btn" type="submit">Confirmar</button>
+    </form>
+  </div>
+{% else %}
+  <div class="vacio">
+    <span class="chip ok">{{ ico('check') }}</span>
+    <b>Nada pendiente de coordinar</b>
+    <p>
+      O ya está todo coordinado, o los contratos no mandan trabajo este mes.
+      Probá con {{ MESES[mes_sig] }}.
+    </p>
+  </div>
+{% endfor %}
+
+<div class="card">
+  <h3>Qué pasa al confirmar</h3>
+  <p class="muted" style="margin:.4rem 0 0">
+    Un click crea las tres cosas: la <b>visita</b> con la fecha acordada, su
+    <b>ítem</b> en la rutina que corresponde, y la <b>orden de trabajo</b> numerada
+    con la que el técnico llega directo al checklist.
+  </p>
+</div>
+
+{% if coordinadas %}
+<div class="seccion-tit">
+  <h3>Ya coordinado en {{ MESES[mes] }}</h3>
+  <span class="pill ok">{{ coordinadas|length }}</span>
+  <span class="linea"></span>
+</div>
+
+<div class="stack">
+  {% for o in coordinadas %}
+    <a class="item" href="{{ url_for('principal.orden', orden_id=o.id) }}">
+      <span class="chip ok">{{ ico('check') }}</span>
+      <span class="t">
+        <b><span class="mono">{{ o.numero }}</span> ·
+           {{ o.visita.instalacion.cliente.nombre }} · {{ o.visita.instalacion.nombre }}</b>
+        <span>
+          {{ o.visita.fecha.strftime('%d/%m/%Y') }} ·
+          {{ o.tecnico.nombre_completo if o.tecnico else 'sin asignar' }}
+          {%- for i in o.visita.items %} · {{ i.categoria.nombre }} ({{ i.rutina }}){% endfor %}
+        </span>
+      </span>
+      <span class="pill com">{{ o.estado }}</span>
+      {{ ico('chevron') }}
+    </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -315,6 +315,61 @@ def main():
         check("Sala de bombas solo trae sus formularios", nombres_bombas == {CATEGORIA})
         check("El cuarto de valvulas solo los suyos", nombres_eca == {CATEGORIA_ECA})
 
+        print("\n10 - Calendario predictivo: se calcula, no se guarda")
+        from app.planificacion import (
+            frecuencias_de_categoria, rutina_del_mes, pendientes_del_mes, coordinar)
+        from app.models import Contrato, ServicioContrato
+
+        frecs_eca = frecuencias_de_categoria(cat_eca.id)
+        check("ECA declara mensual, semestral y anual",
+              frecs_eca == ["mensual", "semestral", "anual"], ", ".join(frecs_eca))
+
+        # Ancla en marzo: la anual cae en marzo y la semestral seis meses despues.
+        check("Ancla marzo: marzo da anual",
+              rutina_del_mes(3, 2026, 3, frecs_eca) == "anual")
+        check("Ancla marzo: septiembre da semestral",
+              rutina_del_mes(3, 2026, 9, frecs_eca) == "semestral")
+        check("Ancla marzo: abril da mensual",
+              rutina_del_mes(3, 2026, 4, frecs_eca) == "mensual")
+        check("La acumulativa gana: nunca devuelve la menor si cae una mayor",
+              rutina_del_mes(1, 2026, 1, frecs_eca) == "anual")
+
+        # El seed ya deja un contrato para el cuarto de válvulas con ancla en
+        # marzo. Se usa ese en vez de inventar otro: así se verifica también
+        # que el seed quedó bien armado.
+        contrato = Contrato.query.filter_by(instalacion_id=inst_eca.id).one()
+        servicio = contrato.servicios[0]
+        check("El seed dejó el contrato con ancla en marzo", servicio.mes_ancla == 3)
+
+        def suyos(anio, mes):
+            """Solo los pendientes de esta instalación: las otras del seed
+            tienen sus propios contratos y ensuciarían el conteo."""
+            return [p for p in pendientes_del_mes(empresa.id, anio, mes)
+                    if p["instalacion"].id == inst_eca.id]
+
+        pend = suyos(2027, 3)
+        check("El contrato genera pendiente en marzo", len(pend) == 1)
+        check("Con la rutina anual", bool(pend) and pend[0]["rutina"] == "anual",
+              pend[0]["rutina"] if pend else "-")
+
+        pend9 = suyos(2027, 9)
+        check("Y semestral en septiembre",
+              bool(pend9) and pend9[0]["rutina"] == "semestral",
+              pend9[0]["rutina"] if pend9 else "-")
+
+        orden = coordinar(servicio, date(2027, 3, 10), "anual", tecnico, empresa.id)
+        # La OT se numera por su año de apertura (hoy), no por la fecha
+        # acordada: es el número con el que se abre el trabajo.
+        check("Coordinar crea la OT numerada",
+              orden.numero.startswith(f"OT-{date.today().year}-"), orden.numero)
+        check("Con su visita en la fecha acordada", orden.visita.fecha == date(2027, 3, 10))
+        check("Y su item en la rutina correcta", orden.visita.items[0].rutina == "anual")
+        check("Marzo deja de estar pendiente", len(suyos(2027, 3)) == 0)
+
+        contrato.activo = False
+        db.session.commit()
+        check("Contrato de baja: deja de generar pendientes", len(suyos(2027, 9)) == 0)
+
     print()
     if fallos:
         print(f"FALLARON {len(fallos)}: " + "; ".join(fallos))

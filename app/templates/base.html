@@ -28,6 +28,7 @@
 {%- elif nombre == 'reloj' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.5 2"/>
 {%- elif nombre == 'salir' %}<path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 8l-4 4 4 4M6 12h11"/>
 {%- elif nombre == 'mas' %}<path d="M12 5v14M5 12h14"/>
+{%- elif nombre == 'calendario' %}<rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M8 3v4M16 3v4"/><circle cx="9" cy="14.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="14.5" r="1.2" fill="currentColor" stroke="none"/>
 {%- elif nombre == 'chevron' %}<path d="M9 5l7 7-7 7"/>
 {%- endif %}
 </svg>
@@ -45,6 +46,10 @@
       {{ ico('inicio') }}Inicio</a>
 
     <div class="grupo">Operación</div>
+    {% if gestion %}
+    <a class="nav {{ 'on' if ep == 'principal.coordinacion' }}"
+       href="{{ url_for('principal.coordinacion') }}">{{ ico('calendario') }}Coordinación</a>
+    {% endif %}
     <a class="nav {{ 'on' if ep in ('principal.ordenes', 'principal.orden', 'principal.checklist') }}"
        href="{{ url_for('principal.ordenes') }}">{{ ico('orden') }}Órdenes de trabajo</a>
     <a class="nav {{ 'on' if ep in ('principal.visitas', 'principal.visita') }}"

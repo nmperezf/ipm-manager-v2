@@ -10,6 +10,8 @@ la que se certifica — en particular la de bombas eléctricas, que pasó de
 semanal a mensual en ediciones recientes.
 """
 
+from datetime import date
+
 from app.models import (
     CAMPO_ESTADO,
     CAMPO_NUMERO,
@@ -23,9 +25,11 @@ from app.models import (
     CampoFormulario,
     CategoriaEquipo,
     Cliente,
+    Contrato,
     Empresa,
     Equipo,
     Instalacion,
+    ServicioContrato,
     TipoEquipo,
     TipoFormulario,
     Usuario,
@@ -694,6 +698,24 @@ def sembrar_demo():
     dil = equipo(d, te(T_ECA_DILUVIO), "ECA-03", "Estación de diluvio — playa de carga",
                  "Cuarto de válvulas")
     equipo(d, te(T_PANEL), "PD-02", "Panel de detección — playa de carga", padre=dil)
+
+    # --- contratos: es lo que hace predecible el calendario ---
+    # Sin contrato, cada inspección hay que arrancarla a mano.
+    def contratar(inst, *categorias_y_anclas):
+        ct = Contrato(instalacion_id=inst.id, desde=date(date.today().year, 1, 1))
+        db.session.add(ct)
+        db.session.flush()
+        for nombre_cat, ancla in categorias_y_anclas:
+            cat = CategoriaEquipo.query.filter_by(
+                empresa_id=empresa.id, nombre=nombre_cat).one()
+            db.session.add(ServicioContrato(
+                contrato_id=ct.id, categoria_id=cat.id, mes_ancla=ancla))
+        return ct
+
+    contratar(a, (CATEGORIA, 1))
+    contratar(b, (CATEGORIA, 2))
+    contratar(c, (CATEGORIA, 1))
+    contratar(d, (CATEGORIA_ECA, 3))
 
     db.session.commit()
     return empresa

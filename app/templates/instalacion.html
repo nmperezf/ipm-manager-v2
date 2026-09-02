@@ -23,10 +23,46 @@
   {% endif %}
 </div>
 
-{# Arrancar una inspección: la rutina define hasta qué nivel de campos se
-   carga, porque son acumulativas. #}
+{# El contrato es lo que hace predecible el calendario: sin él, cada visita
+   se arranca a mano. #}
+{% set vigente = instalacion.contratos | selectattr('activo') | list | first %}
+<div class="card {{ 'destacada' if vigente }}">
+  <div class="fila" style="margin-bottom:.5rem">
+    <h3>Contrato</h3>
+    <span class="sp"></span>
+    {% if current_user.puede_aprobar %}
+      {% if vigente %}
+        <a class="btn ghost sm" href="{{ url_for('principal.contrato_editar', contrato_id=vigente.id) }}">Editar</a>
+      {% else %}
+        <a class="btn sm" href="{{ url_for('principal.contrato_nuevo', instalacion_id=instalacion.id) }}">
+          {{ ico('mas') }}Armar contrato</a>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% if vigente %}
+    <p class="muted" style="margin:0">
+      Vigente desde {{ vigente.desde.strftime('%d/%m/%Y') }}
+      {%- if vigente.hasta %} hasta {{ vigente.hasta.strftime('%d/%m/%Y') }}{% else %}, sin vencimiento{% endif %} ·
+      cubre
+      {% for s in vigente.servicios %}<b>{{ s.categoria.nombre }}</b>{% if not loop.last %}, {% endif %}
+      {%- else %}<b>ninguna categoría todavía</b>{% endfor %}.
+    </p>
+    <p class="tiny" style="margin:.4rem 0 0">
+      El calendario sale de acá: mirá <a href="{{ url_for('principal.coordinacion') }}">Coordinación</a>
+      para ver qué toca este mes.
+    </p>
+  {% else %}
+    <p class="muted" style="margin:0">
+      Sin contrato, esta instalación no genera pendientes de coordinación: cada
+      inspección hay que arrancarla a mano.
+    </p>
+  {% endif %}
+</div>
+
+{# Arrancar una inspección fuera de contrato: la rutina define hasta qué
+   nivel de campos se carga, porque son acumulativas. #}
 <div class="card">
-  <h3 style="margin-bottom:.55rem">Inspeccionar</h3>
+  <h3 style="margin-bottom:.55rem">Inspección manual</h3>
   {% for cat in categorias_de(instalacion) %}
     <form method="post"
           action="{{ url_for('principal.abrir_inspeccion', instalacion_id=instalacion.id, categoria_id=cat.id) }}"

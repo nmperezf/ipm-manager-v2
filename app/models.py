@@ -107,6 +107,16 @@ NIVEL_FRECUENCIA = {
 }
 FRECUENCIAS = sorted(NIVEL_FRECUENCIA, key=NIVEL_FRECUENCIA.get)
 
+# Cada cuántos meses cae cada rutina. Es lo que hace predecible el año:
+# sabiendo el mes ancla del contrato, se deriva qué toca cada mes sin
+# guardar un calendario.
+PERIODO_MESES = {
+    FRECUENCIA_MENSUAL: 1,
+    FRECUENCIA_TRIMESTRAL: 3,
+    FRECUENCIA_SEMESTRAL: 6,
+    FRECUENCIA_ANUAL: 12,
+}
+
 
 # Estados de una orden de trabajo. El técnico la empuja hasta dejarla en
 # revisión; cerrarla es de gestión, igual que aprobar una deficiencia.
@@ -506,6 +516,75 @@ class ItemVisita(db.Model):
 
     def __repr__(self):
         return f"<ItemVisita {self.id}>"
+
+
+class Contrato(db.Model):
+    """Lo que la empresa se comprometió a mantener en una instalación.
+
+    Cuelga de la instalación y no del cliente: se contrata el mantenimiento
+    de un sitio concreto, con su sala de bombas y su cuarto de válvulas.
+    """
+
+    __tablename__ = "contratos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    instalacion_id = db.Column(
+        db.Integer, db.ForeignKey("instalaciones.id"), nullable=False, index=True
+    )
+    desde = db.Column(db.Date, default=date.today, nullable=False)
+    hasta = db.Column(db.Date)
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+    notas = db.Column(db.Text)
+
+    instalacion = db.relationship(
+        "Instalacion", backref=db.backref("contratos", cascade="all, delete-orphan")
+    )
+    servicios = db.relationship(
+        "ServicioContrato", backref="contrato", cascade="all, delete-orphan"
+    )
+
+    def vigente_en(self, cuando=None):
+        cuando = cuando or date.today()
+        if not self.activo or self.desde > cuando:
+            return False
+        return self.hasta is None or self.hasta >= cuando
+
+    def __repr__(self):
+        return f"<Contrato {self.id} inst={self.instalacion_id}>"
+
+
+class ServicioContrato(db.Model):
+    """Una categoría cubierta por el contrato.
+
+    Deliberadamente NO guarda una frecuencia. Las rutinas son acumulativas
+    y una misma categoría tiene varias cadencias (la mensual registra
+    presiones, la semestral prueba señales, la anual abre la purga). Poner
+    una sola frecuencia acá obligaría a contradecir el catálogo.
+
+    Lo único que hace falta es el **mes ancla**: a partir de él se deriva
+    qué rutina cae cada mes, cruzando con las frecuencias que el catálogo
+    define para esa categoría. Eso es lo que permite predecir el año entero
+    sin cargar nada a mano.
+    """
+
+    __tablename__ = "servicios_contrato"
+    __table_args__ = (
+        db.UniqueConstraint("contrato_id", "categoria_id", name="uq_servicio_contrato_categoria"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    contrato_id = db.Column(db.Integer, db.ForeignKey("contratos.id"), nullable=False, index=True)
+    categoria_id = db.Column(
+        db.Integer, db.ForeignKey("categorias_equipo.id"), nullable=False, index=True
+    )
+    # Mes en que arranca el ciclo (1-12). La anual cae en este mes, la
+    # semestral en este y seis meses después, y así.
+    mes_ancla = db.Column(db.Integer, default=1, nullable=False)
+
+    categoria = db.relationship("CategoriaEquipo")
+
+    def __repr__(self):
+        return f"<ServicioContrato cat={self.categoria_id} ancla={self.mes_ancla}>"
 
 
 class OrdenTrabajo(db.Model):
