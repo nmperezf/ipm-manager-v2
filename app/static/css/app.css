@@ -354,6 +354,23 @@ tbody tr:hover .froz{background:var(--surface-muted)}
 @media (max-width:900px){.barra-guardar{bottom:58px}}
 
 /* =========================================================================
+   Graficos
+   SVG generado en el servidor: sin libreria ni CDN, porque una sala de
+   bombas no tiene senal y un grafico que depende de bajar cientos de KB
+   no se ve justo cuando hace falta.
+   ========================================================================= */
+
+.gr{width:100%;height:auto;display:block;margin:var(--e2) 0}
+.gr-area{fill:var(--brand-light);opacity:.10}
+.gr-linea{fill:none;stroke:var(--brand-light);stroke-width:2;
+  stroke-linejoin:round;stroke-linecap:round}
+.gr-punto{fill:var(--surface);stroke:var(--brand-light);stroke-width:2}
+.gr-punto.alerta{fill:var(--ember);stroke:var(--ember)}
+.gr-umbral{stroke:var(--ember);stroke-width:1;stroke-dasharray:4 3;opacity:.55}
+.gr-umbral-tx{font-family:var(--mono);font-size:9px;fill:var(--ember)}
+.gr-eje{font-family:var(--mono);font-size:9px;fill:var(--ink-faint)}
+
+/* =========================================================================
    Fotos
    ========================================================================= */
 

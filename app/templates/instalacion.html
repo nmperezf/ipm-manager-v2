@@ -109,7 +109,8 @@
         <div class="item">
           <span class="chip neu">{{ ico('equipos') }}</span>
           <span class="t">
-            <b>{% if eq.codigo %}<span class="mono">{{ eq.codigo }}</span> · {% endif %}{{ eq.nombre }}</b>
+            <b><a href="{{ url_for('principal.equipo_detalle', equipo_id=eq.id) }}"
+                  style="color:inherit;text-decoration:none">{% if eq.codigo %}<span class="mono">{{ eq.codigo }}</span> · {% endif %}{{ eq.nombre }}</a></b>
             <span>
               {{ eq.tipo_equipo.nombre }}
               {%- if eq.ubicacion %} · {{ eq.ubicacion }}{% endif %}
@@ -126,7 +127,8 @@
           <div class="item" style="margin-left:1.6rem;margin-top:.35rem;border-left:2px solid var(--border-strong)">
             <span class="chip neu">{{ ico('equipos') }}</span>
             <span class="t">
-              <b>{% if hijo.codigo %}<span class="mono">{{ hijo.codigo }}</span> · {% endif %}{{ hijo.nombre }}</b>
+              <b><a href="{{ url_for('principal.equipo_detalle', equipo_id=hijo.id) }}"
+                    style="color:inherit;text-decoration:none">{% if hijo.codigo %}<span class="mono">{{ hijo.codigo }}</span> · {% endif %}{{ hijo.nombre }}</a></b>
               <span>{{ hijo.tipo_equipo.nombre }} · cuelga de {{ eq.codigo or eq.nombre }}</span>
             </span>
             {% if current_user.puede_aprobar %}

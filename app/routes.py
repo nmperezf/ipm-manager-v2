@@ -16,6 +16,7 @@ from sqlalchemy import or_
 
 from app.checklist import armar_bloques, guardar_checklist, nombre_campo
 from app.fotos import FotoInvalida, borrar_archivo, guardar_archivo, ruta_relativa
+from app.graficos import graficos_de_equipo
 from app.planificacion import (
     MESES,
     calendario_anual,
@@ -832,6 +833,30 @@ def equipo_editar(equipo_id):
 
     return render_template("equipo_form.html", instalacion=inst, equipo=obj,
                            tipos=tipos, padres=padres, datos={})
+
+
+@principal.route("/equipo/<int:equipo_id>")
+@login_required
+def equipo_detalle(equipo_id):
+    """Ficha del equipo: su placa, la evolución de sus valores numéricos,
+    sus fotos y sus deficiencias abiertas."""
+    obj = db.session.get(Equipo, equipo_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.instalacion.cliente.empresa_id)
+
+    fotos = (
+        Foto.query.filter_by(equipo_id=obj.id)
+        .order_by(Foto.fecha.desc()).limit(12).all()
+    )
+    abiertas = (
+        Observacion.query.filter_by(equipo_id=obj.id, resuelto=False)
+        .order_by(Observacion.fecha_carga.desc()).all()
+    )
+    return render_template(
+        "equipo.html", equipo=obj, graficos=graficos_de_equipo(obj),
+        fotos=fotos, abiertas=abiertas,
+    )
 
 
 @principal.route("/equipo/<int:equipo_id>/baja", methods=["POST"])

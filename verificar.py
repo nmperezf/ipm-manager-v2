@@ -456,6 +456,67 @@ def main():
             except FotoInvalida:
                 check(f"Rechaza {archivo} por {motivo}", True)
 
+        print("\n13 - Evolución de los valores numéricos")
+        from datetime import timedelta
+        from app.graficos import preparar_grafico, serie_numerica
+        from app.models import Formulario, Respuesta, TipoEquipo
+
+        # El tanque del Hospital: el de Planta Industrial ya tiene una
+        # medición cargada en la sección 3b y ensuciaría la serie.
+        inst_hospital = (
+            Instalacion.query.join(Cliente)
+            .filter(Cliente.nombre == "Hospital Central").one()
+        )
+        eq_tanque = (
+            Equipo.query.join(TipoEquipo)
+            .filter(TipoEquipo.nombre == "Tanque de combustible",
+                    Equipo.instalacion_id == inst_hospital.id).one()
+        )
+        tf_tanque = TipoFormulario.query.filter_by(nombre="Tanque de combustible").one()
+        campo_nivel = next(c for c in tf_tanque.campos if c.clave == "nivel")
+
+        # Cinco visitas: el tanque se va vaciando y cruza el mínimo de 66 %.
+        for i, valor in enumerate([95, 88, 79, 71, 62]):
+            vis = Visita(instalacion_id=eq_tanque.instalacion_id,
+                         fecha=date(2026, 4, 1) + timedelta(days=30 * i))
+            db.session.add(vis)
+            db.session.flush()
+            iv = ItemVisita(visita_id=vis.id, categoria_id=tf_tanque.categoria_id,
+                            rutina="mensual")
+            db.session.add(iv)
+            db.session.flush()
+            fo = Formulario(item_visita_id=iv.id, tipo_formulario_id=tf_tanque.id,
+                            equipo_id=eq_tanque.id)
+            db.session.add(fo)
+            db.session.flush()
+            db.session.add(Respuesta(formulario_id=fo.id, campo_id=campo_nivel.id,
+                                     valor_numero=valor))
+        db.session.commit()
+
+        serie = serie_numerica(eq_tanque, campo_nivel)
+        check("Arma la serie del equipo", len(serie) == 5,
+              ", ".join(str(p["valor"]) for p in serie))
+        check("En orden cronológico",
+              [p["fecha"] for p in serie] == sorted(p["fecha"] for p in serie))
+
+        g = preparar_grafico(serie, campo_nivel)
+        check("Genera coordenadas para el SVG", g is not None and len(g["puntos"]) == 5)
+        check("El umbral del campo entra al eje",
+              any(r["valor"] == 66 for r in g["referencias"]))
+        # El eje tiene que abarcar el umbral, si no un valor al borde se
+        # dibuja igual que uno holgado.
+        check("El eje abarca el umbral",
+              g["eje"]["min"] <= 66 <= g["eje"]["max"],
+              f"{g['eje']['min']} – {g['eje']['max']}")
+        check("Marca solo el punto fuera de rango",
+              [p["alerta"] for p in g["puntos"]] == [False, False, False, False, True])
+        check("Y avisa que la serie tiene alerta", g["hay_alerta"])
+
+        # Con un solo punto no hay tendencia: dibujarlo igual sugeriría una
+        # que no existe.
+        check("Una sola medición no genera gráfico",
+              preparar_grafico(serie[:1], campo_nivel) is None)
+
     print()
     if fallos:
         print(f"FALLARON {len(fallos)}: " + "; ".join(fallos))

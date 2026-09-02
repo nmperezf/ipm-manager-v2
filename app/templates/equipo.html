@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% set inst = equipo.instalacion %}
+{% block title %}{{ equipo.etiqueta }} — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.clientes') }}">Clientes</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.cliente', cliente_id=inst.cliente_id) }}">{{ inst.cliente.nombre }}</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">{{ inst.nombre }}</a>
+  {{ ico('chevron') }}<b>{{ equipo.etiqueta }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ equipo.nombre }}</h2>
+    <span class="sub">
+      {% if equipo.codigo %}<span class="mono">{{ equipo.codigo }}</span> · {% endif %}
+      {{ equipo.tipo_equipo.nombre }}
+      {%- if equipo.ubicacion %} · {{ equipo.ubicacion }}{% endif %}
+      {%- if equipo.padre %} · cuelga de {{ equipo.padre.etiqueta }}{% endif %}
+    </span>
+  </div>
+  <span class="sp"></span>
+  {% if not equipo.activo %}<span class="pill com">dado de baja</span>{% endif %}
+  {% if current_user.puede_aprobar %}
+    <a class="btn ghost sm" href="{{ url_for('principal.equipo_editar', equipo_id=equipo.id) }}">Editar</a>
+  {% endif %}
+</div>
+
+{# La evolución es lo que una inspección suelta no muestra: una caída lenta
+   de presión visita tras visita. #}
+<div class="seccion-tit">
+  <h3>Evolución de los valores</h3>
+  <span class="pill com">{{ graficos|length }}</span>
+  <span class="linea"></span>
+</div>
+
+{% for g in graficos %}
+  <div class="card {{ 'critica' if g.hay_alerta }}">
+    <div class="fila" style="margin-bottom:.5rem">
+      <b style="font-family:var(--display);font-size:var(--t-med)">{{ g.campo.label }}</b>
+      {% if g.campo.unidad %}<span class="tiny mono">{{ g.campo.unidad }}</span>{% endif %}
+      <span class="sp"></span>
+      {% if g.campo.tiene_rango %}
+        <span class="tiny mono">esperado {{ g.campo.texto_rango() }}</span>
+      {% endif %}
+      <span class="pill {{ 'crit' if g.ultimo.alerta else 'ok' }}">
+        último: {{ g.ultimo.valor }}{% if g.campo.unidad %} {{ g.campo.unidad }}{% endif %}
+      </span>
+    </div>
+
+    <svg class="gr" viewBox="0 0 {{ g.ancho }} {{ g.alto }}" role="img"
+         aria-label="Evolución de {{ g.campo.label }}: {{ g.puntos|length }} mediciones, último valor {{ g.ultimo.valor }}">
+      <!-- Umbrales del campo: se ve de un vistazo cuándo se cruzó la línea. -->
+      {% for r in g.referencias %}
+        <line x1="{{ g.pad_x }}" y1="{{ r.y }}" x2="{{ g.ancho - g.pad_x }}" y2="{{ r.y }}"
+              class="gr-umbral"/>
+        <text x="{{ g.ancho - g.pad_x + 3 }}" y="{{ r.y + 3 }}" class="gr-umbral-tx">{{ r.etiqueta }}</text>
+      {% endfor %}
+
+      <polygon points="{{ g.area }}" class="gr-area"/>
+      <polyline points="{{ g.linea }}" class="gr-linea"/>
+
+      {% for p in g.puntos %}
+        <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ 4 if loop.last else 3 }}"
+                class="gr-punto {{ 'alerta' if p.alerta }}">
+          <title>{{ p.fecha.strftime('%d/%m/%Y') }} — {{ p.valor }}{% if g.campo.unidad %} {{ g.campo.unidad }}{% endif %}</title>
+        </circle>
+      {% endfor %}
+
+      <text x="4" y="{{ g.eje.y_max + 4 }}" class="gr-eje">{{ g.eje.max }}</text>
+      <text x="4" y="{{ g.eje.y_min }}" class="gr-eje">{{ g.eje.min }}</text>
+    </svg>
+
+    <div class="fila tiny" style="justify-content:space-between">
+      <span class="mono">{{ g.primero.fecha.strftime('%d/%m/%y') }}</span>
+      <span>{{ g.puntos|length }} mediciones</span>
+      <span class="mono">{{ g.ultimo.fecha.strftime('%d/%m/%y') }}</span>
+    </div>
+  </div>
+{% else %}
+  <div class="vacio">
+    <span class="chip neu">{{ ico('equipos') }}</span>
+    <b>Todavía no hay serie para graficar</b>
+    <p>
+      Hace falta que este equipo tenga el mismo valor numérico cargado en al menos
+      dos visitas. Con una sola medición no hay tendencia que mostrar.
+    </p>
+  </div>
+{% endfor %}
+
+{% if equipo.marca or equipo.presion_diseno or equipo.caudal_nominal %}
+<div class="seccion-tit"><h3>Datos de placa</h3><span class="linea"></span></div>
+<div class="card">
+  <div class="tabla-wrap">
+    <table>
+      <tbody>
+        {% for etiqueta, valor, unidad in [
+            ('Marca', equipo.marca, ''), ('Modelo', equipo.modelo, ''),
+            ('N.º de serie', equipo.serie, ''),
+            ('Caudal nominal', equipo.caudal_nominal, 'GPM'),
+            ('Presión a 100 %', equipo.presion_diseno, 'psi'),
+            ('Presión en churn', equipo.presion_maxima, 'psi'),
+            ('Presión a 150 %', equipo.presion_sobrecarga, 'psi'),
+            ('RPM nominales', equipo.rpm_nominal, 'RPM')] %}
+          {% if valor %}
+            <tr><th style="width:12rem">{{ etiqueta }}</th>
+                <td class="mono">{{ valor }}{% if unidad %} {{ unidad }}{% endif %}</td></tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if abiertas %}
+<div class="seccion-tit">
+  <h3>Deficiencias abiertas</h3><span class="pill crit">{{ abiertas|length }}</span>
+  <span class="linea"></span>
+</div>
+<div class="stack">
+  {% for o in abiertas %}
+    <div class="item {{ 'crit' if o.clasificacion == CLASIF_CRITICA }}">
+      <span class="chip {{ 'crit' if o.clasificacion == CLASIF_CRITICA else 'warn' }}">
+        {{ ico('deficiencias') }}</span>
+      <span class="t">
+        <b>{{ o.descripcion }}</b>
+        <span>{{ o.fecha_carga.strftime('%d/%m/%Y') }}</span>
+      </span>
+      {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
+      {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
+      {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if fotos %}
+<div class="seccion-tit"><h3>Fotos</h3><span class="linea"></span></div>
+<div class="fotos">
+  {% for f in fotos %}
+    <div class="foto-mini" title="{{ f.fecha.strftime('%d/%m/%Y') }}{% if f.descripcion %} — {{ f.descripcion }}{% endif %}">
+      <a href="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}"
+         target="_blank" rel="noopener">
+        <img src="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}"
+             alt="{{ equipo.etiqueta }}" loading="lazy"></a>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

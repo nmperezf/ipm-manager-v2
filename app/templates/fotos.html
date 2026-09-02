@@ -51,7 +51,7 @@
       </a>
       <figcaption>
         {% if f.equipo %}
-          <b>{{ f.equipo.etiqueta }}</b>
+          <b><a href="{{ url_for('principal.equipo_detalle', equipo_id=f.equipo_id) }}">{{ f.equipo.etiqueta }}</a></b>
           <span class="pill com">{{ f.equipo.tipo_equipo.nombre }}</span>
         {% else %}
           <b>{{ f.instalacion.nombre }}</b>
