@@ -370,6 +370,40 @@ def main():
         db.session.commit()
         check("Contrato de baja: deja de generar pendientes", len(suyos(2027, 9)) == 0)
 
+        print("\n11 - Un punto conforme no deja hallazgo fantasma")
+        # Regresion: Jinja escribia el None de Python como la palabra "None"
+        # dentro del textarea de comentario. El navegador la reenviaba y el
+        # servidor abria una observacion "Campo: None" en cada guardado.
+        item_r = item_para("Torre Ejecutiva", tecnico)
+        b_r = armar_bloques(item_r)
+        s_r = next(s for b in b_r for s in b.secciones)
+        c_r = s_r.campos[0]
+        base = {
+            nombre_campo(s_r.tipo_formulario, s_r.equipo, c_r, "estado"): ESTADO_CONFORME,
+        }
+        res = guardar_checklist(item_r, MultiDict(base), tecnico)
+        check("Guarda el punto conforme", res.ok, str(res.errores))
+        check("Sin abrir ninguna observacion",
+              Observacion.query.filter_by(visita_id=item_r.visita_id).count() == 0)
+
+        # Segundo guardado reenviando el comentario vacio, que es lo que
+        # manda el navegador al repintar la pantalla.
+        con_vacio = dict(base)
+        con_vacio[nombre_campo(s_r.tipo_formulario, s_r.equipo, c_r, "comentario")] = ""
+        guardar_checklist(item_r, MultiDict(con_vacio), tecnico)
+        check("Reenviar el comentario vacio tampoco abre nada",
+              Observacion.query.filter_by(visita_id=item_r.visita_id).count() == 0)
+
+        # Y el comentario real sigue funcionando, pero como nota.
+        con_nota = dict(base)
+        con_nota[nombre_campo(s_r.tipo_formulario, s_r.equipo, c_r, "comentario")] = "Se repinto."
+        guardar_checklist(item_r, MultiDict(con_nota), tecnico)
+        notas = Observacion.query.filter_by(visita_id=item_r.visita_id).all()
+        check("Un comentario real si deja nota", len(notas) == 1)
+        check("Clasificada como Comentario, no como deficiencia",
+              bool(notas) and notas[0].clasificacion == "Comentario",
+              notas[0].clasificacion if notas else "-")
+
     print()
     if fallos:
         print(f"FALLARON {len(fallos)}: " + "; ".join(fallos))

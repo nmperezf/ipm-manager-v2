@@ -124,8 +124,11 @@
                 {% endfor %}
 
               {% elif campo.tipo != CAMPO_ESTADO %}
+                {# `or ''`: sin eso Jinja escribe el None de Python como la
+                   palabra "None" adentro del textarea, el navegador la
+                   reenvía y el servidor la guarda como si fuera texto real. #}
                 <textarea rows="2" name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
-                          aria-label="{{ campo.label }}">{{ r.valor_texto if r else '' }}</textarea>
+                          aria-label="{{ campo.label }}">{{ (r.valor_texto or '') if r else '' }}</textarea>
               {% endif %}
 
               {% if campo.lleva_estado %}
@@ -157,7 +160,7 @@
                   <textarea rows="2" data-comentario
                             name="{{ nombre_campo(tipo, equipo, campo, 'comentario') }}"
                             {{ 'required' if es_nc }}
-                            placeholder="Qué encontraste">{{ r.comentario if r else '' }}</textarea>
+                            placeholder="Qué encontraste">{{ (r.comentario or '') if r else '' }}</textarea>
                   <span class="lbl-nc">Gravedad</span>
                   {% set n_grav = nombre_campo(tipo, equipo, campo, 'gravedad') %}
                   <div class="grav">

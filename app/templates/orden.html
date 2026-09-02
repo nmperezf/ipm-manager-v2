@@ -98,11 +98,16 @@
   </div>
 </div>
 
-{% if visita.observaciones %}
+{# Una nota no es un hallazgo: separarlas evita que un punto conforme con
+   comentario parezca una deficiencia. #}
+{% set deficiencias = visita.observaciones | rejectattr('clasificacion', 'equalto', 'Comentario') | list %}
+{% set notas = visita.observaciones | selectattr('clasificacion', 'equalto', 'Comentario') | list %}
+
+{% if deficiencias %}
 <div class="card">
-  <h3 style="margin-bottom:.6rem">Hallazgos</h3>
+  <h3 style="margin-bottom:.6rem">Deficiencias</h3>
   <div class="stack">
-    {% for o in visita.observaciones %}
+    {% for o in deficiencias %}
       <div class="item {{ 'crit' if o.clasificacion == CLASIF_CRITICA }}">
         <span class="chip {{ 'crit' if o.clasificacion == CLASIF_CRITICA else 'warn' }}">
           {{ ico('deficiencias') }}</span>
@@ -114,6 +119,25 @@
         {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
         {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
         {% if o.estado_revision != REVISION_APROBADA %}<span class="pill com">Sin aprobar</span>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if notas %}
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Notas</h3>
+  <p class="tiny" style="margin-bottom:.6rem">
+    Comentarios dejados en puntos conformes. No son deficiencias.</p>
+  <div class="stack">
+    {% for o in notas %}
+      <div class="item">
+        <span class="chip neu">{{ ico('check') }}</span>
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span>{% if o.equipo %}<span class="mono">{{ o.equipo.codigo or o.equipo.nombre }}</span>{% endif %}</span>
+        </span>
       </div>
     {% endfor %}
   </div>
