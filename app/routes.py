@@ -19,6 +19,8 @@ from app.models import (
     CAMPO_NUMERO,
     CAMPO_SELECCION,
     CLASIF_CRITICA,
+    FRECUENCIA_MENSUAL,
+    FRECUENCIAS,
     ESTADO_CONFORME,
     ESTADO_NA,
     ESTADO_NO_CONFORME,
@@ -126,10 +128,14 @@ def abrir_inspeccion(instalacion_id, categoria_id):
         abort(404)
     _verificar_empresa(instalacion.cliente.empresa_id)
 
+    rutina = request.form.get("rutina", FRECUENCIA_MENSUAL)
+    if rutina not in FRECUENCIAS:
+        rutina = FRECUENCIA_MENSUAL
+
     visita = Visita(instalacion_id=instalacion.id, fecha=date.today(), tecnico_id=current_user.id)
     db.session.add(visita)
     db.session.flush()
-    item = ItemVisita(visita_id=visita.id, categoria_id=categoria_id)
+    item = ItemVisita(visita_id=visita.id, categoria_id=categoria_id, rutina=rutina)
     db.session.add(item)
     db.session.commit()
     return redirect(url_for("principal.checklist", item_id=item.id))

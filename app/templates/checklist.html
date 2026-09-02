@@ -8,7 +8,7 @@
   {{ inst.cliente.nombre }} › {{ inst.nombre }} › <b>{{ item.categoria.nombre }}</b>
 </p>
 
-<h2>{{ item.categoria.nombre }}</h2>
+<h2>{{ item.categoria.nombre }} <span class="pill nocrit">rutina {{ item.rutina }}</span></h2>
 <p class="muted">
   Visita del {{ item.visita.fecha.strftime('%d/%m/%Y') }} ·
   {{ item.visita.tecnico.nombre_completo if item.visita.tecnico else 'sin técnico' }}
@@ -46,7 +46,7 @@
           {% if tipo.referencia_normativa %} · {{ tipo.referencia_normativa }}{% endif %}
         </div>
 
-        {% for campo in tipo.campos %}
+        {% for campo in seccion.campos %}
           {% set r = seccion.respuestas.get(campo.id) %}
           {% set es_nc = r and r.estado == ESTADO_NO_CONFORME %}
           <div class="punto {{ 'no-conforme' if es_nc }}">

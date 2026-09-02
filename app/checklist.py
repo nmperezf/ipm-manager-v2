@@ -32,7 +32,7 @@ from app.models import (
 
 # Una sección es un formulario tipo aplicado a un equipo concreto (o al
 # recinto entero, con equipo=None).
-Seccion = namedtuple("Seccion", "tipo_formulario equipo formulario respuestas")
+Seccion = namedtuple("Seccion", "tipo_formulario equipo formulario respuestas campos")
 
 # Un bloque agrupa las secciones que el técnico recorre juntas: el recinto,
 # un equipo suelto, o un conjunto (bomba principal con su controlador y su
@@ -82,13 +82,22 @@ def _respuestas_por_campo(formulario):
     return {r.campo_id: r for r in formulario.respuestas}
 
 
-def _seccion(tipo, equipo, cargados):
+def _seccion(tipo, equipo, cargados, rutina):
+    """Arma una sección con solo los campos que entran en esa rutina.
+
+    Devuelve None si no queda ningún campo: una estación húmeda en la
+    rutina mensual no tiene por qué mostrar la purga del inspector.
+    """
+    campos = [c for c in tipo.campos if c.entra_en(rutina)]
+    if not campos:
+        return None
     formulario = cargados.get((tipo.id, equipo.id if equipo else None))
     return Seccion(
         tipo_formulario=tipo,
         equipo=equipo,
         formulario=formulario,
         respuestas=_respuestas_por_campo(formulario),
+        campos=campos,
     )
 
 
@@ -111,6 +120,7 @@ def armar_bloques(item, incluir_fuera_de_paquete=False):
     instalacion = item.visita.instalacion
     tipos = _tipos_de_la_categoria(item, incluir_fuera_de_paquete)
     cargados = _formularios_cargados(item)
+    rutina = item.rutina
 
     # Formularios tipo indexados por el tipo de equipo al que aplican.
     tipos_por_equipo = {}
@@ -130,17 +140,21 @@ def armar_bloques(item, incluir_fuera_de_paquete=False):
 
     # 1 · El recinto: una sola vez, sin equipo.
     if tipos_de_recinto:
-        secciones = [_seccion(tipo, None, cargados) for tipo in tipos_de_recinto]
-        bloques.append(
-            Bloque(
-                clave="recinto",
-                titulo=tipos_de_recinto[0].nombre if len(tipos_de_recinto) == 1 else "Recinto",
-                subtitulo="Se carga una vez para toda la sala",
-                equipo_cabeza=None,
-                secciones=secciones,
-                orden=min(t.orden for t in tipos_de_recinto),
+        secciones = [
+            s for s in (_seccion(tipo, None, cargados, rutina) for tipo in tipos_de_recinto)
+            if s is not None
+        ]
+        if secciones:
+            bloques.append(
+                Bloque(
+                    clave="recinto",
+                    titulo=tipos_de_recinto[0].nombre if len(tipos_de_recinto) == 1 else "Recinto",
+                    subtitulo="Se carga una vez para toda la sala",
+                    equipo_cabeza=None,
+                    secciones=secciones,
+                    orden=min(t.orden for t in tipos_de_recinto),
+                )
             )
-        )
 
     # 2 · Conjuntos: una bomba principal con lo que le cuelga.
     cabezas = [e for e in equipos if e.tipo_equipo.encabeza_conjunto]
@@ -154,7 +168,9 @@ def armar_bloques(item, incluir_fuera_de_paquete=False):
         secciones = []
         for equipo in miembros:
             for tipo in tipos_por_equipo.get(equipo.tipo_equipo_id, []):
-                secciones.append(_seccion(tipo, equipo, cargados))
+                seccion = _seccion(tipo, equipo, cargados, rutina)
+                if seccion is not None:
+                    secciones.append(seccion)
         if not secciones:
             continue
         # Dentro del conjunto manda el orden del formulario tipo, no el del
@@ -177,8 +193,11 @@ def armar_bloques(item, incluir_fuera_de_paquete=False):
         if equipo.id in ids_en_conjunto:
             continue
         secciones = [
-            _seccion(tipo, equipo, cargados)
-            for tipo in tipos_por_equipo.get(equipo.tipo_equipo_id, [])
+            s for s in (
+                _seccion(tipo, equipo, cargados, rutina)
+                for tipo in tipos_por_equipo.get(equipo.tipo_equipo_id, [])
+            )
+            if s is not None
         ]
         if not secciones:
             continue
@@ -250,7 +269,9 @@ def guardar_checklist(item, form, usuario):
     pendientes = []
     for seccion in secciones:
         tipo, equipo = seccion.tipo_formulario, seccion.equipo
-        for campo in tipo.campos:
+        # Solo los campos de la rutina: un punto que no se pide en esta
+        # visita no puede quedar marcado ni borrado por venir vacío.
+        for campo in seccion.campos:
             valor = _leer_valor(form, tipo, equipo, campo)
             estado = (form.get(nombre_campo(tipo, equipo, campo, "estado")) or "").strip() or None
             gravedad = (form.get(nombre_campo(tipo, equipo, campo, "gravedad")) or "").strip() or None

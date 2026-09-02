@@ -15,6 +15,9 @@ from app.models import (
     CAMPO_NUMERO,
     CAMPO_SELECCION,
     CAMPO_TEXTO,
+    FRECUENCIA_ANUAL,
+    FRECUENCIA_MENSUAL,
+    FRECUENCIA_SEMESTRAL,
     GRAVEDAD_CRITICA,
     GRAVEDAD_NO_CRITICA,
     CampoFormulario,
@@ -40,7 +43,8 @@ T_RESERVA = "Reserva de agua"
 
 
 def _campo(clave, label, tipo, orden, unidad=None, minimo=None, maximo=None,
-           opciones=None, con_estado=True, gravedad=GRAVEDAD_NO_CRITICA, ayuda=None):
+           opciones=None, con_estado=True, gravedad=GRAVEDAD_NO_CRITICA, ayuda=None,
+           frecuencia=None):
     return CampoFormulario(
         clave=clave,
         label=label,
@@ -52,6 +56,7 @@ def _campo(clave, label, tipo, orden, unidad=None, minimo=None, maximo=None,
         con_estado=con_estado,
         gravedad_fuera_rango=gravedad,
         ayuda=ayuda,
+        frecuencia=frecuencia,
         orden=orden,
     )
 
@@ -314,9 +319,15 @@ CATEGORIA_ECA = "Estaciones de control y alarma"
 
 T_ECA_HUMEDA = "Estación de control húmeda"
 T_ECA_PREACCION = "Estación de control de preacción"
-T_ECA_SECA = "Estación de control seca"
+T_ECA_DILUVIO = "Estación de control de diluvio"
 T_COMPRESOR = "Compresor de aire"
 T_PANEL = "Panel de detección"
+
+# Las tres rutinas de la categoría. Acumulativas: la semestral hace todo lo
+# de la mensual, la anual todo lo de las dos.
+MES = FRECUENCIA_MENSUAL
+SEM = FRECUENCIA_SEMESTRAL
+ANU = FRECUENCIA_ANUAL
 
 
 def sembrar_catalogo_eca(empresa):
@@ -357,66 +368,104 @@ def sembrar_catalogo_eca(empresa):
 
     te_humeda = tipo_equipo(T_ECA_HUMEDA, 10, encabeza=True)
     te_preaccion = tipo_equipo(T_ECA_PREACCION, 20, encabeza=True)
-    te_seca = tipo_equipo(T_ECA_SECA, 30, encabeza=True)
+    te_diluvio = tipo_equipo(T_ECA_DILUVIO, 30, encabeza=True)
     te_compresor = tipo_equipo(T_COMPRESOR, 40)
     te_panel = tipo_equipo(T_PANEL, 50)
+
+    # Puntos comunes a toda estación, sea del tipo que sea. Se repiten
+    # porque cada formulario es independiente, pero salen de un solo lugar
+    # para que no se desincronicen entre tipos.
+    def comunes_mensuales(desde=10):
+        return [
+            _campo("valvula_principal", "Válvula principal abierta y trabada",
+                   CAMPO_ESTADO, desde, gravedad=GRAVEDAD_CRITICA, frecuencia=MES,
+                   ayuda="Punto crítico: cerrada deja el sector sin protección"),
+            _campo("p_suministro", "Presión de suministro", CAMPO_NUMERO, desde + 10,
+                   unidad="psi", frecuencia=MES, ayuda="Manómetro por debajo de la válvula"),
+            _campo("p_sistema", "Presión del sistema", CAMPO_NUMERO, desde + 20,
+                   unidad="psi", frecuencia=MES, ayuda="Manómetro por encima de la válvula"),
+        ]
+
+    def señales_semestrales(desde=200):
+        """Prueba semestral de señales de supervisión y alarma."""
+        return [
+            _campo("supervision_valvula", "Señal de supervisión de válvula",
+                   CAMPO_ESTADO, desde, gravedad=GRAVEDAD_CRITICA, frecuencia=SEM,
+                   ayuda="Cerrar parcialmente la válvula debe generar la señal"),
+            _campo("alarma_flujo", "Señal de alarma de flujo", CAMPO_ESTADO, desde + 10,
+                   frecuencia=SEM),
+            _campo("gong", "Alarma hidráulica audible", CAMPO_ESTADO, desde + 20,
+                   frecuencia=SEM),
+            _campo("monitoreo", "Señales llegan a la central de monitoreo",
+                   CAMPO_ESTADO, desde + 30, frecuencia=SEM),
+            _campo("manometros", "Manómetros dentro de fecha de calibración",
+                   CAMPO_ESTADO, desde + 40, frecuencia=SEM),
+            _campo("fugas_trim", "Trim sin fugas", CAMPO_ESTADO, desde + 50, frecuencia=SEM),
+        ]
+
+    def purga_anual(desde=300):
+        """Prueba anual: se abre la purga del inspector y se cronometra toda
+        la cadena — arranque de bomba, respuesta de alarma y restablecimiento."""
+        return [
+            _campo("purga_abierta", "Purga del inspector abierta", CAMPO_ESTADO, desde,
+                   frecuencia=ANU, ayuda="Descarga equivalente al rociador más chico"),
+            _campo("t_bomba", "Tiempo de arranque de la bomba principal",
+                   CAMPO_NUMERO, desde + 10, unidad="s", frecuencia=ANU),
+            _campo("t_alarma", "Tiempo de respuesta de la alarma", CAMPO_NUMERO, desde + 20,
+                   unidad="s", maximo=90, frecuencia=ANU,
+                   ayuda="Umbral a confirmar contra la edición vigente"),
+            _campo("restablecimiento_alarma", "Restablecimiento de la alarma",
+                   CAMPO_ESTADO, desde + 30, frecuencia=ANU),
+            _campo("restablecimiento_bomba", "Restablecimiento de la bomba",
+                   CAMPO_ESTADO, desde + 40, frecuencia=ANU),
+            _campo("drenaje_estatica", "Drenaje principal — presión estática",
+                   CAMPO_NUMERO, desde + 50, unidad="psi", frecuencia=ANU),
+            _campo("drenaje_residual", "Drenaje principal — presión residual",
+                   CAMPO_NUMERO, desde + 60, unidad="psi", frecuencia=ANU,
+                   ayuda="Una caída mayor a la histórica sugiere obstrucción"),
+            _campo("purga_cerrada", "Purga y drenajes cerrados al terminar",
+                   CAMPO_ESTADO, desde + 70, gravedad=GRAVEDAD_CRITICA, frecuencia=ANU),
+            _campo("reposicion", "Sistema repuesto y en servicio",
+                   CAMPO_ESTADO, desde + 80, gravedad=GRAVEDAD_CRITICA, frecuencia=ANU,
+                   ayuda="Punto crítico: sin reponer, el sector queda sin protección"),
+        ]
 
     # ---- 1 · Cuarto de válvulas (sala completa) --------------------------
     _formulario(
         empresa, categoria, "Condiciones del cuarto de válvulas", 10,
-        por_equipo=False, frecuencia="trimestral", referencia="NFPA 25 · cap. 5 y 13",
+        por_equipo=False, frecuencia=MES, referencia="NFPA 25 · cap. 5 y 13",
         descripcion="Se carga una vez para todo el cuarto de válvulas.",
         campos=[
             _campo("temperatura", "Temperatura del local", CAMPO_NUMERO, 10,
-                   unidad="°C", minimo=4, gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Mín. 4 °C — por debajo congela el agua de cebado de secas y preacción"),
-            _campo("iluminacion", "Iluminación", CAMPO_ESTADO, 20),
-            _campo("acceso", "Acceso libre y despejado", CAMPO_ESTADO, 30),
-            _campo("identificacion", "Identificación de zonas y carteles", CAMPO_ESTADO, 40,
-                   ayuda="Cada estación rotulada con el área que cubre"),
-            _campo("planos", "Planos hidráulicos disponibles", CAMPO_ESTADO, 50),
-            _campo("drenaje", "Drenaje del piso", CAMPO_ESTADO, 60,
+                   unidad="°C", minimo=4, gravedad=GRAVEDAD_CRITICA, frecuencia=MES,
+                   ayuda="Mín. 4 °C — por debajo congela el agua de cebado"),
+            _campo("acceso", "Acceso libre y despejado", CAMPO_ESTADO, 20, frecuencia=MES),
+            _campo("identificacion", "Identificación de zonas y carteles", CAMPO_ESTADO, 30,
+                   frecuencia=MES, ayuda="Cada estación rotulada con el área que cubre"),
+            _campo("observaciones", "Observaciones generales", CAMPO_TEXTO, 40,
+                   con_estado=False, frecuencia=MES),
+            _campo("iluminacion", "Iluminación", CAMPO_ESTADO, 210, frecuencia=SEM),
+            _campo("planos", "Planos hidráulicos disponibles", CAMPO_ESTADO, 220,
+                   frecuencia=SEM),
+            _campo("drenaje", "Drenaje del piso", CAMPO_ESTADO, 230, frecuencia=SEM,
                    ayuda="Con capacidad para el caudal del drenaje principal"),
-            _campo("observaciones", "Observaciones generales", CAMPO_TEXTO, 70,
-                   con_estado=False),
         ],
     )
 
     # ---- 2 · Estación húmeda ---------------------------------------------
     _formulario(
         empresa, categoria, "Estación de control húmeda", 20,
-        tipo_equipo=te_humeda, frecuencia="trimestral", referencia="NFPA 25 · cap. 5 y 13",
-        descripcion="Tubería permanentemente con agua. Se verifica el paso de "
-                    "agua y que la alarma de flujo opere.",
-        campos=[
-            _campo("valvula_principal", "Válvula principal abierta y trabada",
-                   CAMPO_ESTADO, 10, gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Punto crítico: cerrada deja el sector sin protección"),
-            _campo("p_suministro", "Presión de suministro", CAMPO_NUMERO, 20, unidad="psi",
-                   ayuda="Manómetro por debajo de la válvula"),
-            _campo("p_sistema", "Presión del sistema", CAMPO_NUMERO, 30, unidad="psi",
-                   ayuda="Manómetro por encima de la válvula"),
-            _campo("manometros", "Manómetros dentro de fecha de calibración",
-                   CAMPO_ESTADO, 40),
-            _campo("fugas_trim", "Trim sin fugas", CAMPO_ESTADO, 50),
+        tipo_equipo=te_humeda, frecuencia=MES, referencia="NFPA 25 · cap. 5 y 13",
+        descripcion="Tubería permanentemente con agua. Mensual: posición de "
+                    "válvulas y presiones. Semestral: señales. Anual: purga del "
+                    "inspector con tiempos.",
+        campos=comunes_mensuales()
+        + [
             _campo("camara_retardo", "Cámara de retardo drena libremente",
-                   CAMPO_ESTADO, 60),
-            _campo("drenaje_estatica", "Drenaje principal — presión estática",
-                   CAMPO_NUMERO, 70, unidad="psi"),
-            _campo("drenaje_residual", "Drenaje principal — presión residual",
-                   CAMPO_NUMERO, 80, unidad="psi",
-                   ayuda="Una caída mayor a la histórica sugiere obstrucción"),
-            _campo("drenaje_restablecimiento", "Tiempo de restablecimiento",
-                   CAMPO_NUMERO, 90, unidad="s"),
-            _campo("alarma_tiempo", "Prueba de alarma — tiempo hasta que suena",
-                   CAMPO_NUMERO, 100, unidad="s", maximo=90,
-                   ayuda="Umbral a confirmar contra la edición vigente"),
-            _campo("gong", "Alarma hidráulica audible", CAMPO_ESTADO, 110),
-            _campo("presostato", "Presostato de flujo opera", CAMPO_ESTADO, 120),
-            _campo("drenaje_cerrado", "Válvula de drenaje cerrada al terminar",
-                   CAMPO_ESTADO, 130, gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Punto crítico: olvidarla abierta despresuriza el sistema"),
-        ],
+                   CAMPO_ESTADO, 210, frecuencia=SEM),
+        ]
+        + señales_semestrales()
+        + purga_anual(),
     )
 
     # ---- 3 · Panel de detección — antes de la estación de preacción ------
@@ -427,12 +476,15 @@ def sembrar_catalogo_eca(empresa):
                     "igual que el controlador respecto de su bomba.",
         campos=[
             _campo("sin_averias", "Panel sin averías ni señales de falla",
-                   CAMPO_ESTADO, 10, gravedad=GRAVEDAD_CRITICA),
-            _campo("bateria", "Tensión de batería de respaldo", CAMPO_NUMERO, 20, unidad="V"),
-            _campo("detectores", "Prueba de detectores de la zona", CAMPO_ESTADO, 30),
-            _campo("monitoreo", "Señal a central de monitoreo", CAMPO_ESTADO, 40),
+                   CAMPO_ESTADO, 10, gravedad=GRAVEDAD_CRITICA, frecuencia=MES),
+            _campo("bateria", "Tensión de batería de respaldo", CAMPO_NUMERO, 20,
+                   unidad="V", frecuencia=SEM),
+            _campo("detectores", "Prueba de detectores de la zona", CAMPO_ESTADO, 30,
+                   frecuencia=SEM),
+            _campo("monitoreo", "Señal a central de monitoreo", CAMPO_ESTADO, 40,
+                   frecuencia=SEM),
             _campo("enclavamiento", "Enclavamiento con la estación verificado",
-                   CAMPO_ESTADO, 50, gravedad=GRAVEDAD_CRITICA),
+                   CAMPO_ESTADO, 50, gravedad=GRAVEDAD_CRITICA, frecuencia=SEM),
         ],
     )
 
@@ -443,93 +495,95 @@ def sembrar_catalogo_eca(empresa):
         descripcion="El agua no entra a la red hasta que la detección lo ordena. "
                     "Se verifica toda la cadena de disparo.",
         campos=[
-            _campo("enclavamiento", "Tipo de enclavamiento", CAMPO_SELECCION, 10,
-                   opciones=["Simple", "Doble", "No enclavado"],
+            _campo("enclavamiento", "Tipo de enclavamiento", CAMPO_SELECCION, 5,
+                   opciones=["Simple", "Doble", "No enclavado"], frecuencia=MES,
                    ayuda="Determina qué debe ocurrir para que entre el agua"),
-            _campo("valvula_principal", "Válvula principal abierta y trabada",
-                   CAMPO_ESTADO, 20, gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Punto crítico: cerrada deja el sector sin protección"),
-            _campo("p_suministro", "Presión de suministro", CAMPO_NUMERO, 30, unidad="psi"),
-            _campo("p_supervision", "Presión de aire de supervisión", CAMPO_NUMERO, 40,
-                   unidad="psi", ayuda="Contra el valor de diseño de la estación"),
-            _campo("agua_cebado", "Nivel de agua de cebado", CAMPO_ESTADO, 50,
-                   gravedad=GRAVEDAD_CRITICA),
-            _campo("manometros", "Manómetros dentro de fecha de calibración",
-                   CAMPO_ESTADO, 60),
-            _campo("trim", "Válvulas de trim en posición correcta", CAMPO_ESTADO, 70),
-            _campo("solenoide", "Solenoide acciona al recibir la señal",
-                   CAMPO_ESTADO, 80, gravedad=GRAVEDAD_CRITICA),
-            _campo("estacion_manual", "Estación manual de disparo", CAMPO_ESTADO, 90),
-            _campo("baja_presion", "Alarma de baja presión de aire — presión de disparo",
-                   CAMPO_NUMERO, 100, unidad="psi"),
-            _campo("tiempo_disparo", "Prueba de disparo — tiempo hasta apertura",
-                   CAMPO_NUMERO, 110, unidad="s"),
-            _campo("drenaje_estatica", "Drenaje principal — presión estática",
-                   CAMPO_NUMERO, 120, unidad="psi"),
-            _campo("drenaje_residual", "Drenaje principal — presión residual",
-                   CAMPO_NUMERO, 130, unidad="psi"),
-            _campo("alarma_flujo", "Alarma de flujo opera", CAMPO_ESTADO, 140),
-            _campo("reposicion", "Estación repuesta y en servicio al terminar",
-                   CAMPO_ESTADO, 150, gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Punto crítico: sin reponer, el sector queda sin protección"),
-        ],
-    )
-
-    # ---- 5 · Estación seca ------------------------------------------------
-    _formulario(
-        empresa, categoria, "Estación de control seca", 40,
-        tipo_equipo=te_seca, frecuencia="trimestral", referencia="NFPA 25 · cap. 13",
-        descripcion="El aire mantiene cerrada la válvula por diferencial de "
-                    "presión. Lo que más importa es el tiempo que tarda el agua "
-                    "en llegar al punto más lejano.",
-        campos=[
-            _campo("valvula_principal", "Válvula principal abierta y trabada",
-                   CAMPO_ESTADO, 10, gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Punto crítico: cerrada deja el sector sin protección"),
-            _campo("p_agua", "Presión de agua de suministro", CAMPO_NUMERO, 20, unidad="psi"),
-            _campo("p_aire", "Presión de aire del sistema", CAMPO_NUMERO, 30, unidad="psi"),
-            _campo("diferencial", "Relación aire/agua conforme al diferencial de diseño",
-                   CAMPO_ESTADO, 40, gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Aire insuficiente dispara la válvula sin incendio"),
-            _campo("agua_cebado", "Nivel de agua de cebado", CAMPO_ESTADO, 50,
+        ]
+        + comunes_mensuales(10)
+        + [
+            # Lo propio del tipo, que también se registra todos los meses.
+            _campo("p_enclavamiento", "Presión de la cámara de enclavamiento",
+                   CAMPO_NUMERO, 40, unidad="psi", frecuencia=MES,
                    gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Punto crítico: sin cebado el asiento no sella"),
-            _campo("manometros", "Manómetros dentro de fecha de calibración",
-                   CAMPO_ESTADO, 60),
-            _campo("apertura_rapida", "Dispositivo de apertura rápida", CAMPO_ESTADO, 70,
-                   ayuda="Acelerador o exhaustor, si la estación lo tiene"),
+                   ayuda="Es lo que mantiene la válvula cerrada"),
+            _campo("p_supervision", "Presión de aire de supervisión", CAMPO_NUMERO, 50,
+                   unidad="psi", frecuencia=MES,
+                   ayuda="Contra el valor de diseño de la estación"),
+            _campo("agua_cebado", "Nivel de agua de cebado", CAMPO_ESTADO, 210,
+                   gravedad=GRAVEDAD_CRITICA, frecuencia=SEM),
+            _campo("trim", "Válvulas de trim en posición correcta", CAMPO_ESTADO, 215,
+                   frecuencia=SEM),
+            _campo("solenoide", "Solenoide acciona al recibir la señal",
+                   CAMPO_ESTADO, 220, gravedad=GRAVEDAD_CRITICA, frecuencia=SEM),
+            _campo("estacion_manual", "Estación manual de disparo", CAMPO_ESTADO, 225,
+                   frecuencia=SEM),
             _campo("baja_presion", "Alarma de baja presión de aire — presión de disparo",
-                   CAMPO_NUMERO, 80, unidad="psi"),
-            _campo("tiempo_disparo", "Prueba de disparo — tiempo hasta apertura",
-                   CAMPO_NUMERO, 90, unidad="s"),
-            _campo("tiempo_agua", "Tiempo de llegada de agua a la conexión de prueba",
-                   CAMPO_NUMERO, 100, unidad="s", maximo=60, gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Umbral a confirmar según el volumen del sistema"),
-            _campo("drenajes_bajos", "Drenajes de punto bajo purgados", CAMPO_ESTADO, 110,
-                   ayuda="El agua condensada acumulada congela y bloquea la red"),
-            _campo("camara_goteo", "Cámara de goteo purgada", CAMPO_ESTADO, 120),
-            _campo("drenaje_cerrado", "Válvula de drenaje cerrada al terminar",
-                   CAMPO_ESTADO, 130, gravedad=GRAVEDAD_CRITICA),
-            _campo("reposicion", "Estación repuesta y en servicio al terminar",
-                   CAMPO_ESTADO, 140, gravedad=GRAVEDAD_CRITICA,
-                   ayuda="Punto crítico: sin reponer, el sector queda sin protección"),
-        ],
+                   CAMPO_NUMERO, 230, unidad="psi", frecuencia=SEM),
+        ]
+        + señales_semestrales(240)
+        + [
+            _campo("tiempo_disparo", "Tiempo hasta la apertura de la válvula",
+                   CAMPO_NUMERO, 305, unidad="s", frecuencia=ANU),
+        ]
+        + purga_anual(),
     )
 
-    # ---- 6 · Compresor de aire — cuelga de secas y preacción -------------
+    # ---- 5 · Estación de diluvio ------------------------------------------
+    _formulario(
+        empresa, categoria, "Estación de control de diluvio", 40,
+        tipo_equipo=te_diluvio, frecuencia=MES, referencia="NFPA 25 · cap. 13",
+        descripcion="Válvula de diafragma con rociadores abiertos: al disparar "
+                    "moja todo el sector. La presión de la cámara del diafragma "
+                    "es lo que la mantiene cerrada.",
+        campos=comunes_mensuales()
+        + [
+            # Lo propio del tipo, que también se registra todos los meses.
+            _campo("p_diafragma", "Presión de la cámara del diafragma",
+                   CAMPO_NUMERO, 40, unidad="psi", frecuencia=MES,
+                   gravedad=GRAVEDAD_CRITICA,
+                   ayuda="Es lo que mantiene la válvula cerrada: si cae, dispara"),
+            _campo("agua_cebado", "Nivel de agua de cebado", CAMPO_ESTADO, 210,
+                   gravedad=GRAVEDAD_CRITICA, frecuencia=SEM),
+            _campo("trim", "Válvulas de trim en posición correcta", CAMPO_ESTADO, 215,
+                   frecuencia=SEM),
+            _campo("linea_piloto", "Línea piloto de actuación", CAMPO_ESTADO, 220,
+                   gravedad=GRAVEDAD_CRITICA, frecuencia=SEM),
+            _campo("solenoide", "Solenoide acciona al recibir la señal",
+                   CAMPO_ESTADO, 225, gravedad=GRAVEDAD_CRITICA, frecuencia=SEM),
+            _campo("estacion_manual", "Estación manual de disparo", CAMPO_ESTADO, 230,
+                   frecuencia=SEM),
+            _campo("rociadores_abiertos", "Rociadores abiertos libres de obstrucción",
+                   CAMPO_ESTADO, 235, frecuencia=SEM,
+                   ayuda="Sin pintura ni tapones: la descarga cubre todo el sector"),
+        ]
+        + señales_semestrales(240)
+        + [
+            _campo("tiempo_disparo", "Tiempo hasta la apertura de la válvula",
+                   CAMPO_NUMERO, 305, unidad="s", frecuencia=ANU),
+            _campo("tiempo_agua", "Tiempo de llegada de agua al punto más lejano",
+                   CAMPO_NUMERO, 306, unidad="s", maximo=60, gravedad=GRAVEDAD_CRITICA,
+                   frecuencia=ANU, ayuda="Umbral a confirmar según el volumen del sistema"),
+        ]
+        + purga_anual(),
+    )
+
+    # ---- 6 · Compresor de aire — cuelga de la estación de preacción ------
     _formulario(
         empresa, categoria, "Compresor de aire", 45,
-        tipo_equipo=te_compresor, frecuencia="trimestral", referencia="NFPA 25 · cap. 13",
+        tipo_equipo=te_compresor, frecuencia=MES, referencia="NFPA 25 · cap. 13",
         campos=[
-            _campo("p_arranque", "Presión de arranque", CAMPO_NUMERO, 10, unidad="psi"),
-            _campo("p_parada", "Presión de parada", CAMPO_NUMERO, 20, unidad="psi"),
-            _campo("restablecimiento", "Tiempo de restablecimiento de presión normal",
-                   CAMPO_NUMERO, 30, unidad="min", maximo=30,
-                   ayuda="Máx. 30 min — umbral a confirmar contra la edición vigente"),
-            _campo("presostato", "Presostato de control opera", CAMPO_ESTADO, 40),
-            _campo("filtro", "Filtro de aire", CAMPO_ESTADO, 50),
-            _campo("fugas", "Línea de aire sin fugas", CAMPO_ESTADO, 60,
+            _campo("p_arranque", "Presión de arranque", CAMPO_NUMERO, 10, unidad="psi",
+                   frecuencia=MES),
+            _campo("p_parada", "Presión de parada", CAMPO_NUMERO, 20, unidad="psi",
+                   frecuencia=MES),
+            _campo("presostato", "Presostato de control opera", CAMPO_ESTADO, 210,
+                   frecuencia=SEM),
+            _campo("filtro", "Filtro de aire", CAMPO_ESTADO, 220, frecuencia=SEM),
+            _campo("fugas", "Línea de aire sin fugas", CAMPO_ESTADO, 230, frecuencia=SEM,
                    ayuda="Un compresor que arranca seguido delata una fuga"),
+            _campo("restablecimiento", "Tiempo de restablecimiento de presión normal",
+                   CAMPO_NUMERO, 310, unidad="min", maximo=30, frecuencia=ANU,
+                   ayuda="Máx. 30 min — umbral a confirmar contra la edición vigente"),
         ],
     )
 
@@ -636,9 +690,10 @@ def sembrar_demo():
     pre = equipo(d, te(T_ECA_PREACCION), "ECA-02", "Estación de preacción — sala de servidores",
                  "Cuarto de válvulas")
     equipo(d, te(T_PANEL), "PD-01", "Panel de detección — sala de servidores", padre=pre)
-    seca = equipo(d, te(T_ECA_SECA), "ECA-03", "Estación seca — playa de estacionamiento",
-                  "Cuarto de válvulas")
-    equipo(d, te(T_COMPRESOR), "CP-01", "Compresor de aire", padre=seca)
+    equipo(d, te(T_COMPRESOR), "CP-01", "Compresor de aire de supervisión", padre=pre)
+    dil = equipo(d, te(T_ECA_DILUVIO), "ECA-03", "Estación de diluvio — playa de carga",
+                 "Cuarto de válvulas")
+    equipo(d, te(T_PANEL), "PD-02", "Panel de detección — playa de carga", padre=dil)
 
     db.session.commit()
     return empresa

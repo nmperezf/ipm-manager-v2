@@ -23,6 +23,9 @@ from app.models import (
     CLASIF_NO_CRITICA,
     ESTADO_CONFORME,
     ESTADO_NO_CONFORME,
+    FRECUENCIA_ANUAL,
+    FRECUENCIA_MENSUAL,
+    FRECUENCIA_SEMESTRAL,
     GRAVEDAD_CRITICA,
     REVISION_APROBADA,
     REVISION_PENDIENTE,
@@ -218,30 +221,85 @@ def main():
         db.session.commit()
 
         beca = armar_bloques(item_eca)
-        total = sum(len(b.secciones) for b in beca)
-        check("Cuarto de valvulas: 6 secciones", total == 6, f"bloques: {len(beca)}")
-
         titulos = [b.titulo for b in beca]
         check("Un bloque por estacion + el recinto", len(beca) == 4, " | ".join(titulos))
 
         conj = {b.titulo: [s.tipo_formulario.nombre for s in b.secciones] for b in beca}
         preaccion = next((v for k, v in conj.items() if "ECA-02" in k), [])
-        check("Preaccion: panel antes de la estacion",
-              preaccion == ["Panel de detección", "Estación de control de preacción"],
+        check("Preaccion: panel antes de la estacion, compresor despues",
+              preaccion == ["Panel de detección", "Estación de control de preacción",
+                            "Compresor de aire"],
               " -> ".join(preaccion))
-        seca = next((v for k, v in conj.items() if "ECA-03" in k), [])
-        check("Seca: estacion + compresor",
-              seca == ["Estación de control seca", "Compresor de aire"],
-              " -> ".join(seca))
+        diluvio = next((v for k, v in conj.items() if "ECA-03" in k), [])
+        check("Diluvio: panel antes de la estacion",
+              diluvio == ["Panel de detección", "Estación de control de diluvio"],
+              " -> ".join(diluvio))
         humeda = next((v for k, v in conj.items() if "ECA-01" in k), [])
-        check("Humeda va sola - sin aire ni deteccion",
+        check("Humeda va sola - sin deteccion ni aire",
               humeda == ["Estación de control húmeda"], " -> ".join(humeda))
 
-        print("\n8b - Un umbral propio de la categoria")
+        print("\n9 - Rutinas acumulativas: mensual < semestral < anual")
+        conteos = {}
+        for rutina in (FRECUENCIA_MENSUAL, FRECUENCIA_SEMESTRAL, FRECUENCIA_ANUAL):
+            item_eca.rutina = rutina
+            db.session.commit()
+            bl = armar_bloques(item_eca)
+            conteos[rutina] = sum(len(s.campos) for b in bl for s in b.secciones)
+        check("La mensual es la mas corta", conteos["mensual"] < conteos["semestral"],
+              f"mensual {conteos['mensual']} < semestral {conteos['semestral']}")
+        check("La anual es la mas larga", conteos["semestral"] < conteos["anual"],
+              f"semestral {conteos['semestral']} < anual {conteos['anual']}")
+
+        item_eca.rutina = FRECUENCIA_MENSUAL
+        db.session.commit()
+        mens = armar_bloques(item_eca)
+        s_hum = next(s for b in mens for s in b.secciones
+                     if s.tipo_formulario.nombre == "Estación de control húmeda")
+        claves = [c.clave for c in s_hum.campos]
+        check("Mensual en humeda: solo valvula y presiones",
+              claves == ["valvula_principal", "p_suministro", "p_sistema"],
+              ", ".join(claves))
+        check("La purga del inspector no aparece en la mensual", "purga_abierta" not in claves)
+
+        s_pre = next(s for b in mens for s in b.secciones
+                     if s.tipo_formulario.nombre == "Estación de control de preacción")
+        check("Preaccion suma la camara de enclavamiento en la mensual",
+              "p_enclavamiento" in [c.clave for c in s_pre.campos])
+        s_dil = next(s for b in mens for s in b.secciones
+                     if s.tipo_formulario.nombre == "Estación de control de diluvio")
+        check("Diluvio suma la camara del diafragma en la mensual",
+              "p_diafragma" in [c.clave for c in s_dil.campos])
+
+        item_eca.rutina = FRECUENCIA_SEMESTRAL
+        db.session.commit()
+        sem = armar_bloques(item_eca)
+        s_hum6 = next(s for b in sem for s in b.secciones
+                      if s.tipo_formulario.nombre == "Estación de control húmeda")
+        claves6 = [c.clave for c in s_hum6.campos]
+        check("Semestral agrega las senales de supervision y alarma",
+              "supervision_valvula" in claves6 and "alarma_flujo" in claves6)
+        check("Semestral incluye lo mensual", "p_suministro" in claves6)
+        check("Semestral todavia no abre la purga", "purga_abierta" not in claves6)
+
+        item_eca.rutina = FRECUENCIA_ANUAL
+        db.session.commit()
+        anu = armar_bloques(item_eca)
+        s_hum12 = next(s for b in anu for s in b.secciones
+                       if s.tipo_formulario.nombre == "Estación de control húmeda")
+        claves12 = [c.clave for c in s_hum12.campos]
+        for clave in ("purga_abierta", "t_bomba", "t_alarma",
+                      "restablecimiento_alarma", "restablecimiento_bomba"):
+            check(f"Anual incluye '{clave}'", clave in claves12)
+        check("Anual incluye lo semestral y lo mensual",
+              "supervision_valvula" in claves12 and "p_suministro" in claves12)
+
+        print("\n8b - Umbrales propios de la categoria")
         t_agua = CampoFormulario.query.filter_by(clave="tiempo_agua").one()
         check("Llegada de agua: maximo 60 s", t_agua.maximo == 60)
         check("75 s dispara deficiencia critica",
               t_agua.fuera_de_rango(75) and t_agua.gravedad_fuera_rango == GRAVEDAD_CRITICA)
+        t_alarma = CampoFormulario.query.filter_by(clave="t_alarma").first()
+        check("Respuesta de alarma: maximo 90 s", t_alarma.maximo == 90)
         restablecimiento = CampoFormulario.query.filter_by(clave="restablecimiento").one()
         check("Compresor: maximo 30 min", restablecimiento.maximo == 30)
 

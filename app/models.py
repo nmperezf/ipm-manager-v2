@@ -88,6 +88,32 @@ CAMPO_MULTI = "multi_seleccion"
 CAMPO_ESTADO = "estado"
 TIPOS_CAMPO = [CAMPO_NUMERO, CAMPO_TEXTO, CAMPO_SELECCION, CAMPO_MULTI, CAMPO_ESTADO]
 
+# Rutinas de inspección. Son ACUMULATIVAS: la semestral hace todo lo de la
+# mensual más lo suyo, y la anual hace las tres cosas. Por eso la
+# frecuencia se declara por campo y no por formulario — si no, habría que
+# mantener tres copias casi idénticas de cada checklist de estación.
+FRECUENCIA_MENSUAL = "mensual"
+FRECUENCIA_TRIMESTRAL = "trimestral"
+FRECUENCIA_SEMESTRAL = "semestral"
+FRECUENCIA_ANUAL = "anual"
+FRECUENCIA_SEMANAL = "semanal"
+
+NIVEL_FRECUENCIA = {
+    FRECUENCIA_SEMANAL: 1,
+    FRECUENCIA_MENSUAL: 2,
+    FRECUENCIA_TRIMESTRAL: 3,
+    FRECUENCIA_SEMESTRAL: 4,
+    FRECUENCIA_ANUAL: 5,
+}
+FRECUENCIAS = sorted(NIVEL_FRECUENCIA, key=NIVEL_FRECUENCIA.get)
+
+
+def nivel_frecuencia(frecuencia):
+    """Ordinal de una frecuencia. Una rutina incluye todo lo de nivel menor
+    o igual. Lo desconocido queda en el nivel más bajo para que aparezca
+    siempre en vez de desaparecer sin aviso."""
+    return NIVEL_FRECUENCIA.get(frecuencia, 1)
+
 
 # ---------------------------------------------------------------------------
 # Empresa y usuarios
@@ -358,8 +384,23 @@ class CampoFormulario(db.Model):
     # Gravedad que se asigna cuando el disparo es automático por rango.
     gravedad_fuera_rango = db.Column(db.String(20), default=GRAVEDAD_NO_CRITICA)
 
+    # En qué rutina entra este punto. Nulo = la del formulario. Es lo que
+    # permite que la estación húmeda sea UN formulario cuyo checklist crece
+    # con la rutina: mensual registra posición de válvulas y presiones, la
+    # semestral agrega las pruebas de señales, y la anual la purga del
+    # inspector con sus tiempos.
+    frecuencia = db.Column(db.String(20))
+
     ayuda = db.Column(db.String(300))
     orden = db.Column(db.Integer, default=0, nullable=False)
+
+    @property
+    def frecuencia_efectiva(self):
+        return self.frecuencia or (self.tipo_formulario.frecuencia if self.tipo_formulario else None)
+
+    def entra_en(self, rutina):
+        """True si este punto se carga en esa rutina."""
+        return nivel_frecuencia(self.frecuencia_efectiva) <= nivel_frecuencia(rutina)
 
     @property
     def opciones(self):
@@ -438,6 +479,9 @@ class ItemVisita(db.Model):
     visita_id = db.Column(db.Integer, db.ForeignKey("visitas.id"), nullable=False, index=True)
     categoria_id = db.Column(db.Integer, db.ForeignKey("categorias_equipo.id"), nullable=False, index=True)
     estado = db.Column(db.String(20), default="Pendiente", nullable=False)
+    # Qué rutina se ejecuta. Define hasta qué nivel de campos se carga:
+    # la anual incluye lo semestral, que a su vez incluye lo mensual.
+    rutina = db.Column(db.String(20), default=FRECUENCIA_MENSUAL, nullable=False)
 
     visita = db.relationship("Visita", backref=db.backref("items", cascade="all, delete-orphan"))
     categoria = db.relationship("CategoriaEquipo")
