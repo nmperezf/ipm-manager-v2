@@ -38,7 +38,16 @@
         <option value="semestral">Rutina semestral</option>
         <option value="anual">Rutina anual</option>
       </select>
-      <button class="btn sm" type="submit">Arrancar</button>
+      {% if current_user.puede_aprobar and tecnicos %}
+        <select name="tecnico_id"
+                style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.28rem .45rem;font:inherit;font-size:.78rem">
+          {% for t in tecnicos %}
+            <option value="{{ t.id }}" {{ 'selected' if t.id == current_user.id }}>
+              {{ t.nombre_completo or t.username }}</option>
+          {% endfor %}
+        </select>
+      {% endif %}
+      <button class="btn sm" type="submit">Crear OT</button>
     </form>
   {% else %}
     <p class="muted" style="margin:0">

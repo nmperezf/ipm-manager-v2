@@ -29,12 +29,19 @@ from app.models import (
     GRAVEDAD_NO_CRITICA,
     REVISION_APROBADA,
     REVISION_PENDIENTE,
+    ESTADOS_OT,
+    OT_CERRADA,
+    OT_EN_CURSO,
+    OT_EN_REVISION,
+    OT_PENDIENTE,
+    OT_PREVENTIVO,
     CategoriaEquipo,
     Cliente,
     Equipo,
     Instalacion,
     ItemVisita,
     Observacion,
+    OrdenTrabajo,
     TipoEquipo,
     TipoFormulario,
     Usuario,
@@ -69,6 +76,11 @@ def inyectar_contexto():
         "CLASIF_NO_CRITICA": CLASIF_NO_CRITICA,
         "REVISION_APROBADA": REVISION_APROBADA,
         "FRECUENCIAS": FRECUENCIAS,
+        "ESTADOS_OT": ESTADOS_OT,
+        "OT_PENDIENTE": OT_PENDIENTE,
+        "OT_EN_CURSO": OT_EN_CURSO,
+        "OT_EN_REVISION": OT_EN_REVISION,
+        "OT_CERRADA": OT_CERRADA,
         "nombre_campo": nombre_campo,
         "pendientes_aprobacion": 0,
     }
@@ -175,6 +187,15 @@ def inicio():
     total_visitas = _visitas_empresa().filter(Visita.fecha >= desde).count()
     instalaciones = _instalaciones_empresa().count()
 
+    # Lo primero que necesita ver un técnico es qué tiene pendiente.
+    q_ot = _ordenes_empresa().filter(OrdenTrabajo.estado != OT_CERRADA)
+    if current_user.rol == "Técnico":
+        q_ot = q_ot.filter(OrdenTrabajo.tecnico_id == current_user.id)
+    mis_ordenes = q_ot.order_by(
+        OrdenTrabajo.fecha_compromiso.asc().nullslast(), OrdenTrabajo.id.desc()
+    ).limit(6).all()
+    total_ordenes = q_ot.count()
+
     return render_template(
         "inicio.html",
         criticas=criticas[:6],
@@ -184,6 +205,8 @@ def inicio():
         visitas=visitas_recientes,
         total_visitas=total_visitas,
         instalaciones=instalaciones,
+        mis_ordenes=mis_ordenes,
+        total_ordenes=total_ordenes,
     )
 
 
@@ -232,6 +255,11 @@ def instalacion(instalacion_id):
     raices = [e for e in activos if e.padre_id is None]
     raices.sort(key=lambda e: (e.tipo_equipo.orden, e.codigo or "", e.nombre))
 
+    tecnicos = (
+        Usuario.query.filter_by(empresa_id=current_user.empresa_id, activo=True)
+        .filter(Usuario.rol.in_(("Técnico", "Jefe técnico")))
+        .order_by(Usuario.nombre_completo).all()
+    )
     visitas_inst = (
         Visita.query.filter_by(instalacion_id=obj.id)
         .order_by(Visita.fecha.desc(), Visita.id.desc()).limit(10).all()
@@ -242,7 +270,7 @@ def instalacion(instalacion_id):
     )
     return render_template(
         "instalacion.html", instalacion=obj, raices=raices,
-        visitas=visitas_inst, abiertas=abiertas,
+        visitas=visitas_inst, abiertas=abiertas, tecnicos=tecnicos,
     )
 
 
@@ -260,13 +288,99 @@ def abrir_inspeccion(instalacion_id, categoria_id):
     if rutina not in FRECUENCIAS:
         rutina = FRECUENCIA_MENSUAL
 
-    nueva = Visita(instalacion_id=obj.id, fecha=date.today(), tecnico_id=current_user.id)
+    tecnico_id = request.form.get("tecnico_id", type=int) or current_user.id
+
+    nueva = Visita(instalacion_id=obj.id, fecha=date.today(), tecnico_id=tecnico_id)
     db.session.add(nueva)
     db.session.flush()
     item = ItemVisita(visita_id=nueva.id, categoria_id=categoria_id, rutina=rutina)
     db.session.add(item)
+
+    # La OT es el compromiso que envuelve a la visita: es lo que se asigna,
+    # se numera y el técnico ve en su lista.
+    orden = OrdenTrabajo(
+        visita_id=nueva.id,
+        tipo=OT_PREVENTIVO,
+        estado=OT_PENDIENTE,
+        tecnico_id=tecnico_id,
+        fecha_apertura=date.today(),
+        fecha_compromiso=date.today(),
+        descripcion=f"{obj.cliente.nombre} · {obj.nombre} — rutina {rutina}",
+    )
+    db.session.add(orden)
+    db.session.flush()
+    orden.asignar_numero(current_user.empresa_id)
     db.session.commit()
-    return redirect(url_for("principal.checklist", item_id=item.id))
+
+    flash(f"Orden {orden.numero} creada.", "ok")
+    return redirect(url_for("principal.orden", orden_id=orden.id))
+
+
+# ---------------------------------------------------------------------------
+# Órdenes de trabajo
+# ---------------------------------------------------------------------------
+
+
+def _ordenes_empresa():
+    return (
+        OrdenTrabajo.query.join(Visita, OrdenTrabajo.visita_id == Visita.id)
+        .join(Instalacion, Visita.instalacion_id == Instalacion.id)
+        .join(Cliente, Instalacion.cliente_id == Cliente.id)
+        .filter(Cliente.empresa_id == current_user.empresa_id)
+    )
+
+
+@principal.route("/ordenes")
+@login_required
+def ordenes():
+    query = _ordenes_empresa()
+    # Un técnico ve las suyas; gestión ve todas.
+    if current_user.rol == "Técnico":
+        query = query.filter(OrdenTrabajo.tecnico_id == current_user.id)
+
+    filtro = request.args.get("estado")
+    if filtro == "abiertas":
+        query = query.filter(OrdenTrabajo.estado != OT_CERRADA)
+    elif filtro in ESTADOS_OT:
+        query = query.filter(OrdenTrabajo.estado == filtro)
+
+    lista = query.order_by(
+        OrdenTrabajo.fecha_compromiso.asc().nullslast(), OrdenTrabajo.id.desc()
+    ).limit(80).all()
+    return render_template("ordenes.html", ordenes=lista, filtro=filtro)
+
+
+@principal.route("/orden/<int:orden_id>")
+@login_required
+def orden(orden_id):
+    obj = db.session.get(OrdenTrabajo, orden_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.visita.instalacion.cliente.empresa_id)
+
+    # El primer ítem sin cargar es a donde el técnico tiene que ir.
+    siguiente = next((i for i in obj.visita.items if not i.formularios), None)
+    return render_template("orden.html", orden=obj, siguiente=siguiente)
+
+
+@principal.route("/orden/<int:orden_id>/estado", methods=["POST"])
+@login_required
+def orden_estado(orden_id):
+    obj = db.session.get(OrdenTrabajo, orden_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.visita.instalacion.cliente.empresa_id)
+
+    nuevo = request.form.get("estado", "")
+    if not obj.puede_pasar_a(nuevo, current_user):
+        flash(f"No se puede pasar de «{obj.estado}» a «{nuevo}».", "error")
+        return redirect(url_for("principal.orden", orden_id=obj.id))
+
+    obj.estado = nuevo
+    obj.fecha_cierre = date.today() if nuevo == OT_CERRADA else None
+    db.session.commit()
+    flash(f"{obj.numero} → {nuevo}.", "ok")
+    return redirect(url_for("principal.orden", orden_id=obj.id))
 
 
 # ---------------------------------------------------------------------------
@@ -611,6 +725,14 @@ def checklist(item_id):
                 estado = "aprobada(s)" if current_user.puede_aprobar else "pendiente(s) de aprobación"
                 partes.append(f"{resultado.observaciones} deficiencia(s) {estado}")
             flash(" · ".join(partes), "ok")
+            # Cargar el checklist pone la OT en curso sola: el técnico no
+            # tiene que acordarse de cambiarle el estado a mano.
+            orden_asociada = item.visita.orden
+            if orden_asociada and orden_asociada.estado == OT_PENDIENTE:
+                orden_asociada.estado = OT_EN_CURSO
+                db.session.commit()
+            if orden_asociada:
+                return redirect(url_for("principal.orden", orden_id=orden_asociada.id))
             return redirect(url_for("principal.visita", visita_id=item.visita_id))
         for error in resultado.errores:
             flash(error, "error")

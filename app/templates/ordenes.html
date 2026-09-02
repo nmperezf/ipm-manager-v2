@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Órdenes de trabajo — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Órdenes de trabajo</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>Órdenes de trabajo</h2>
+    <span class="sub">
+      {% if current_user.rol == 'Técnico' %}Las tuyas{% else %}Todas las de la empresa{% endif %}
+      · {{ ordenes|length }} listada(s)
+    </span>
+  </div>
+</div>
+
+<div class="fila" style="margin-bottom:.8rem">
+  <a class="btn {{ 'ghost' if filtro }} sm" href="{{ url_for('principal.ordenes') }}">Todas</a>
+  <a class="btn {{ '' if filtro == 'abiertas' else 'ghost' }} sm"
+     href="{{ url_for('principal.ordenes', estado='abiertas') }}">Abiertas</a>
+  {% for e in ESTADOS_OT %}
+    <a class="btn {{ '' if filtro == e else 'ghost' }} sm"
+       href="{{ url_for('principal.ordenes', estado=e) }}">{{ e }}</a>
+  {% endfor %}
+</div>
+
+{% if ordenes %}
+<div class="tabla-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="froz">OT</th><th>Cliente</th><th>Instalación</th>
+        <th>Técnico</th><th>Compromiso</th><th>Estado</th><th>Hallazgos</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for o in ordenes %}
+      {% set criticas = o.visita.observaciones | selectattr('clasificacion', 'equalto', CLASIF_CRITICA) | list %}
+      <tr>
+        <td class="froz mono">
+          <a href="{{ url_for('principal.orden', orden_id=o.id) }}">{{ o.numero or '#' ~ o.id }}</a>
+        </td>
+        <td>{{ o.visita.instalacion.cliente.nombre }}</td>
+        <td>{{ o.visita.instalacion.nombre }}</td>
+        <td>{{ o.tecnico.nombre_completo if o.tecnico else '—' }}</td>
+        <td class="mono">
+          {{ o.fecha_compromiso.strftime('%d/%m/%y') if o.fecha_compromiso else '—' }}
+          {% if o.vencida %}<span class="pill crit">vencida</span>{% endif %}
+        </td>
+        <td>
+          {% if o.estado == OT_CERRADA %}<span class="pill ok">{{ o.estado }}</span>
+          {% elif o.estado == OT_EN_REVISION %}<span class="pill nocrit">{{ o.estado }}</span>
+          {% else %}<span class="pill com">{{ o.estado }}</span>{% endif %}
+        </td>
+        <td>
+          {% if criticas %}<span class="pill crit">{{ criticas|length }} crítica(s)</span>
+          {% elif o.visita.observaciones %}<span class="pill nocrit">{{ o.visita.observaciones|length }}</span>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="vacio">
+  <span class="chip neu">{{ ico('visitas') }}</span>
+  <b>Sin órdenes de trabajo</b>
+  <p>Cada inspección que arrancás desde una instalación genera su orden numerada.</p>
+  <a class="btn" href="{{ url_for('principal.clientes') }}">Ver clientes</a>
+</div>
+{% endif %}
+{% endblock %}

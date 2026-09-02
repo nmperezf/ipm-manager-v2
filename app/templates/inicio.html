@@ -26,11 +26,43 @@
     <div class="v">{{ abiertas }}</div>
     <div class="d">total sin resolver</div>
   </a>
-  <a class="stat ok" href="{{ url_for('principal.visitas') }}">
-    <div class="k">Visitas 30 días</div>
-    <div class="v">{{ total_visitas }}</div>
-    <div class="d">en {{ instalaciones }} instalaciones</div>
+  <a class="stat ok" href="{{ url_for('principal.ordenes', estado='abiertas') }}">
+    <div class="k">OT abiertas</div>
+    <div class="v">{{ total_ordenes }}</div>
+    <div class="d">{{ total_visitas }} visitas en 30 días</div>
   </a>
+</div>
+
+{# Lo primero que necesita ver un técnico: qué tiene pendiente y por dónde
+   entrar. Cada OT lleva a su checklist, no a un listado intermedio. #}
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>{% if current_user.rol == 'Técnico' %}Mis órdenes abiertas{% else %}Órdenes abiertas{% endif %}</h3>
+    <span class="sp"></span>
+    <a class="tiny" href="{{ url_for('principal.ordenes', estado='abiertas') }}">ver todas →</a>
+  </div>
+  <div class="stack">
+    {% for o in mis_ordenes %}
+      <a class="item {{ 'crit' if o.vencida }}" href="{{ url_for('principal.orden', orden_id=o.id) }}">
+        <span class="chip {{ 'crit' if o.vencida else 'neu' }}">{{ ico('orden') }}</span>
+        <span class="t">
+          <b><span class="mono">{{ o.numero }}</span> · {{ o.visita.instalacion.cliente.nombre }}</b>
+          <span>
+            {{ o.visita.instalacion.nombre }} · {{ o.estado }}
+            {%- if o.fecha_compromiso %} · vence {{ o.fecha_compromiso.strftime('%d/%m/%y') }}{% endif %}
+          </span>
+        </span>
+        {% if o.vencida %}<span class="pill crit">vencida</span>{% endif %}
+        {{ ico('chevron') }}
+      </a>
+    {% else %}
+      <div class="vacio">
+        <span class="chip ok">{{ ico('check') }}</span>
+        <b>Sin órdenes abiertas</b>
+        <p>Todo el trabajo asignado está cerrado.</p>
+      </div>
+    {% endfor %}
+  </div>
 </div>
 
 <div class="card">

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% set visita = orden.visita %}
+{% set inst = visita.instalacion %}
+{% block title %}{{ orden.numero }} — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.ordenes') }}">Órdenes de trabajo</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.cliente', cliente_id=inst.cliente_id) }}">{{ inst.cliente.nombre }}</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">{{ inst.nombre }}</a>
+  {{ ico('chevron') }}<b>{{ orden.numero }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2><span class="mono">{{ orden.numero }}</span></h2>
+    <span class="sub">
+      {{ inst.cliente.nombre }} · {{ inst.nombre }} ·
+      {{ orden.tecnico.nombre_completo if orden.tecnico else 'sin asignar' }}
+    </span>
+  </div>
+  <span class="sp"></span>
+  {% if orden.estado == OT_CERRADA %}<span class="pill ok">{{ orden.estado }}</span>
+  {% elif orden.estado == OT_EN_REVISION %}<span class="pill nocrit">{{ orden.estado }}</span>
+  {% else %}<span class="pill com">{{ orden.estado }}</span>{% endif %}
+  {% if orden.vencida %}<span class="pill crit">vencida</span>{% endif %}
+</div>
+
+{# Lo que el técnico vino a hacer. Si queda algo sin cargar, el botón lo
+   lleva directo ahí: no tiene que navegar buscando el checklist. #}
+{% if siguiente and orden.estado != OT_CERRADA %}
+<div class="card" style="border-left:3px solid var(--brand-light)">
+  <div class="fila">
+    <span class="chip neu">{{ ico('visitas') }}</span>
+    <div style="flex:1;min-width:0">
+      <b style="font-size:.9rem;display:block">Falta cargar {{ siguiente.categoria.nombre }}</b>
+      <span class="tiny">rutina {{ siguiente.rutina }}</span>
+    </div>
+    <a class="btn" href="{{ url_for('principal.checklist', item_id=siguiente.id) }}">
+      Cargar checklist</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Datos de la orden</h3>
+  <div class="tabla-wrap">
+    <table>
+      <tbody>
+        <tr><th style="width:11rem">Tipo</th><td>{{ orden.tipo }}</td></tr>
+        <tr><th>Prioridad</th><td>{{ orden.prioridad }}</td></tr>
+        <tr><th>Apertura</th><td class="mono">{{ orden.fecha_apertura.strftime('%d/%m/%Y') }}</td></tr>
+        <tr>
+          <th>Compromiso</th>
+          <td class="mono">{{ orden.fecha_compromiso.strftime('%d/%m/%Y') if orden.fecha_compromiso else '—' }}</td>
+        </tr>
+        {% if orden.fecha_cierre %}
+          <tr><th>Cierre</th><td class="mono">{{ orden.fecha_cierre.strftime('%d/%m/%Y') }}</td></tr>
+        {% endif %}
+        <tr>
+          <th>Visita</th>
+          <td><a href="{{ url_for('principal.visita', visita_id=visita.id) }}">#{{ visita.id }}</a>
+            · {{ visita.fecha.strftime('%d/%m/%Y') }}</td>
+        </tr>
+        {% if orden.descripcion %}
+          <tr><th>Descripción</th><td>{{ orden.descripcion }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Trabajo a realizar</h3>
+  <div class="stack">
+    {% for item in visita.items %}
+      {% set cargados = item.formularios | length %}
+      <div class="item">
+        <span class="chip {{ 'ok' if cargados else 'neu' }}">
+          {% if cargados %}{{ ico('check') }}{% else %}{{ ico('visitas') }}{% endif %}</span>
+        <span class="t">
+          <b>{{ item.categoria.nombre }}</b>
+          <span>
+            rutina {{ item.rutina }} ·
+            {% if cargados %}{{ cargados }} formulario(s) cargado(s){% else %}sin cargar{% endif %}
+          </span>
+        </span>
+        {% if orden.estado != OT_CERRADA %}
+          <a class="btn ghost sm" href="{{ url_for('principal.checklist', item_id=item.id) }}">
+            {% if cargados %}Revisar{% else %}Cargar{% endif %}</a>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if visita.observaciones %}
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Hallazgos</h3>
+  <div class="stack">
+    {% for o in visita.observaciones %}
+      <div class="item {{ 'crit' if o.clasificacion == CLASIF_CRITICA }}">
+        <span class="chip {{ 'crit' if o.clasificacion == CLASIF_CRITICA else 'warn' }}">
+          {{ ico('deficiencias') }}</span>
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span>{% if o.equipo %}<span class="mono">{{ o.equipo.codigo or o.equipo.nombre }}</span>{% endif %}</span>
+        </span>
+        {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
+        {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
+        {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
+        {% if o.estado_revision != REVISION_APROBADA %}<span class="pill com">Sin aprobar</span>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Estado</h3>
+  <div class="fila">
+    {% for e in ESTADOS_OT %}
+      {% if e != orden.estado and orden.puede_pasar_a(e, current_user) %}
+        <form method="post" action="{{ url_for('principal.orden_estado', orden_id=orden.id) }}">
+          <input type="hidden" name="estado" value="{{ e }}">
+          <button class="btn {{ '' if e == OT_EN_REVISION else 'ghost' }} sm" type="submit">
+            Pasar a {{ e }}</button>
+        </form>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <p class="tiny" style="margin:.6rem 0 0">
+    El técnico la empuja hasta dejarla <b>En revisión</b>; cerrarla es de gestión.
+    Cargar un checklist la pone <b>En curso</b> sola.
+  </p>
+</div>
+{% endblock %}

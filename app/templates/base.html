@@ -210,6 +210,7 @@ tbody tr:last-child td{border-bottom:0}
 {%- elif nombre == 'visitas' %}<rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M8 3v4M16 3v4"/>
 {%- elif nombre == 'deficiencias' %}<path d="M12 3.4L22.2 20.4H1.8z"/><path d="M12 9.6v4.6M12 17.2v.2"/>
 {%- elif nombre == 'equipos' %}<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>
+{%- elif nombre == 'orden' %}<path d="M9 4H7a2 2 0 00-2 2v13a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2h-2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1"/><path d="M8.4 13.6l2.5 2.5 4.7-5"/>
 {%- elif nombre == 'catalogo' %}<path d="M4 5.5A1.5 1.5 0 015.5 4H10v16H5.5A1.5 1.5 0 014 18.5z"/><path d="M14 4h4.5A1.5 1.5 0 0120 5.5v13a1.5 1.5 0 01-1.5 1.5H14z"/>
 {%- elif nombre == 'config' %}<circle cx="12" cy="12" r="4.4"/><path d="M12 2.4v2.4M12 19.2v2.4M2.4 12h2.4M19.2 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M18.8 5.2l-1.7 1.7M6.9 17.1l-1.7 1.7"/>
 {%- elif nombre == 'buscar' %}<circle cx="11" cy="11" r="7"/><path d="M20.6 20.6L16.2 16.2"/>
@@ -235,7 +236,9 @@ tbody tr:last-child td{border-bottom:0}
       {{ ico('inicio') }}Inicio</a>
 
     <div class="grupo">Operación</div>
-    <a class="nav {{ 'on' if ep in ('principal.visitas', 'principal.visita', 'principal.checklist') }}"
+    <a class="nav {{ 'on' if ep in ('principal.ordenes', 'principal.orden', 'principal.checklist') }}"
+       href="{{ url_for('principal.ordenes') }}">{{ ico('orden') }}Órdenes de trabajo</a>
+    <a class="nav {{ 'on' if ep in ('principal.visitas', 'principal.visita') }}"
        href="{{ url_for('principal.visitas') }}">{{ ico('visitas') }}Visitas</a>
     <a class="nav {{ 'on' if ep == 'principal.deficiencias' }}"
        href="{{ url_for('principal.deficiencias') }}">{{ ico('deficiencias') }}Deficiencias
@@ -293,9 +296,9 @@ tbody tr:last-child td{border-bottom:0}
 <nav class="nav-inferior">
   <a href="{{ url_for('principal.inicio') }}" class="{{ 'on' if ep == 'principal.inicio' }}">
     {{ ico('inicio') }}Inicio</a>
-  <a href="{{ url_for('principal.visitas') }}"
-     class="{{ 'on' if ep in ('principal.visitas', 'principal.visita', 'principal.checklist') }}">
-    {{ ico('visitas') }}Visitas</a>
+  <a href="{{ url_for('principal.ordenes') }}"
+     class="{{ 'on' if ep in ('principal.ordenes', 'principal.orden', 'principal.checklist') }}">
+    {{ ico('orden') }}Mis OT</a>
   <a href="{{ url_for('principal.clientes') }}"
      class="{{ 'on' if ep in ('principal.clientes', 'principal.cliente', 'principal.instalacion') }}">
     {{ ico('clientes') }}Clientes</a>

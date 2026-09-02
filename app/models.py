@@ -108,6 +108,24 @@ NIVEL_FRECUENCIA = {
 FRECUENCIAS = sorted(NIVEL_FRECUENCIA, key=NIVEL_FRECUENCIA.get)
 
 
+# Estados de una orden de trabajo. El técnico la empuja hasta dejarla en
+# revisión; cerrarla es de gestión, igual que aprobar una deficiencia.
+OT_PENDIENTE = "Pendiente"
+OT_EN_CURSO = "En curso"
+OT_EN_REVISION = "En revisión"
+OT_CERRADA = "Cerrada"
+ESTADOS_OT = [OT_PENDIENTE, OT_EN_CURSO, OT_EN_REVISION, OT_CERRADA]
+
+OT_PREVENTIVO = "Preventivo"
+OT_CORRECTIVO = "Correctivo"
+TIPOS_OT = [OT_PREVENTIVO, OT_CORRECTIVO]
+
+PRIORIDAD_ALTA = "Alta"
+PRIORIDAD_MEDIA = "Media"
+PRIORIDAD_BAJA = "Baja"
+PRIORIDADES_OT = [PRIORIDAD_ALTA, PRIORIDAD_MEDIA, PRIORIDAD_BAJA]
+
+
 def nivel_frecuencia(frecuencia):
     """Ordinal de una frecuencia. Una rutina incluye todo lo de nivel menor
     o igual. Lo desconocido queda en el nivel más bajo para que aparezca
@@ -488,6 +506,84 @@ class ItemVisita(db.Model):
 
     def __repr__(self):
         return f"<ItemVisita {self.id}>"
+
+
+class OrdenTrabajo(db.Model):
+    """El compromiso de trabajo que envuelve a una visita.
+
+    Uno a uno con la Visita. La división es deliberada:
+
+    - La OT responde **a quién, para cuándo y en qué estado** — es lo que
+      se asigna, se numera y el cliente puede referenciar.
+    - La Visita responde **qué se hizo** — de ella cuelgan los ítems con su
+      rutina y los formularios cargados.
+
+    Mezclarlas obligaría a que cada cambio de estado administrativo tocara
+    los datos técnicos, y a que reprogramar pareciera una visita nueva.
+    """
+
+    __tablename__ = "ordenes_trabajo"
+
+    id = db.Column(db.Integer, primary_key=True)
+    # 1:1 — cada OT tiene su visita y viceversa.
+    visita_id = db.Column(
+        db.Integer, db.ForeignKey("visitas.id"), nullable=False, unique=True, index=True
+    )
+    numero = db.Column(db.String(30), index=True)
+    tipo = db.Column(db.String(30), default=OT_PREVENTIVO, nullable=False)
+    prioridad = db.Column(db.String(20), default=PRIORIDAD_MEDIA, nullable=False)
+    estado = db.Column(db.String(20), default=OT_PENDIENTE, nullable=False)
+
+    tecnico_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True, index=True)
+    fecha_apertura = db.Column(db.Date, default=date.today, nullable=False)
+    fecha_compromiso = db.Column(db.Date)
+    fecha_cierre = db.Column(db.Date)
+    descripcion = db.Column(db.Text)
+
+    visita = db.relationship("Visita", backref=db.backref("orden", uselist=False))
+    tecnico = db.relationship("Usuario")
+
+    def asignar_numero(self, empresa_id):
+        """Numeración correlativa por empresa y año."""
+        anio = (self.fecha_apertura or date.today()).year
+        cuantas = (
+            OrdenTrabajo.query.join(Visita, OrdenTrabajo.visita_id == Visita.id)
+            .join(Instalacion, Visita.instalacion_id == Instalacion.id)
+            .join(Cliente, Instalacion.cliente_id == Cliente.id)
+            .filter(Cliente.empresa_id == empresa_id)
+            .filter(db.extract("year", OrdenTrabajo.fecha_apertura) == anio)
+            .count()
+        )
+        self.numero = f"OT-{anio}-{cuantas:04d}"
+        return self.numero
+
+    @property
+    def vencida(self):
+        if not self.fecha_compromiso or self.estado == OT_CERRADA:
+            return False
+        return self.fecha_compromiso < date.today()
+
+    @property
+    def abierta(self):
+        return self.estado != OT_CERRADA
+
+    def puede_pasar_a(self, nuevo, usuario):
+        """Quién puede mover qué. El técnico la empuja hasta dejarla en
+        revisión; cerrarla es de gestión."""
+        if nuevo not in ESTADOS_OT:
+            return False
+        if nuevo == OT_CERRADA:
+            return usuario.puede_aprobar and self.estado == OT_EN_REVISION
+        if nuevo == OT_EN_REVISION:
+            return self.estado in (OT_PENDIENTE, OT_EN_CURSO)
+        if nuevo == OT_EN_CURSO:
+            return self.estado in (OT_PENDIENTE, OT_EN_REVISION)
+        if nuevo == OT_PENDIENTE:
+            return usuario.puede_aprobar
+        return False
+
+    def __repr__(self):
+        return f"<OrdenTrabajo {self.numero} {self.estado}>"
 
 
 class Formulario(db.Model):
