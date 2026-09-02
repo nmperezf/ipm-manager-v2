@@ -17,49 +17,149 @@
   --ground:#F4F7FA; --surface:#FFF; --surface-muted:#EDF2F7;
   --border:#D9E1EA; --border-strong:#BDCAD8;
   --ink:#16202B; --ink-muted:#5A6C7D; --ink-faint:#8598A8;
+  --shadow:0 1px 2px rgba(18,40,63,.06), 0 10px 28px -18px rgba(18,40,63,.28);
   --r:10px; --r-sm:7px;
   --display:'Space Grotesk',system-ui,sans-serif;
   --body:'Inter',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  --riel:212px;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55}
 h1,h2,h3,h4{font-family:var(--display);margin:0;letter-spacing:-.015em;text-wrap:balance}
 a{color:var(--brand-light)}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.sp{flex:1}
 :focus-visible{outline:2px solid var(--brand-light);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
-.topbar{background:var(--brand-dark);color:#fff;padding:.7rem 1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
-.topbar .marca{font-family:var(--display);font-weight:700;font-size:1rem;color:#fff;text-decoration:none}
-.topbar .marca span{color:var(--ember)}
-.topbar a{color:#C6D6E5;text-decoration:none;font-size:.85rem}
-.topbar a:hover{color:#fff}
-.topbar .sp{flex:1}
-.topbar .quien{font-size:.8rem;color:#9DB6CE}
-.badge{font-family:var(--mono);font-size:.66rem;background:var(--ember);color:#fff;border-radius:99px;padding:.05rem .38rem}
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:var(--riel) 1fr;min-height:100vh}
+@media (max-width:900px){.app{grid-template-columns:1fr}}
 
-.wrap{max-width:900px;margin:0 auto;padding:1.4rem 1rem 4rem}
-.crumbs{font-size:.78rem;color:var(--ink-muted);margin-bottom:.5rem}
-.crumbs a{color:var(--ink-muted)}
+.riel{background:var(--brand-dark);color:#C6D6E5;display:flex;flex-direction:column;
+  padding:.85rem .6rem;gap:.1rem;position:sticky;top:0;height:100vh;overflow-y:auto}
+@media (max-width:900px){.riel{display:none}}
+.riel .marca{display:flex;align-items:center;gap:.5rem;color:#fff;text-decoration:none;
+  padding:.35rem .55rem 1rem;font-family:var(--display);font-weight:700;font-size:.98rem}
+.riel .marca em{font-style:normal;color:var(--ember)}
+.riel .grupo{font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
+  color:#6E8CA8;padding:.9rem .6rem .3rem}
+.riel a.nav{display:flex;align-items:center;gap:.55rem;padding:.42rem .6rem;border-radius:var(--r-sm);
+  color:#C6D6E5;text-decoration:none;font-size:.84rem}
+.riel a.nav:hover{background:rgba(255,255,255,.07);color:#fff}
+.riel a.nav.on{background:var(--brand-light);color:#fff;font-weight:600}
+.riel a.nav .tag{margin-left:auto;font-family:var(--mono);font-size:.62rem;background:var(--ember);
+  color:#fff;border-radius:99px;padding:.05rem .36rem}
+.riel .pie{margin-top:auto;padding-top:1rem;border-top:1px solid rgba(255,255,255,.1);
+  font-size:.72rem;color:#6E8CA8}
 
+.col{display:flex;flex-direction:column;min-width:0}
+.topbar{display:flex;align-items:center;gap:.6rem;padding:.55rem .9rem;background:var(--surface);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+.buscador{flex:1;max-width:420px;position:relative;display:flex;align-items:center}
+.buscador svg{position:absolute;left:.6rem;color:var(--ink-faint);width:.95rem;height:.95rem}
+.buscador input{width:100%;padding:.42rem .7rem .42rem 2rem;border:1px solid var(--border);
+  background:var(--surface-muted);border-radius:var(--r-sm);font:inherit;font-size:.83rem;color:var(--ink)}
+.buscador input:focus{background:var(--surface);border-color:var(--brand-light);outline:none}
+.icono-btn{position:relative;background:none;border:0;color:var(--ink-muted);width:32px;height:32px;
+  border-radius:var(--r-sm);cursor:pointer;display:grid;place-items:center;text-decoration:none}
+.icono-btn:hover{background:var(--surface-muted);color:var(--ink)}
+.icono-btn .punto{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;
+  background:var(--ember);border:1.5px solid var(--surface)}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;
+  display:grid;place-items:center;font-size:.66rem;font-weight:700;font-family:var(--mono);
+  text-decoration:none;flex:none}
+
+.migas{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;padding:.45rem .95rem;
+  border-bottom:1px solid var(--border);font-size:.77rem;background:var(--surface-muted);color:var(--ink-muted)}
+.migas a{color:var(--ink-muted);text-decoration:none}
+.migas a:hover{color:var(--brand-light);text-decoration:underline}
+.migas b{color:var(--ink);font-weight:600}
+
+.contenido{padding:1.2rem 1rem 5rem;max-width:1100px;width:100%}
+@media (max-width:900px){.contenido{padding-bottom:5rem}}
+.cabecera{display:flex;align-items:flex-end;gap:.7rem;flex-wrap:wrap;margin-bottom:1rem}
+.cabecera h2{font-size:1.35rem}
+.cabecera .sub{color:var(--ink-muted);font-size:.85rem}
+
+/* ---------- nav inferior (celular) ---------- */
+.nav-inferior{display:none}
+@media (max-width:900px){
+  .nav-inferior{display:grid;position:fixed;bottom:0;left:0;right:0;height:54px;z-index:30;
+    background:var(--surface);border-top:1px solid var(--border);grid-auto-flow:column}
+  .nav-inferior a{display:grid;place-items:center;gap:1px;font-size:.58rem;color:var(--ink-faint);
+    text-decoration:none;position:relative}
+  .nav-inferior a.on{color:var(--brand)}
+  .nav-inferior a .punto{position:absolute;top:7px;right:calc(50% - 15px);width:7px;height:7px;
+    border-radius:50%;background:var(--ember)}
+}
+
+/* ---------- piezas ---------- */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.9rem;margin-bottom:.8rem}
 .card h3{font-size:.95rem}
 .muted{color:var(--ink-muted);font-size:.85rem}
-.tiny{font-size:.75rem;color:var(--ink-faint)}
+.tiny{font-size:.74rem;color:var(--ink-faint)}
+.stack{display:flex;flex-direction:column;gap:.6rem}
+.fila{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
 
-.btn{display:inline-flex;align-items:center;gap:.4rem;background:var(--brand);color:#fff;border:0;
-  border-radius:var(--r-sm);padding:.5rem .85rem;font:inherit;font-size:.83rem;font-weight:600;
-  cursor:pointer;text-decoration:none}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem;margin-bottom:1rem}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.75rem .85rem;
+  text-decoration:none;color:inherit;display:block}
+a.stat:hover{border-color:var(--border-strong)}
+.stat .k{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+.stat .v{font-family:var(--display);font-size:1.6rem;font-variant-numeric:tabular-nums;margin-top:.1rem}
+.stat .d{font-size:.72rem;color:var(--ink-muted)}
+.stat.crit .v{color:var(--ember)}
+.stat.warn .v{color:var(--warn)}
+.stat.ok .v{color:var(--ok)}
+
+.item{display:flex;align-items:center;gap:.65rem;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:.6rem .7rem;text-decoration:none;color:inherit}
+.item:hover{border-color:var(--border-strong)}
+.item.crit{border-left:3px solid var(--ember)}
+.item.warn{border-left:3px solid var(--warn)}
+.item .t{flex:1;min-width:0}
+.item .t b{display:block;font-size:.85rem}
+.item .t span{display:block;font-size:.75rem;color:var(--ink-muted)}
+.chip{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none}
+.chip.crit{background:var(--ember-soft);color:var(--ember)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.neu{background:var(--neutral-soft);color:var(--neutral)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;background:var(--brand);
+  color:#fff;border:0;border-radius:var(--r-sm);padding:.48rem .8rem;font:inherit;font-size:.82rem;
+  font-weight:600;cursor:pointer;text-decoration:none}
 .btn:hover{background:var(--brand-light)}
 .btn.ember{background:var(--ember)}
 .btn.ghost{background:none;border:1px solid var(--border-strong);color:var(--ink)}
-.btn.sm{padding:.3rem .6rem;font-size:.76rem}
+.btn.sm{padding:.28rem .58rem;font-size:.75rem}
 
 .flash{border-radius:var(--r-sm);padding:.55rem .8rem;margin-bottom:.5rem;font-size:.85rem}
 .flash.ok{background:var(--ok-soft);color:var(--ok);border-left:3px solid var(--ok)}
 .flash.error{background:var(--ember-soft);color:var(--ember);border-left:3px solid var(--ember)}
 
-/* --- bloques y puntos del checklist --- */
+.pill{display:inline-block;font-size:.68rem;font-weight:600;padding:.1rem .45rem;border-radius:99px;white-space:nowrap}
+.pill.crit{background:var(--ember-soft);color:var(--ember)}
+.pill.nocrit{background:var(--warn-soft);color:var(--warn)}
+.pill.com{background:var(--neutral-soft);color:var(--neutral)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+
+.vacio{background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r);
+  padding:1.6rem 1rem;text-align:center;display:grid;gap:.5rem;justify-items:center}
+.vacio b{font-family:var(--display);font-size:.95rem}
+.vacio p{margin:0;font-size:.82rem;color:var(--ink-muted);max-width:42ch}
+
+table{border-collapse:collapse;width:100%;font-size:.82rem;background:var(--surface)}
+th,td{padding:.5rem .65rem;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-family:var(--mono);font-size:.63rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-faint);background:var(--surface-muted);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+.tabla-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+.froz{position:sticky;left:0;background:var(--surface);font-weight:600;box-shadow:1px 0 0 var(--border)}
+
+/* ---------- checklist ---------- */
 .bloque{border:1px solid var(--border);border-radius:var(--r);margin-bottom:1rem;overflow:hidden;background:var(--surface)}
 .bloque > header{background:var(--surface-muted);padding:.6rem .85rem;border-bottom:1px solid var(--border)}
 .bloque > header b{font-family:var(--display);font-size:.95rem}
@@ -67,9 +167,7 @@ a{color:var(--brand-light)}
 .seccion{padding:.85rem;border-bottom:1px solid var(--border)}
 .seccion:last-child{border-bottom:0}
 .seccion > h4{font-size:.87rem;margin-bottom:.15rem}
-.seccion > .meta{font-family:var(--mono);font-size:.66rem;color:var(--ink-faint);
-  letter-spacing:.06em;margin-bottom:.6rem}
-
+.seccion > .meta{font-family:var(--mono);font-size:.65rem;color:var(--ink-faint);letter-spacing:.06em;margin-bottom:.6rem}
 .punto{border:1px solid var(--border);border-radius:var(--r-sm);padding:.6rem;margin-bottom:.5rem;display:grid;gap:.35rem}
 .punto > .lbl{font-size:.82rem;font-weight:600}
 .punto .ayuda{font-size:.72rem;color:var(--ink-faint)}
@@ -78,7 +176,6 @@ a{color:var(--brand-light)}
   width:100%;border:1px solid var(--border);border-radius:var(--r-sm);padding:.42rem .55rem;
   font:inherit;font-size:.84rem;color:var(--ink);background:var(--surface)}
 .punto input[type=number]{font-family:var(--mono)}
-
 .tri{display:flex;gap:.25rem}
 .tri label{flex:1;position:relative}
 .tri input{position:absolute;opacity:0;width:0;height:0}
@@ -88,7 +185,6 @@ a{color:var(--brand-light)}
 .tri input:checked + span.no{background:var(--ember-soft);border-color:var(--ember);color:var(--ember)}
 .tri input:checked + span.na{background:var(--neutral-soft);border-color:var(--border-strong);color:var(--neutral)}
 .tri input:focus-visible + span{outline:2px solid var(--brand-light);outline-offset:1px}
-
 .detalle{display:none;border-top:1px dashed var(--border-strong);padding-top:.45rem;margin-top:.1rem;gap:.3rem}
 .punto.no-conforme .detalle{display:grid}
 .detalle .lbl-nc{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
@@ -99,43 +195,119 @@ a{color:var(--brand-light)}
   padding:.28rem;font-size:.7rem;font-weight:600;color:var(--ink-muted);cursor:pointer}
 .grav input:checked + span.crit{background:var(--ember-soft);border-color:var(--ember);color:var(--ember)}
 .grav input:checked + span.nocrit{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
-
 .barra-guardar{position:sticky;bottom:0;background:linear-gradient(to top,var(--ground) 65%,transparent);
   padding:.7rem 0;display:grid}
-
-table{border-collapse:collapse;width:100%;font-size:.82rem;background:var(--surface)}
-th,td{padding:.5rem .65rem;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
-th{font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-faint);background:var(--surface-muted)}
-.tabla-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
-.pill{display:inline-block;font-size:.68rem;font-weight:600;padding:.1rem .45rem;border-radius:99px;white-space:nowrap}
-.pill.crit{background:var(--ember-soft);color:var(--ember)}
-.pill.nocrit{background:var(--warn-soft);color:var(--warn)}
-.pill.com{background:var(--neutral-soft);color:var(--neutral)}
-.pill.ok{background:var(--ok-soft);color:var(--ok)}
+@media (max-width:900px){.barra-guardar{bottom:54px}}
 </style>
 </head>
 <body>
 
-{% if current_user.is_authenticated %}
-<nav class="topbar">
-  <a class="marca" href="{{ url_for('principal.inicio') }}">IPM Manager <span>v2</span></a>
-  <a href="{{ url_for('principal.inicio') }}">Instalaciones</a>
-  <a href="{{ url_for('principal.deficiencias') }}">Deficiencias</a>
-  <span class="sp"></span>
-  <span class="quien">{{ current_user.nombre_completo or current_user.username }} · {{ current_user.rol }}</span>
-  <a href="{{ url_for('principal.logout') }}">Salir</a>
-</nav>
-{% endif %}
+{% macro ico(nombre) -%}
+<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"
+     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if nombre == 'inicio' %}<path d="M3 10.4L12 3l9 7.4V20a1 1 0 01-1 1h-5v-6.2H9V21H4a1 1 0 01-1-1z"/>
+{%- elif nombre == 'clientes' %}<circle cx="9" cy="8" r="3.6"/><path d="M2.6 20.4a6.4 6.4 0 0112.8 0M17.4 20.4a5.6 5.6 0 00-3-5"/>
+{%- elif nombre == 'visitas' %}<rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M8 3v4M16 3v4"/>
+{%- elif nombre == 'deficiencias' %}<path d="M12 3.4L22.2 20.4H1.8z"/><path d="M12 9.6v4.6M12 17.2v.2"/>
+{%- elif nombre == 'equipos' %}<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>
+{%- elif nombre == 'catalogo' %}<path d="M4 5.5A1.5 1.5 0 015.5 4H10v16H5.5A1.5 1.5 0 014 18.5z"/><path d="M14 4h4.5A1.5 1.5 0 0120 5.5v13a1.5 1.5 0 01-1.5 1.5H14z"/>
+{%- elif nombre == 'config' %}<circle cx="12" cy="12" r="4.4"/><path d="M12 2.4v2.4M12 19.2v2.4M2.4 12h2.4M19.2 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M18.8 5.2l-1.7 1.7M6.9 17.1l-1.7 1.7"/>
+{%- elif nombre == 'buscar' %}<circle cx="11" cy="11" r="7"/><path d="M20.6 20.6L16.2 16.2"/>
+{%- elif nombre == 'campana' %}<path d="M18 9a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.8 21a2 2 0 01-3.6 0"/>
+{%- elif nombre == 'check' %}<path d="M4 13l5 5L20 6"/>
+{%- elif nombre == 'reloj' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.5 2"/>
+{%- elif nombre == 'salir' %}<path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 8l-4 4 4 4M6 12h11"/>
+{%- elif nombre == 'mas' %}<path d="M12 5v14M5 12h14"/>
+{%- elif nombre == 'chevron' %}<path d="M9 5l7 7-7 7"/>
+{%- endif %}
+</svg>
+{%- endmacro %}
 
-<div class="wrap">
-  {% with mensajes = get_flashed_messages(with_categories=true) %}
-    {% for categoria, mensaje in mensajes %}
-      <div class="flash {{ categoria }}">{{ mensaje }}</div>
-    {% endfor %}
-  {% endwith %}
-  {% block content %}{% endblock %}
+{% if current_user.is_authenticated %}
+{% set gestion = current_user.rol in ('Administrador', 'Jefe técnico') %}
+{% set ep = request.endpoint or '' %}
+
+<div class="app">
+  <nav class="riel">
+    <a class="marca" href="{{ url_for('principal.inicio') }}">IPM Manager <em>v2</em></a>
+
+    <a class="nav {{ 'on' if ep == 'principal.inicio' }}" href="{{ url_for('principal.inicio') }}">
+      {{ ico('inicio') }}Inicio</a>
+
+    <div class="grupo">Operación</div>
+    <a class="nav {{ 'on' if ep in ('principal.visitas', 'principal.visita', 'principal.checklist') }}"
+       href="{{ url_for('principal.visitas') }}">{{ ico('visitas') }}Visitas</a>
+    <a class="nav {{ 'on' if ep == 'principal.deficiencias' }}"
+       href="{{ url_for('principal.deficiencias') }}">{{ ico('deficiencias') }}Deficiencias
+      {% if pendientes_aprobacion %}<span class="tag">{{ pendientes_aprobacion }}</span>{% endif %}</a>
+
+    <div class="grupo">Clientes</div>
+    <a class="nav {{ 'on' if ep in ('principal.clientes', 'principal.cliente') }}"
+       href="{{ url_for('principal.clientes') }}">{{ ico('clientes') }}Clientes</a>
+    <a class="nav {{ 'on' if ep == 'principal.instalacion' }}"
+       href="{{ url_for('principal.clientes') }}#instalaciones">{{ ico('equipos') }}Instalaciones</a>
+
+    {% if gestion %}
+    <div class="grupo">Administración</div>
+    <a class="nav {{ 'on' if ep == 'principal.catalogo' }}"
+       href="{{ url_for('principal.catalogo') }}">{{ ico('catalogo') }}Catálogo</a>
+    {% endif %}
+    <a class="nav {{ 'on' if ep == 'principal.cuenta' }}"
+       href="{{ url_for('principal.cuenta') }}">{{ ico('config') }}Mi cuenta</a>
+
+    <div class="pie">{{ current_user.empresa.nombre }}</div>
+  </nav>
+
+  <div class="col">
+    <div class="topbar">
+      <form class="buscador" method="get" action="{{ url_for('principal.buscar') }}" role="search">
+        {{ ico('buscar') }}
+        <input type="search" name="q" value="{{ request.args.get('q', '') }}"
+               placeholder="Buscar cliente, instalación, equipo, visita…" aria-label="Buscar">
+      </form>
+      <span class="sp"></span>
+      <a class="icono-btn" href="{{ url_for('principal.deficiencias') }}" title="Deficiencias pendientes"
+         aria-label="Deficiencias pendientes">
+        {{ ico('campana') }}{% if pendientes_aprobacion %}<span class="punto"></span>{% endif %}
+      </a>
+      <a class="avatar" href="{{ url_for('principal.cuenta') }}" title="{{ current_user.nombre_completo }}">
+        {{ (current_user.nombre_completo or current_user.username)[:2] | upper }}
+      </a>
+      <a class="icono-btn" href="{{ url_for('principal.logout') }}" title="Salir" aria-label="Salir">
+        {{ ico('salir') }}</a>
+    </div>
+
+    {% block migas %}{% endblock %}
+
+    <div class="contenido">
+      {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% for categoria, mensaje in mensajes %}
+          <div class="flash {{ categoria }}">{{ mensaje }}</div>
+        {% endfor %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </div>
+  </div>
 </div>
+
+<nav class="nav-inferior">
+  <a href="{{ url_for('principal.inicio') }}" class="{{ 'on' if ep == 'principal.inicio' }}">
+    {{ ico('inicio') }}Inicio</a>
+  <a href="{{ url_for('principal.visitas') }}"
+     class="{{ 'on' if ep in ('principal.visitas', 'principal.visita', 'principal.checklist') }}">
+    {{ ico('visitas') }}Visitas</a>
+  <a href="{{ url_for('principal.clientes') }}"
+     class="{{ 'on' if ep in ('principal.clientes', 'principal.cliente', 'principal.instalacion') }}">
+    {{ ico('clientes') }}Clientes</a>
+  <a href="{{ url_for('principal.deficiencias') }}" class="{{ 'on' if ep == 'principal.deficiencias' }}">
+    {{ ico('deficiencias') }}Deficiencias{% if pendientes_aprobacion %}<span class="punto"></span>{% endif %}</a>
+  <a href="{{ url_for('principal.cuenta') }}" class="{{ 'on' if ep == 'principal.cuenta' }}">
+    {{ ico('config') }}Cuenta</a>
+</nav>
+
+{% else %}
+  {% block anonimo %}{% endblock %}
+{% endif %}
 
 <script>
 // Un punto marcado "No conforme" despliega comentario + gravedad. Es lo

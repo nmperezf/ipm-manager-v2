@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ instalacion.nombre }} — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.clientes') }}">Clientes</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.cliente', cliente_id=instalacion.cliente_id) }}">{{ instalacion.cliente.nombre }}</a>
+  {{ ico('chevron') }}<b>{{ instalacion.nombre }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ instalacion.nombre }}</h2>
+    <span class="sub">{{ instalacion.cliente.nombre }}{% if instalacion.direccion %} · {{ instalacion.direccion }}{% endif %}</span>
+  </div>
+</div>
+
+{# Arrancar una inspección: la rutina define hasta qué nivel de campos se
+   carga, porque son acumulativas. #}
+<div class="card">
+  <h3 style="margin-bottom:.55rem">Inspeccionar</h3>
+  {% for cat in categorias_de(instalacion) %}
+    <form method="post"
+          action="{{ url_for('principal.abrir_inspeccion', instalacion_id=instalacion.id, categoria_id=cat.id) }}"
+          class="fila" style="margin-bottom:.45rem">
+      <span style="min-width:13rem;font-size:.85rem;font-weight:600">{{ cat.nombre }}</span>
+      <select name="rutina"
+              style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.28rem .45rem;font:inherit;font-size:.78rem">
+        <option value="mensual">Rutina mensual</option>
+        <option value="semestral">Rutina semestral</option>
+        <option value="anual">Rutina anual</option>
+      </select>
+      <button class="btn sm" type="submit">Arrancar</button>
+    </form>
+  {% else %}
+    <p class="muted" style="margin:0">
+      Sin equipos cargados de ninguna categoría del catálogo — no hay nada que inspeccionar todavía.
+    </p>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Equipos</h3>
+    <span class="sp"></span>
+    <span class="tiny">{{ instalacion.equipos | selectattr('activo') | list | length }} activos</span>
+  </div>
+
+  {# Se listan como el técnico los recorre: la bomba o la estación arrastra
+     a su controlador, su tanque o su panel. #}
+  <div class="stack">
+    {% for eq in raices %}
+      <div>
+        <div class="item">
+          <span class="chip neu">{{ ico('equipos') }}</span>
+          <span class="t">
+            <b>{% if eq.codigo %}<span class="mono">{{ eq.codigo }}</span> · {% endif %}{{ eq.nombre }}</b>
+            <span>
+              {{ eq.tipo_equipo.nombre }}
+              {%- if eq.ubicacion %} · {{ eq.ubicacion }}{% endif %}
+              {%- if eq.presion_diseno and eq.caudal_nominal %} ·
+                <span class="mono">{{ eq.presion_diseno|round|int }} psi</span> a
+                <span class="mono">{{ eq.caudal_nominal|round|int }} GPM</span>{% endif %}
+            </span>
+          </span>
+        </div>
+        {% for hijo in eq.hijos if hijo.activo %}
+          <div class="item" style="margin-left:1.6rem;margin-top:.35rem;border-left:2px solid var(--border-strong)">
+            <span class="chip neu">{{ ico('equipos') }}</span>
+            <span class="t">
+              <b>{% if hijo.codigo %}<span class="mono">{{ hijo.codigo }}</span> · {% endif %}{{ hijo.nombre }}</b>
+              <span>{{ hijo.tipo_equipo.nombre }} · cuelga de {{ eq.codigo or eq.nombre }}</span>
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="vacio">
+        <span class="chip neu">{{ ico('equipos') }}</span>
+        <b>Sin equipos</b>
+        <p>Sin equipos cargados, el checklist sale vacío aunque el catálogo esté completo.</p>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Deficiencias abiertas</h3>
+  <div class="stack">
+    {% for o in abiertas %}
+      <div class="item {{ 'crit' if o.clasificacion == CLASIF_CRITICA }}">
+        <span class="chip {{ 'crit' if o.clasificacion == CLASIF_CRITICA else 'warn' }}">
+          {{ ico('deficiencias') }}</span>
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span>
+            {% if o.equipo %}<span class="mono">{{ o.equipo.codigo or o.equipo.nombre }}</span> · {% endif %}
+            {{ o.fecha_carga.strftime('%d/%m/%Y') }}
+          </span>
+        </span>
+        {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
+        {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
+        {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
+      </div>
+    {% else %}
+      <p class="muted" style="margin:0">Sin deficiencias abiertas.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Últimas visitas</h3>
+  <div class="stack">
+    {% for v in visitas %}
+      <a class="item" href="{{ url_for('principal.visita', visita_id=v.id) }}">
+        <span class="chip neu">{{ ico('visitas') }}</span>
+        <span class="t">
+          <b><span class="mono">#{{ v.id }}</span> · {{ v.fecha.strftime('%d/%m/%Y') }}</b>
+          <span>
+            {% if v.tecnico %}{{ v.tecnico.nombre_completo }}{% endif %}
+            {%- for item in v.items %} · {{ item.categoria.nombre }} ({{ item.rutina }}){% endfor %}
+          </span>
+        </span>
+        {{ ico('chevron') }}
+      </a>
+    {% else %}
+      <p class="muted" style="margin:0">Sin visitas registradas.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

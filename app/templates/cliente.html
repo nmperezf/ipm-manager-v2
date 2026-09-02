@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ cliente.nombre }} — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.clientes') }}">Clientes</a>
+  {{ ico('chevron') }}<b>{{ cliente.nombre }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ cliente.nombre }}</h2>
+    <span class="sub">
+      {% if cliente.contacto %}{{ cliente.contacto }}{% endif %}
+      {%- if cliente.telefono %} · <span class="mono">{{ cliente.telefono }}</span>{% endif %}
+      {%- if cliente.email %} · {{ cliente.email }}{% endif %}
+    </span>
+  </div>
+  <span class="sp"></span>
+  <a class="btn ghost sm" href="{{ url_for('principal.deficiencias', cliente_id=cliente.id) }}">
+    Banco de deficiencias</a>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Instalaciones</h3>
+  <div class="stack">
+    {% for inst in cliente.instalaciones %}
+      <a class="item" href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">
+        <span class="chip neu">{{ ico('equipos') }}</span>
+        <span class="t">
+          <b>{{ inst.nombre }}</b>
+          <span>
+            <span class="mono">{{ inst.equipos | selectattr('activo') | list | length }}</span> equipos ·
+            {% for cat in categorias_de(inst) %}{{ cat.nombre }}{% if not loop.last %} · {% endif %}
+            {%- else %}sin categorías inspeccionables{% endfor %}
+          </span>
+        </span>
+        {{ ico('chevron') }}
+      </a>
+    {% else %}
+      <div class="vacio">
+        <span class="chip neu">{{ ico('equipos') }}</span>
+        <b>Sin instalaciones</b>
+        <p>Una instalación es el lugar físico donde viven los equipos que se inspeccionan.</p>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Deficiencias abiertas</h3>
+    <span class="sp"></span>
+    <span class="tiny">{{ abiertas|length }} sin resolver</span>
+  </div>
+  <div class="stack">
+    {% for o in abiertas %}
+      <div class="item {{ 'crit' if o.clasificacion == CLASIF_CRITICA }}">
+        <span class="chip {{ 'crit' if o.clasificacion == CLASIF_CRITICA else 'warn' }}">
+          {{ ico('deficiencias') }}</span>
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span>{{ o.instalacion.nombre }} · {{ o.fecha_carga.strftime('%d/%m/%Y') }}</span>
+        </span>
+        {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
+        {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
+        {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
+        {% if o.estado_revision != REVISION_APROBADA %}<span class="pill com">Sin aprobar</span>{% endif %}
+      </div>
+    {% else %}
+      <div class="vacio">
+        <span class="chip ok">{{ ico('check') }}</span>
+        <b>Nada abierto</b>
+        <p>Este cliente no tiene deficiencias pendientes de resolución.</p>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

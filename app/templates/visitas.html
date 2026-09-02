@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Visitas — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Visitas</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>Visitas</h2>
+    <span class="sub">
+      {% if current_user.rol == 'Técnico' %}Las tuyas{% else %}Todas las de la empresa{% endif %}
+      · {{ visitas|length }} listada(s)
+    </span>
+  </div>
+</div>
+
+{% if visitas %}
+<div class="tabla-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="froz">Visita</th><th>Cliente</th><th>Instalación</th>
+        <th>Fecha</th><th>Técnico</th><th>Rutina</th><th>Deficiencias</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for v in visitas %}
+      {% set criticas = v.observaciones | selectattr('clasificacion', 'equalto', CLASIF_CRITICA) | list %}
+      <tr>
+        <td class="froz mono">
+          <a href="{{ url_for('principal.visita', visita_id=v.id) }}">#{{ v.id }}</a>
+        </td>
+        <td>{{ v.instalacion.cliente.nombre }}</td>
+        <td>{{ v.instalacion.nombre }}</td>
+        <td class="mono">{{ v.fecha.strftime('%d/%m/%y') }}</td>
+        <td>{{ v.tecnico.nombre_completo if v.tecnico else '—' }}</td>
+        <td>
+          {% for item in v.items %}
+            <span class="pill com">{{ item.rutina }}</span>
+          {% else %}—{% endfor %}
+        </td>
+        <td>
+          {% if criticas %}<span class="pill crit">{{ criticas|length }} crítica(s)</span>
+          {% elif v.observaciones %}<span class="pill nocrit">{{ v.observaciones|length }}</span>
+          {% else %}<span class="pill ok">sin hallazgos</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="vacio">
+  <span class="chip neu">{{ ico('visitas') }}</span>
+  <b>Todavía no hay visitas</b>
+  <p>Entrá a una instalación, elegí la rutina y arrancá una inspección.</p>
+  <a class="btn" href="{{ url_for('principal.clientes') }}">Ver clientes</a>
+</div>
+{% endif %}
+{% endblock %}

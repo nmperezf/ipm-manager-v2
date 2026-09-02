@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Mi cuenta — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Mi cuenta</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>Mi cuenta</h2>
+    <span class="sub">{{ current_user.nombre_completo or current_user.username }}</span>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Datos</h3>
+  <div class="tabla-wrap">
+    <table>
+      <tbody>
+        <tr><th style="width:12rem">Usuario</th><td class="mono">{{ current_user.username }}</td></tr>
+        <tr><th>Nombre</th><td>{{ current_user.nombre_completo or '—' }}</td></tr>
+        <tr><th>Rol</th><td>{{ current_user.rol }}</td></tr>
+        <tr>
+          <th>Aprueba deficiencias</th>
+          <td>
+            {% if current_user.puede_aprobar %}
+              <span class="pill ok">Sí</span>
+              <span class="tiny" style="display:block">
+                Las que cargás en tus visitas quedan aprobadas automáticamente.</span>
+            {% else %}
+              <span class="pill com">No</span>
+              <span class="tiny" style="display:block">
+                Lo que cargás queda pendiente hasta que lo apruebe un jefe técnico.</span>
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Empresa</h3>
+  <div class="tabla-wrap">
+    <table>
+      <tbody>
+        <tr><th style="width:12rem">Razón social</th><td>{{ current_user.empresa.nombre }}</td></tr>
+        <tr><th>RUT</th><td class="mono">{{ current_user.empresa.rut or '—' }}</td></tr>
+        <tr>
+          <th>Logo</th>
+          <td>
+            {% if current_user.empresa.logo %}<span class="mono">{{ current_user.empresa.logo }}</span>
+            {% else %}<span class="tiny">Sin cargar — los PDF salen con el encabezado genérico.</span>{% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Todavía no implementado</h3>
+  <p class="muted" style="margin:.4rem 0 0">
+    Cambio de contraseña, edición de datos de empresa y alta de usuarios. Se listan acá para que
+    quede claro que faltan, en vez de mostrar botones que no hacen nada.
+  </p>
+</div>
+
+<p style="margin-top:1rem">
+  <a class="btn ghost" href="{{ url_for('principal.logout') }}">{{ ico('salir') }}Cerrar sesión</a>
+</p>
+{% endblock %}

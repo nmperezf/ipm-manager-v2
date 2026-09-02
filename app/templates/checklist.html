@@ -2,12 +2,20 @@
 {% set inst = item.visita.instalacion %}
 {% block title %}{{ item.categoria.nombre }} — {{ inst.nombre }}{% endblock %}
 
-{% block content %}
-<p class="crumbs">
-  <a href="{{ url_for('principal.inicio') }}">Instalaciones</a> ›
-  {{ inst.cliente.nombre }} › {{ inst.nombre }} › <b>{{ item.categoria.nombre }}</b>
-</p>
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.clientes') }}">Clientes</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.cliente', cliente_id=inst.cliente_id) }}">{{ inst.cliente.nombre }}</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">{{ inst.nombre }}</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.visita', visita_id=item.visita_id) }}">Visita #{{ item.visita_id }}</a>
+  {{ ico('chevron') }}<b>{{ item.categoria.nombre }}</b>
+</nav>
+{% endblock %}
 
+{% block content %}
 <h2>{{ item.categoria.nombre }} <span class="pill nocrit">rutina {{ item.rutina }}</span></h2>
 <p class="muted">
   Visita del {{ item.visita.fecha.strftime('%d/%m/%Y') }} ·

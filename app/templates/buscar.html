@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Buscar «{{ q }}» — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Búsqueda</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{% if q %}«{{ q }}»{% else %}Búsqueda{% endif %}</h2>
+    <span class="sub">
+      {% if q %}{{ total }} resultado(s){% else %}Escribí al menos dos caracteres arriba{% endif %}
+    </span>
+  </div>
+</div>
+
+{% if q and not total %}
+  <div class="vacio">
+    <span class="chip neu">{{ ico('buscar') }}</span>
+    <b>Sin resultados para «{{ q }}»</b>
+    <p>Se busca por nombre en clientes, instalaciones y equipos, por código de equipo,
+       y por número de visita.</p>
+  </div>
+{% endif %}
+
+{% if resultados.clientes %}
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Clientes</h3>
+  <div class="stack">
+    {% for c in resultados.clientes %}
+      <a class="item" href="{{ url_for('principal.cliente', cliente_id=c.id) }}">
+        <span class="chip neu">{{ ico('clientes') }}</span>
+        <span class="t"><b>{{ c.nombre }}</b><span>{{ c.instalaciones|length }} instalación(es)</span></span>
+        {{ ico('chevron') }}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if resultados.instalaciones %}
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Instalaciones</h3>
+  <div class="stack">
+    {% for i in resultados.instalaciones %}
+      <a class="item" href="{{ url_for('principal.instalacion', instalacion_id=i.id) }}">
+        <span class="chip neu">{{ ico('equipos') }}</span>
+        <span class="t"><b>{{ i.nombre }}</b><span>{{ i.cliente.nombre }}</span></span>
+        {{ ico('chevron') }}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if resultados.equipos %}
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Equipos</h3>
+  <div class="stack">
+    {% for e in resultados.equipos %}
+      <a class="item" href="{{ url_for('principal.instalacion', instalacion_id=e.instalacion_id) }}">
+        <span class="chip neu">{{ ico('equipos') }}</span>
+        <span class="t">
+          <b>{% if e.codigo %}<span class="mono">{{ e.codigo }}</span> · {% endif %}{{ e.nombre }}</b>
+          <span>{{ e.tipo_equipo.nombre }} · {{ e.instalacion.cliente.nombre }} · {{ e.instalacion.nombre }}</span>
+        </span>
+        {{ ico('chevron') }}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if resultados.visitas %}
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Visitas</h3>
+  <div class="stack">
+    {% for v in resultados.visitas %}
+      <a class="item" href="{{ url_for('principal.visita', visita_id=v.id) }}">
+        <span class="chip neu">{{ ico('visitas') }}</span>
+        <span class="t">
+          <b><span class="mono">#{{ v.id }}</span> · {{ v.fecha.strftime('%d/%m/%Y') }}</b>
+          <span>{{ v.instalacion.cliente.nombre }} · {{ v.instalacion.nombre }}</span>
+        </span>
+        {{ ico('chevron') }}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

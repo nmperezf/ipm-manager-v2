@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% set inst = visita.instalacion %}
+{% block title %}Visita #{{ visita.id }} — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.visitas') }}">Visitas</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.cliente', cliente_id=inst.cliente_id) }}">{{ inst.cliente.nombre }}</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">{{ inst.nombre }}</a>
+  {{ ico('chevron') }}<b>Visita #{{ visita.id }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>Visita <span class="mono">#{{ visita.id }}</span></h2>
+    <span class="sub">
+      {{ visita.fecha.strftime('%d/%m/%Y') }} ·
+      {{ visita.tecnico.nombre_completo if visita.tecnico else 'sin técnico' }} ·
+      {{ inst.cliente.nombre }} · {{ inst.nombre }}
+    </span>
+  </div>
+</div>
+
+{% for item in visita.items %}
+  {% set cargados = item.formularios | length %}
+  <div class="card">
+    <div class="fila" style="margin-bottom:.5rem">
+      <h3>{{ item.categoria.nombre }}</h3>
+      <span class="pill nocrit">rutina {{ item.rutina }}</span>
+      <span class="sp"></span>
+      <a class="btn sm" href="{{ url_for('principal.checklist', item_id=item.id) }}">
+        {% if cargados %}Seguir cargando{% else %}Cargar checklist{% endif %}</a>
+    </div>
+
+    {% if cargados %}
+      <div class="stack">
+        {% for f in item.formularios %}
+          {% set nc = f.respuestas | selectattr('estado', 'equalto', ESTADO_NO_CONFORME) | list %}
+          <div class="item {{ 'crit' if nc }}">
+            <span class="chip {{ 'crit' if nc else 'ok' }}">
+              {% if nc %}{{ ico('deficiencias') }}{% else %}{{ ico('check') }}{% endif %}</span>
+            <span class="t">
+              <b>{{ f.tipo_formulario.nombre }}</b>
+              <span>
+                {% if f.equipo %}<span class="mono">{{ f.equipo.codigo or f.equipo.nombre }}</span> · {% endif %}
+                {{ f.respuestas|length }} punto(s) cargado(s)
+                {%- if nc %} · {{ nc|length }} no conforme(s){% endif %}
+              </span>
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted" style="margin:0">Todavía sin cargar.</p>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="vacio">
+    <span class="chip neu">{{ ico('visitas') }}</span>
+    <b>Esta visita no tiene categorías asignadas</b>
+    <p>Volvé a la instalación y arrancá una inspección eligiendo la categoría y la rutina.</p>
+  </div>
+{% endfor %}
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Deficiencias de esta visita</h3>
+  <div class="stack">
+    {% for o in observaciones %}
+      <div class="item {{ 'crit' if o.clasificacion == CLASIF_CRITICA }}">
+        <span class="chip {{ 'crit' if o.clasificacion == CLASIF_CRITICA else 'warn' }}">
+          {{ ico('deficiencias') }}</span>
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span>
+            {% if o.equipo %}<span class="mono">{{ o.equipo.codigo or o.equipo.nombre }}</span>{% endif %}
+            {%- if o.respuesta and o.respuesta.disparo_automatico %} · marcado solo por rango{% endif %}
+          </span>
+        </span>
+        {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
+        {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
+        {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
+
+        {% if o.estado_revision == REVISION_APROBADA %}
+          <span class="pill ok">Aprobada</span>
+        {% elif current_user.puede_aprobar %}
+          <form method="post" action="{{ url_for('principal.aprobar', observacion_id=o.id) }}">
+            <button class="btn sm" type="submit">Aprobar</button>
+          </form>
+        {% else %}
+          <span class="pill com">Pendiente</span>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="muted" style="margin:0">Ninguna. Todo lo cargado dio conforme.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

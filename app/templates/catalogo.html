@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Catálogo — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Catálogo de la empresa</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>Catálogo</h2>
+    <span class="sub">{{ current_user.empresa.nombre }} · se define una vez y sirve para todos los clientes</span>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Por qué vive acá y no en cada cliente</h3>
+  <p class="muted" style="margin:.4rem 0 0">
+    Lo que se inspecciona no cambia por cliente: la prueba de una bomba diesel es la misma en
+    todas las salas. Definirlo por cliente solo garantizaba que se desincronizaran entre sí.
+    El checklist de cada visita sale de cruzar este catálogo con los equipos reales de la instalación.
+  </p>
+</div>
+
+{% for cat in categorias %}
+  {% set tipos_cat = tipos_equipo | selectattr('categoria_id', 'equalto', cat.id) | list %}
+  {% set forms_cat = formularios | selectattr('categoria_id', 'equalto', cat.id) | list %}
+  <div class="card">
+    <div class="fila" style="margin-bottom:.6rem">
+      <h3>{{ cat.nombre }}</h3>
+      <span class="sp"></span>
+      <span class="tiny">{{ tipos_cat|length }} tipos de equipo · {{ forms_cat|length }} formularios</span>
+    </div>
+
+    <div class="tabla-wrap" style="margin-bottom:.7rem">
+      <table>
+        <thead><tr><th>Tipo de equipo</th><th>Cuelga de</th><th>Encabeza conjunto</th></tr></thead>
+        <tbody>
+        {% for te in tipos_cat %}
+          <tr>
+            <td>{{ te.nombre }}</td>
+            <td class="tiny">{{ te.tipo_padre.nombre if te.tipo_padre else '—' }}</td>
+            <td>{% if te.encabeza_conjunto %}<span class="pill ok">sí</span>{% else %}—{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tabla-wrap">
+      <table>
+        <thead>
+          <tr><th>Formulario</th><th>Aplica a</th><th>Puntos por rutina</th><th>Referencia</th></tr>
+        </thead>
+        <tbody>
+        {% for f in forms_cat %}
+          {% set mens = f.campos | selectattr('frecuencia', 'equalto', 'mensual') | list | length %}
+          {% set sems = f.campos | selectattr('frecuencia', 'equalto', 'semestral') | list | length %}
+          {% set anus = f.campos | selectattr('frecuencia', 'equalto', 'anual') | list | length %}
+          <tr>
+            <td>
+              {{ f.nombre }}
+              {% if not f.incluir_en_paquete %}<span class="pill com">fuera de rutina</span>{% endif %}
+            </td>
+            <td class="tiny">
+              {% if f.por_equipo %}{{ f.tipo_equipo.nombre if f.tipo_equipo else '—' }}
+              {% else %}todo el recinto{% endif %}
+            </td>
+            <td class="mono tiny">
+              {% if mens or sems or anus %}
+                {{ mens }} mens · +{{ sems }} sem · +{{ anus }} anual
+              {% else %}
+                {{ f.campos|length }} · {{ f.frecuencia or 'sin frecuencia' }}
+              {% endif %}
+            </td>
+            <td class="tiny">{{ f.referencia_normativa or '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% else %}
+  <div class="vacio">
+    <span class="chip neu">{{ ico('catalogo') }}</span>
+    <b>Catálogo vacío</b>
+    <p>Sin tipos de equipo ni formularios, el checklist sale vacío en toda instalación.</p>
+  </div>
+{% endfor %}
+
+<p class="tiny">
+  Las frecuencias siguen NFPA 25 y hay que confirmarlas contra la edición a la que se certifica.
+</p>
+{% endblock %}

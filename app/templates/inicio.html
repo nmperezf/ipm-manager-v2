@@ -1,52 +1,102 @@
 {% extends "base.html" %}
-{% block title %}Instalaciones — IPM Manager v2{% endblock %}
+{% block title %}Panorama — IPM Manager v2{% endblock %}
 
 {% block content %}
-<h2>Instalaciones</h2>
-<p class="muted">
-  El mismo paquete de formularios produce un checklist distinto en cada sala,
-  según los equipos que tenga cargados.
-  {% if pendientes %}
-    · <a href="{{ url_for('principal.deficiencias') }}">{{ pendientes }} deficiencia(s) pendiente(s) de aprobación</a>
-  {% endif %}
-</p>
+<div class="cabecera">
+  <div>
+    <h2>Hola, {{ (current_user.nombre_completo or current_user.username).split(' ')[0] }}</h2>
+    <span class="sub">{{ current_user.rol }} · {{ current_user.empresa.nombre }}</span>
+  </div>
+</div>
 
-{% for inst in instalaciones %}
-  {% set categorias = categorias_de(inst) %}
-  <div class="card">
-    <h3>{{ inst.cliente.nombre }}</h3>
-    <p class="muted" style="margin:.15rem 0 .5rem">
-      {{ inst.nombre }} ·
-      <span class="mono">{{ inst.equipos | selectattr('activo') | list | length }}</span> equipos
-    </p>
+{# Ember solo donde hay que actuar hoy. El resto queda en la escala de azules. #}
+<div class="stats">
+  <a class="stat crit" href="{{ url_for('principal.deficiencias', estado='criticas') }}">
+    <div class="k">Críticas abiertas</div>
+    <div class="v">{{ total_criticas }}</div>
+    <div class="d">dejan el sistema inoperante</div>
+  </a>
+  <a class="stat warn" href="{{ url_for('principal.deficiencias', estado='pendientes') }}">
+    <div class="k">Sin aprobar</div>
+    <div class="v">{{ pendientes }}</div>
+    <div class="d">el cliente no las ve</div>
+  </a>
+  <a class="stat" href="{{ url_for('principal.deficiencias') }}">
+    <div class="k">Abiertas</div>
+    <div class="v">{{ abiertas }}</div>
+    <div class="d">total sin resolver</div>
+  </a>
+  <a class="stat ok" href="{{ url_for('principal.visitas') }}">
+    <div class="k">Visitas 30 días</div>
+    <div class="v">{{ total_visitas }}</div>
+    <div class="d">en {{ instalaciones }} instalaciones</div>
+  </a>
+</div>
 
-    {% if categorias %}
-      {% for categoria in categorias %}
-        <form method="post"
-              action="{{ url_for('principal.abrir_inspeccion', instalacion_id=inst.id, categoria_id=categoria.id) }}"
-              style="display:flex;gap:.35rem;align-items:center;margin-bottom:.35rem;flex-wrap:wrap">
-          <span class="tiny" style="min-width:12rem">{{ categoria.nombre }}</span>
-          {# Las rutinas son acumulativas: la anual carga todo lo de la
-             semestral, que a su vez carga todo lo de la mensual. #}
-          <select name="rutina" class="tiny"
-                  style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.25rem .4rem;font:inherit;font-size:.76rem">
-            <option value="mensual">Rutina mensual</option>
-            <option value="semestral">Rutina semestral</option>
-            <option value="anual">Rutina anual</option>
-          </select>
-          <button class="btn sm" type="submit">Inspeccionar</button>
-        </form>
-      {% endfor %}
-    {% else %}
-      <p class="tiny">Sin equipos cargados — no hay nada que inspeccionar todavía.</p>
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Requiere atención</h3>
+    <span class="sp"></span>
+    {% if total_criticas > criticas|length %}
+      <a class="tiny" href="{{ url_for('principal.deficiencias', estado='criticas') }}">
+        ver las {{ total_criticas }} →</a>
     {% endif %}
   </div>
-{% else %}
-  <div class="card">
-    <h3>Todavía no hay instalaciones</h3>
-    <p class="muted" style="margin:.4rem 0 0">
-      Corré <span class="mono">flask seed</span> para cargar el catálogo y las salas de ejemplo.
-    </p>
+
+  <div class="stack">
+    {% for o in criticas %}
+      <a class="item crit" href="{{ url_for('principal.instalacion', instalacion_id=o.instalacion_id) }}">
+        <span class="chip crit">{{ ico('deficiencias') }}</span>
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span>
+            {{ o.instalacion.cliente.nombre }} · {{ o.instalacion.nombre }}
+            {%- if o.equipo %} · <span class="mono">{{ o.equipo.codigo or o.equipo.nombre }}</span>{% endif %}
+          </span>
+        </span>
+        {% if o.estado_revision != REVISION_APROBADA %}
+          <span class="pill com">Sin aprobar</span>
+        {% endif %}
+      </a>
+    {% else %}
+      <div class="vacio">
+        <span class="chip ok">{{ ico('check') }}</span>
+        <b>Ninguna deficiencia crítica abierta</b>
+        <p>Todo lo que puede dejar un sistema inoperante está resuelto.</p>
+      </div>
+    {% endfor %}
   </div>
-{% endfor %}
+</div>
+
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Últimas visitas</h3>
+    <span class="sp"></span>
+    <a class="tiny" href="{{ url_for('principal.visitas') }}">ver todas →</a>
+  </div>
+
+  <div class="stack">
+    {% for v in visitas %}
+      <a class="item" href="{{ url_for('principal.visita', visita_id=v.id) }}">
+        <span class="chip neu">{{ ico('visitas') }}</span>
+        <span class="t">
+          <b>{{ v.instalacion.cliente.nombre }} · {{ v.instalacion.nombre }}</b>
+          <span>
+            <span class="mono">#{{ v.id }}</span> · {{ v.fecha.strftime('%d/%m/%Y') }}
+            {%- if v.tecnico %} · {{ v.tecnico.nombre_completo }}{% endif %}
+            {%- for item in v.items %} · {{ item.categoria.nombre }} ({{ item.rutina }}){% endfor %}
+          </span>
+        </span>
+        {{ ico('chevron') }}
+      </a>
+    {% else %}
+      <div class="vacio">
+        <span class="chip neu">{{ ico('visitas') }}</span>
+        <b>Sin visitas en los últimos 30 días</b>
+        <p>Entrá a una instalación y elegí la rutina para arrancar una inspección.</p>
+        <a class="btn" href="{{ url_for('principal.clientes') }}">Ver clientes</a>
+      </div>
+    {% endfor %}
+  </div>
+</div>
 {% endblock %}

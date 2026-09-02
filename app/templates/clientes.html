@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Clientes — IPM Manager v2{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Clientes</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>Clientes</h2>
+    <span class="sub">{{ clientes|length }} cargado(s)</span>
+  </div>
+</div>
+
+<div class="stack" id="instalaciones">
+{% for c in clientes %}
+  <div class="card" style="margin:0">
+    <div class="fila">
+      <span class="chip neu">{{ ico('clientes') }}</span>
+      <div style="flex:1;min-width:0">
+        <a href="{{ url_for('principal.cliente', cliente_id=c.id) }}"
+           style="font-family:var(--display);font-weight:600;font-size:.95rem;text-decoration:none;color:var(--ink)">
+          {{ c.nombre }}</a>
+        <div class="tiny">
+          {{ c.instalaciones|length }} instalación(es)
+          {%- if c.contacto %} · {{ c.contacto }}{% endif %}
+          {%- if c.telefono %} · <span class="mono">{{ c.telefono }}</span>{% endif %}
+        </div>
+      </div>
+      <a class="btn ghost sm" href="{{ url_for('principal.cliente', cliente_id=c.id) }}">Abrir ficha</a>
+    </div>
+
+    {% if c.instalaciones %}
+    <div class="stack" style="margin-top:.6rem">
+      {% for inst in c.instalaciones %}
+        <a class="item" href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">
+          <span class="chip neu">{{ ico('equipos') }}</span>
+          <span class="t">
+            <b>{{ inst.nombre }}</b>
+            <span>
+              <span class="mono">{{ inst.equipos | selectattr('activo') | list | length }}</span> equipos ·
+              {% for cat in categorias_de(inst) %}{{ cat.nombre }}{% if not loop.last %} · {% endif %}
+              {%- else %}sin categorías inspeccionables{% endfor %}
+            </span>
+          </span>
+          {{ ico('chevron') }}
+        </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="vacio">
+    <span class="chip neu">{{ ico('clientes') }}</span>
+    <b>Todavía no hay clientes</b>
+    <p>Corré <span class="mono">flask seed</span> para cargar el catálogo y las instalaciones de ejemplo.</p>
+  </div>
+{% endfor %}
+</div>
+{% endblock %}
