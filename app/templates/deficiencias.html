@@ -35,20 +35,20 @@
 </div>
 
 {% if observaciones %}
-<div class="tabla-wrap">
-  <table>
+<div class="tabla-wrap apilada">
+  <table class="apilable">
     <thead>
       <tr><th>Clase</th><th>Descripción</th><th>Equipo</th><th>Fecha</th><th>Estado</th><th></th></tr>
     </thead>
     <tbody>
     {% for o in observaciones %}
       <tr>
-        <td>
+        <td data-th="Clase">
           {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
           {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
           {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
         </td>
-        <td>
+        <td data-th="Descripción">
           {{ o.descripcion }}
           <span class="tiny" style="display:block">
             <a href="{{ url_for('principal.instalacion', instalacion_id=o.instalacion_id) }}">
@@ -59,9 +59,9 @@
             {%- if o.respuesta and o.respuesta.disparo_automatico %} · marcado solo por rango{% endif %}
           </span>
         </td>
-        <td class="mono">{{ o.equipo.codigo if o.equipo and o.equipo.codigo else '—' }}</td>
-        <td class="mono">{{ o.fecha_carga.strftime('%d/%m/%y') }}</td>
-        <td>
+        <td data-th="Equipo" class="mono">{{ o.equipo.codigo if o.equipo and o.equipo.codigo else '—' }}</td>
+        <td data-th="Fecha" class="mono">{{ o.fecha_carga.strftime('%d/%m/%y') }}</td>
+        <td data-th="Estado">
           {% if o.resuelto %}
             <span class="pill ok">Resuelta</span>
           {% elif o.estado_revision == REVISION_APROBADA %}

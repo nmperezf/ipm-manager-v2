@@ -1,0 +1,375 @@
+/* =========================================================================
+   IPM Manager v2 — sistema visual
+   =========================================================================
+
+   Dos contextos de uso, un solo diseño:
+
+   - Escritorio (jefe): hay ancho de sobra. Se aprovecha con dos columnas
+     y densidad compacta, porque se opera con mouse y precisión.
+   - Tablet en campo (técnico): mismo layout, pero todo lo que se toca
+     crece. No se decide por ancho de pantalla sino por `pointer: coarse`,
+     que es lo que de verdad distingue un dedo de un mouse — una tablet de
+     1024 px necesita objetivos grandes y un monitor de 1024 px no.
+
+   El teléfono no es el objetivo de optimización pero funciona: nada
+   depende de un ancho mínimo grande. Formularios a una columna por debajo
+   de 680 px, tablas apiladas como fichas por debajo de 760 px, nav
+   inferior por debajo de 900 px.
+   ========================================================================= */
+
+:root{
+  /* --- color --- */
+  --brand:#1B3A5C; --brand-light:#2E5883; --brand-dark:#12283F;
+  --ember:#C1440E; --ember-soft:#FBE7DE;
+  --warn:#B45309;  --warn-soft:#FBEEDA;
+  --ok:#15803D;    --ok-soft:#DDF0E3;
+  --neutral:#4A6072; --neutral-soft:#E4EBF2;
+
+  --ground:#F4F7FA; --surface:#FFF; --surface-muted:#EDF2F7;
+  --border:#D9E1EA; --border-strong:#BDCAD8;
+  --ink:#16202B; --ink-muted:#5A6C7D; --ink-faint:#8598A8;
+
+  --sombra:0 1px 2px rgba(18,40,63,.05);
+  --sombra-alta:0 1px 2px rgba(18,40,63,.06), 0 12px 28px -18px rgba(18,40,63,.3);
+
+  /* --- escala de espaciado --- */
+  --e1:.25rem; --e2:.4rem; --e3:.6rem; --e4:.9rem; --e5:1.35rem; --e6:2rem;
+
+  /* --- escala tipográfica --- */
+  --t-micro:.68rem;   /* etiquetas mono, metadatos */
+  --t-mini:.78rem;    /* texto secundario */
+  --t-base:.88rem;    /* cuerpo */
+  --t-med:1rem;       /* títulos de tarjeta */
+  --t-alto:1.3rem;    /* título de página */
+  --t-cifra:1.75rem;  /* números de panorama */
+
+  --r:10px; --r-sm:7px; --r-px:99px;
+  --riel:212px;
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --body:'Inter',system-ui,-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);
+  font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%}
+h1,h2,h3,h4{font-family:var(--display);margin:0;letter-spacing:-.015em;text-wrap:balance}
+a{color:var(--brand-light)}
+p{margin:0 0 var(--e3)}
+p:last-child{margin-bottom:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.sp{flex:1}
+.tiny{font-size:var(--t-mini);color:var(--ink-faint)}
+.muted{color:var(--ink-muted);font-size:var(--t-base)}
+:focus-visible{outline:2px solid var(--brand-light);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* =========================================================================
+   Estructura
+   ========================================================================= */
+
+.app{display:grid;grid-template-columns:var(--riel) 1fr;min-height:100vh}
+@media (max-width:900px){.app{grid-template-columns:1fr}}
+
+.riel{background:var(--brand-dark);color:#C6D6E5;display:flex;flex-direction:column;
+  padding:var(--e4) var(--e3);gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto}
+@media (max-width:900px){.riel{display:none}}
+.riel .marca{display:flex;align-items:center;gap:var(--e2);color:#fff;text-decoration:none;
+  padding:var(--e2) var(--e3) var(--e5);font-family:var(--display);font-weight:700;font-size:var(--t-med)}
+.riel .marca em{font-style:normal;color:var(--ember)}
+.riel .grupo{font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
+  color:#6E8CA8;padding:var(--e4) var(--e3) var(--e1)}
+.riel a.nav{display:flex;align-items:center;gap:var(--e3);padding:var(--e2) var(--e3);
+  border-radius:var(--r-sm);color:#C6D6E5;text-decoration:none;font-size:var(--t-base)}
+.riel a.nav:hover{background:rgba(255,255,255,.07);color:#fff}
+.riel a.nav.on{background:var(--brand-light);color:#fff;font-weight:600}
+.riel a.nav .tag{margin-left:auto;font-family:var(--mono);font-size:.62rem;background:var(--ember);
+  color:#fff;border-radius:var(--r-px);padding:.05rem .36rem}
+.riel .pie{margin-top:auto;padding-top:var(--e4);border-top:1px solid rgba(255,255,255,.1);
+  font-size:var(--t-mini);color:#6E8CA8}
+
+.col{display:flex;flex-direction:column;min-width:0}
+
+.topbar{display:flex;align-items:center;gap:var(--e3);padding:var(--e2) var(--e4);
+  background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+.buscador{flex:1;max-width:420px;position:relative;display:flex;align-items:center}
+.buscador svg{position:absolute;left:var(--e3);color:var(--ink-faint);width:1rem;height:1rem}
+.buscador input{width:100%;padding:var(--e2) var(--e3) var(--e2) 2.1rem;border:1px solid var(--border);
+  background:var(--surface-muted);border-radius:var(--r-sm);font:inherit;font-size:var(--t-base);color:var(--ink)}
+.buscador input:focus{background:var(--surface);border-color:var(--brand-light);outline:none}
+
+.icono-btn{position:relative;background:none;border:0;color:var(--ink-muted);
+  width:36px;height:36px;border-radius:var(--r-sm);cursor:pointer;display:grid;place-items:center;
+  text-decoration:none;flex:none}
+.icono-btn:hover{background:var(--surface-muted);color:var(--ink)}
+.icono-btn .punto{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;
+  background:var(--ember);border:1.5px solid var(--surface)}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--brand);color:#fff;
+  display:grid;place-items:center;font-size:var(--t-micro);font-weight:700;font-family:var(--mono);
+  text-decoration:none;flex:none}
+
+.migas{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e1);padding:var(--e2) var(--e4);
+  border-bottom:1px solid var(--border);font-size:var(--t-mini);background:var(--surface-muted);
+  color:var(--ink-muted)}
+.migas a{color:var(--ink-muted);text-decoration:none}
+.migas a:hover{color:var(--brand-light);text-decoration:underline}
+.migas b{color:var(--ink);font-weight:600}
+
+.contenido{padding:var(--e5) var(--e4) 5rem;width:100%;max-width:1180px}
+
+/* Cabecera de página: el título pesa, el resto acompaña. */
+.cabecera{display:flex;align-items:flex-end;gap:var(--e3);flex-wrap:wrap;margin-bottom:var(--e5)}
+.cabecera h2{font-size:var(--t-alto)}
+.cabecera .sub{color:var(--ink-muted);font-size:var(--t-base);max-width:70ch}
+
+/* Título de sección: separa bloques sin gastar una tarjeta en cada uno. */
+.seccion-tit{display:flex;align-items:center;gap:var(--e3);margin:var(--e6) 0 var(--e3)}
+.seccion-tit:first-child{margin-top:0}
+.seccion-tit h3{font-size:var(--t-med)}
+.seccion-tit .linea{flex:1;height:1px;background:var(--border)}
+
+/* =========================================================================
+   Nav inferior (pantallas angostas: teléfono y tablet vertical)
+   ========================================================================= */
+
+.nav-inferior{display:none}
+@media (max-width:900px){
+  .nav-inferior{display:grid;position:fixed;bottom:0;left:0;right:0;height:58px;z-index:30;
+    background:var(--surface);border-top:1px solid var(--border);grid-auto-flow:column;
+    padding-bottom:env(safe-area-inset-bottom)}
+  .nav-inferior a{display:grid;place-items:center;gap:2px;font-size:.6rem;color:var(--ink-faint);
+    text-decoration:none;position:relative}
+  .nav-inferior a.on{color:var(--brand)}
+  .nav-inferior a .punto{position:absolute;top:8px;right:calc(50% - 15px);width:7px;height:7px;
+    border-radius:50%;background:var(--ember)}
+}
+
+/* =========================================================================
+   Piezas
+   ========================================================================= */
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:var(--e4);margin-bottom:var(--e4);box-shadow:var(--sombra)}
+.card h3{font-size:var(--t-med)}
+/* Variantes para lo que exige acción: se despegan del resto. */
+.card.destacada{border-left:3px solid var(--brand-light);box-shadow:var(--sombra-alta)}
+.card.critica{border-left:3px solid var(--ember);box-shadow:var(--sombra-alta)}
+
+.stack{display:flex;flex-direction:column;gap:var(--e3)}
+.fila{display:flex;align-items:center;gap:var(--e3);flex-wrap:wrap}
+
+/* --- panorama --- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:var(--e3);margin-bottom:var(--e5)}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:var(--e4);text-decoration:none;color:inherit;display:block;box-shadow:var(--sombra)}
+a.stat:hover{border-color:var(--border-strong);box-shadow:var(--sombra-alta)}
+.stat .k{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-faint)}
+.stat .v{font-family:var(--display);font-size:var(--t-cifra);font-variant-numeric:tabular-nums;
+  line-height:1.15;margin-top:var(--e1)}
+.stat .d{font-size:var(--t-mini);color:var(--ink-muted)}
+.stat.crit .v{color:var(--ember)}
+.stat.warn .v{color:var(--warn)}
+.stat.ok .v{color:var(--ok)}
+
+/* --- ítem de lista --- */
+.item{display:flex;align-items:center;gap:var(--e3);background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);padding:var(--e3);
+  text-decoration:none;color:inherit}
+a.item:hover{border-color:var(--border-strong);box-shadow:var(--sombra)}
+.item.crit{border-left:3px solid var(--ember)}
+.item.warn{border-left:3px solid var(--warn)}
+.item .t{flex:1;min-width:0}
+.item .t b{display:block;font-size:var(--t-base)}
+.item .t span{display:block;font-size:var(--t-mini);color:var(--ink-muted)}
+
+.chip{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;flex:none}
+.chip.crit{background:var(--ember-soft);color:var(--ember)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.neu{background:var(--neutral-soft);color:var(--neutral)}
+
+.pill{display:inline-block;font-size:var(--t-micro);font-weight:600;padding:.12rem .5rem;
+  border-radius:var(--r-px);white-space:nowrap}
+.pill.crit{background:var(--ember-soft);color:var(--ember)}
+.pill.nocrit{background:var(--warn-soft);color:var(--warn)}
+.pill.com{background:var(--neutral-soft);color:var(--neutral)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+
+/* --- botones --- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--e2);
+  background:var(--brand);color:#fff;border:0;border-radius:var(--r-sm);
+  padding:var(--e2) var(--e4);font:inherit;font-size:var(--t-base);font-weight:600;
+  cursor:pointer;text-decoration:none;min-height:36px}
+.btn:hover{background:var(--brand-light)}
+.btn.ember{background:var(--ember)}
+.btn.ghost{background:none;border:1px solid var(--border-strong);color:var(--ink)}
+.btn.ghost:hover{background:var(--surface-muted)}
+.btn.peligro{background:none;border:1px solid var(--ember);color:var(--ember)}
+.btn.sm{padding:var(--e1) var(--e3);font-size:var(--t-mini);min-height:30px}
+.btn.ancho{width:100%}
+
+.flash{border-radius:var(--r-sm);padding:var(--e3) var(--e4);margin-bottom:var(--e3);
+  font-size:var(--t-base)}
+.flash.ok{background:var(--ok-soft);color:var(--ok);border-left:3px solid var(--ok)}
+.flash.error{background:var(--ember-soft);color:var(--ember);border-left:3px solid var(--ember)}
+
+.vacio{background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--r);
+  padding:var(--e6) var(--e4);text-align:center;display:grid;gap:var(--e3);justify-items:center}
+.vacio b{font-family:var(--display);font-size:var(--t-med)}
+.vacio p{margin:0;font-size:var(--t-base);color:var(--ink-muted);max-width:44ch}
+
+/* =========================================================================
+   Formularios
+   ========================================================================= */
+
+.campo{display:grid;gap:var(--e1)}
+.campo > .rotulo{font-size:var(--t-mini);font-weight:600;color:var(--ink-muted)}
+.campo > .rotulo .req{color:var(--ember)}
+.campo > .nota{font-size:var(--t-mini);color:var(--ink-faint)}
+
+.input,.campo input,.campo select,.campo textarea{
+  width:100%;border:1px solid var(--border);background:var(--surface);border-radius:var(--r-sm);
+  padding:var(--e2) var(--e3);font:inherit;font-size:var(--t-base);color:var(--ink);min-height:38px}
+.input:focus,.campo input:focus,.campo select:focus,.campo textarea:focus{
+  border-color:var(--brand-light);outline:none;box-shadow:0 0 0 3px rgba(46,88,131,.12)}
+.campo textarea{min-height:auto;resize:vertical}
+.input.num,.campo input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* Rejilla de formulario: una columna en angosto, varias con ancho. */
+.rejilla{display:grid;grid-template-columns:1fr;gap:var(--e4)}
+@media (min-width:680px){.rejilla{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
+.rejilla .ancho-total{grid-column:1/-1}
+
+/* =========================================================================
+   Tablas
+   ========================================================================= */
+
+.tabla-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r);
+  background:var(--surface);box-shadow:var(--sombra)}
+table{border-collapse:collapse;width:100%;font-size:var(--t-base);background:var(--surface)}
+th,td{padding:var(--e3);text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-family:var(--mono);font-size:.63rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-faint);background:var(--surface-muted);white-space:nowrap;
+  position:sticky;top:0;z-index:2}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--surface-muted)}
+.froz{position:sticky;left:0;background:var(--surface);font-weight:600;
+  box-shadow:1px 0 0 var(--border);z-index:1}
+th.froz{background:var(--surface-muted);z-index:3}
+tbody tr:hover .froz{background:var(--surface-muted)}
+
+/* En pantallas angostas la tabla se apila como fichas: en tablet vertical
+   o en teléfono no hay que arrastrar de costado para leer una fila. */
+@media (max-width:760px){
+  table.apilable thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  table.apilable tr{display:block;border:1px solid var(--border);border-radius:var(--r);
+    margin-bottom:var(--e3);background:var(--surface);padding:var(--e2)}
+  table.apilable td{display:flex;gap:var(--e3);border:0;padding:var(--e1) var(--e2);
+    align-items:baseline}
+  table.apilable td::before{content:attr(data-th);font-family:var(--mono);font-size:.6rem;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);
+    min-width:6.5rem;flex:none}
+  table.apilable td.froz{position:static;box-shadow:none;font-size:var(--t-med);
+    font-family:var(--display)}
+  table.apilable tbody tr:hover td{background:none}
+  .tabla-wrap.apilada{border:0;background:none;box-shadow:none;overflow:visible}
+}
+
+/* =========================================================================
+   Checklist
+   ========================================================================= */
+
+.progreso{position:sticky;top:52px;z-index:15;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);padding:var(--e3) var(--e4);
+  margin-bottom:var(--e4);box-shadow:var(--sombra)}
+.progreso .barra{height:6px;border-radius:var(--r-px);background:var(--surface-muted);
+  overflow:hidden;margin-top:var(--e2)}
+.progreso .barra i{display:block;height:100%;background:var(--ok);border-radius:var(--r-px);
+  transition:width .3s ease}
+
+.bloque{border:1px solid var(--border);border-radius:var(--r);margin-bottom:var(--e4);
+  overflow:hidden;background:var(--surface);box-shadow:var(--sombra)}
+.bloque > summary{background:var(--surface-muted);padding:var(--e3) var(--e4);
+  cursor:pointer;display:flex;align-items:center;gap:var(--e3);list-style:none}
+.bloque > summary::-webkit-details-marker{display:none}
+.bloque > summary .flecha{transition:transform .2s ease;color:var(--ink-faint);flex:none}
+.bloque[open] > summary{border-bottom:1px solid var(--border)}
+.bloque[open] > summary .flecha{transform:rotate(90deg)}
+.bloque > summary b{font-family:var(--display);font-size:var(--t-med)}
+.bloque > summary .sub{display:block;font-size:var(--t-mini);color:var(--ink-muted)}
+.bloque > summary .cuenta{margin-left:auto;font-family:var(--mono);font-size:var(--t-micro);
+  color:var(--ink-faint);flex:none}
+
+.seccion{padding:var(--e4);border-bottom:1px solid var(--border)}
+.seccion:last-child{border-bottom:0}
+.seccion > h4{font-size:var(--t-base)}
+.seccion > .meta{font-family:var(--mono);font-size:var(--t-micro);color:var(--ink-faint);
+  letter-spacing:.06em;margin-bottom:var(--e3)}
+
+/* En escritorio los puntos van en dos columnas: hay ancho de sobra y un
+   checklist de 96 puntos en una sola columna es scroll puro. */
+.puntos{display:grid;gap:var(--e3)}
+@media (min-width:1000px){.puntos{grid-template-columns:1fr 1fr}}
+.punto{border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--e3);
+  display:grid;gap:var(--e2);align-content:start}
+.punto.no-conforme{border-color:var(--ember);background:var(--ember-soft)}
+.punto > .lbl{font-size:var(--t-base);font-weight:600}
+.punto .ayuda{font-size:var(--t-mini);color:var(--ink-faint)}
+.punto .rango{font-family:var(--mono);font-size:var(--t-micro);color:var(--ink-faint)}
+.punto input,.punto select,.punto textarea{
+  width:100%;border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--e2) var(--e3);
+  font:inherit;font-size:var(--t-base);color:var(--ink);background:var(--surface);min-height:38px}
+.punto input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.punto textarea{min-height:auto;resize:vertical}
+
+.tri{display:flex;gap:var(--e1)}
+.tri label{flex:1;position:relative}
+.tri input{position:absolute;opacity:0;width:0;height:0}
+.tri span{display:block;text-align:center;border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:var(--e2);font-size:var(--t-mini);font-weight:600;color:var(--ink-muted);
+  cursor:pointer;background:var(--surface);min-height:38px;display:grid;place-items:center}
+.tri input:checked + span.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.tri input:checked + span.no{background:var(--ember);border-color:var(--ember);color:#fff}
+.tri input:checked + span.na{background:var(--neutral-soft);border-color:var(--border-strong);
+  color:var(--neutral)}
+.tri input:focus-visible + span{outline:2px solid var(--brand-light);outline-offset:1px}
+
+.detalle{display:none;border-top:1px dashed var(--border-strong);padding-top:var(--e2);gap:var(--e2)}
+.punto.no-conforme .detalle{display:grid}
+.detalle .lbl-nc{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-faint)}
+.grav{display:flex;gap:var(--e1)}
+.grav label{flex:1;position:relative}
+.grav input{position:absolute;opacity:0;width:0;height:0}
+.grav span{display:block;text-align:center;border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:var(--e2);font-size:var(--t-mini);font-weight:600;color:var(--ink-muted);cursor:pointer;
+  background:var(--surface);min-height:34px;display:grid;place-items:center}
+.grav input:checked + span.crit{background:var(--ember);border-color:var(--ember);color:#fff}
+.grav input:checked + span.nocrit{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+
+.barra-guardar{position:sticky;bottom:0;background:linear-gradient(to top,var(--ground) 70%,transparent);
+  padding:var(--e4) 0;display:flex;gap:var(--e3);align-items:center;flex-wrap:wrap}
+@media (max-width:900px){.barra-guardar{bottom:58px}}
+
+/* =========================================================================
+   Objetivos táctiles
+   Se activa por tipo de puntero, no por ancho: una tablet de 1024 px
+   necesita objetivos grandes igual que un teléfono, y un monitor de
+   1024 px no.
+   ========================================================================= */
+
+@media (pointer:coarse){
+  :root{--t-base:.95rem; --t-mini:.82rem; --t-micro:.72rem}
+  .btn{min-height:46px;padding:var(--e3) var(--e5)}
+  .btn.sm{min-height:40px;padding:var(--e2) var(--e4)}
+  .input,.campo input,.campo select,.campo textarea,
+  .punto input,.punto select,.punto textarea{min-height:46px}
+  .tri span,.grav span{min-height:48px;font-size:var(--t-base)}
+  .icono-btn{width:44px;height:44px}
+  .item{padding:var(--e4)}
+  .bloque > summary{padding:var(--e4)}
+  .riel a.nav{padding:var(--e3)}
+  th,td{padding:var(--e4) var(--e3)}
+}

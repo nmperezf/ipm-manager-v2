@@ -17,8 +17,8 @@
 </div>
 
 {% if visitas %}
-<div class="tabla-wrap">
-  <table>
+<div class="tabla-wrap apilada">
+  <table class="apilable">
     <thead>
       <tr>
         <th class="froz">Visita</th><th>Cliente</th><th>Instalación</th>
@@ -29,19 +29,19 @@
     {% for v in visitas %}
       {% set criticas = v.observaciones | selectattr('clasificacion', 'equalto', CLASIF_CRITICA) | list %}
       <tr>
-        <td class="froz mono">
+        <td data-th="Visita" class="froz mono">
           <a href="{{ url_for('principal.visita', visita_id=v.id) }}">#{{ v.id }}</a>
         </td>
-        <td>{{ v.instalacion.cliente.nombre }}</td>
-        <td>{{ v.instalacion.nombre }}</td>
-        <td class="mono">{{ v.fecha.strftime('%d/%m/%y') }}</td>
-        <td>{{ v.tecnico.nombre_completo if v.tecnico else '—' }}</td>
-        <td>
+        <td data-th="Cliente">{{ v.instalacion.cliente.nombre }}</td>
+        <td data-th="Instalación">{{ v.instalacion.nombre }}</td>
+        <td data-th="Fecha" class="mono">{{ v.fecha.strftime('%d/%m/%y') }}</td>
+        <td data-th="Técnico">{{ v.tecnico.nombre_completo if v.tecnico else '—' }}</td>
+        <td data-th="Rutina">
           {% for item in v.items %}
             <span class="pill com">{{ item.rutina }}</span>
           {% else %}—{% endfor %}
         </td>
-        <td>
+        <td data-th="Deficiencias">
           {% if criticas %}<span class="pill crit">{{ criticas|length }} crítica(s)</span>
           {% elif v.observaciones %}<span class="pill nocrit">{{ v.observaciones|length }}</span>
           {% else %}<span class="pill ok">sin hallazgos</span>{% endif %}

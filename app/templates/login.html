@@ -13,13 +13,13 @@
       {% endfor %}
     {% endwith %}
 
-    <form method="post" style="display:grid;gap:.55rem">
-      <label class="tiny" for="username">Usuario</label>
+    <form method="post" class="stack">
+      <label class="rotulo" for="username">Usuario</label>
       <input id="username" name="username" autocomplete="username" required
-             style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
-      <label class="tiny" for="password">Contraseña</label>
+            >
+      <label class="rotulo" for="password">Contraseña</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required
-             style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+            >
       <button class="btn" type="submit" style="margin-top:.35rem">Ingresar</button>
     </form>
 

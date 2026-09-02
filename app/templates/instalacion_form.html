@@ -30,18 +30,16 @@
 
 <form method="post" style="max-width:640px">
   <div class="card">
-    <div style="display:grid;gap:.7rem">
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Nombre <span style="color:var(--ember)">*</span></span>
+    <div class="stack">
+      <label class="campo">
+        <span class="rotulo">Nombre <span class="req">*</span></span>
         <input name="nombre" required autofocus value="{{ val('nombre') }}"
-               placeholder="Ej. Sala de bombas"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+               placeholder="Ej. Sala de bombas">
       </label>
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Dirección</span>
+      <label class="campo">
+        <span class="rotulo">Dirección</span>
         <input name="direccion" value="{{ val('direccion') }}"
-               placeholder="{{ cliente.direccion or 'Si la dejás vacía, toma la del cliente' }}"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+               placeholder="{{ cliente.direccion or 'Si la dejás vacía, toma la del cliente' }}">
       </label>
     </div>
     {% if not editando %}

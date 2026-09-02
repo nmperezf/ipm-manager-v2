@@ -32,15 +32,13 @@
           action="{{ url_for('principal.abrir_inspeccion', instalacion_id=instalacion.id, categoria_id=cat.id) }}"
           class="fila" style="margin-bottom:.45rem">
       <span style="min-width:13rem;font-size:.85rem;font-weight:600">{{ cat.nombre }}</span>
-      <select name="rutina"
-              style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.28rem .45rem;font:inherit;font-size:.78rem">
+      <select name="rutina">
         <option value="mensual">Rutina mensual</option>
         <option value="semestral">Rutina semestral</option>
         <option value="anual">Rutina anual</option>
       </select>
       {% if current_user.puede_aprobar and tecnicos %}
-        <select name="tecnico_id"
-                style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.28rem .45rem;font:inherit;font-size:.78rem">
+        <select name="tecnico_id">
           {% for t in tecnicos %}
             <option value="{{ t.id }}" {{ 'selected' if t.id == current_user.id }}>
               {{ t.nombre_completo or t.username }}</option>

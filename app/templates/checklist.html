@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% set inst = item.visita.instalacion %}
+{% set total = bloques | map(attribute='secciones') | map('length') | sum %}
 {% block title %}{{ item.categoria.nombre }} — {{ inst.nombre }}{% endblock %}
 
 {% block migas %}
@@ -10,153 +11,238 @@
   {{ ico('chevron') }}
   <a href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">{{ inst.nombre }}</a>
   {{ ico('chevron') }}
-  <a href="{{ url_for('principal.visita', visita_id=item.visita_id) }}">Visita #{{ item.visita_id }}</a>
+  {% if item.visita.orden %}
+    <a href="{{ url_for('principal.orden', orden_id=item.visita.orden.id) }}">{{ item.visita.orden.numero }}</a>
+  {% else %}
+    <a href="{{ url_for('principal.visita', visita_id=item.visita_id) }}">Visita #{{ item.visita_id }}</a>
+  {% endif %}
   {{ ico('chevron') }}<b>{{ item.categoria.nombre }}</b>
 </nav>
 {% endblock %}
 
 {% block content %}
-<h2>{{ item.categoria.nombre }} <span class="pill nocrit">rutina {{ item.rutina }}</span></h2>
-<p class="muted">
-  Visita del {{ item.visita.fecha.strftime('%d/%m/%Y') }} ·
-  {{ item.visita.tecnico.nombre_completo if item.visita.tecnico else 'sin técnico' }}
-  {% if current_user.puede_aprobar %}
-    · <span class="tiny">las deficiencias que cargues quedan aprobadas automáticamente</span>
-  {% endif %}
-</p>
+<div class="cabecera">
+  <div>
+    <h2>{{ item.categoria.nombre }}</h2>
+    <span class="sub">
+      {{ inst.cliente.nombre }} · {{ inst.nombre }} ·
+      {{ item.visita.fecha.strftime('%d/%m/%Y') }}
+      {%- if current_user.puede_aprobar %} · las deficiencias que cargues quedan aprobadas solas{% endif %}
+    </span>
+  </div>
+  <span class="sp"></span>
+  <span class="pill nocrit">rutina {{ item.rutina }}</span>
+</div>
 
 {% if not bloques %}
-  <div class="card">
-    <h3>No hay nada que inspeccionar acá</h3>
-    <p class="muted" style="margin:.4rem 0 0">
-      Esta instalación no tiene equipos cargados de los tipos que cubre
-      «{{ item.categoria.nombre }}». Cargá los equipos y el checklist aparece solo.
-    </p>
+  <div class="vacio">
+    <span class="chip neu">{{ ico('equipos') }}</span>
+    <b>No hay nada que inspeccionar acá</b>
+    <p>Esta instalación no tiene equipos de los tipos que cubre
+       «{{ item.categoria.nombre }}». Cargá los equipos y el checklist aparece solo.</p>
+    <a class="btn" href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">
+      Ir a la instalación</a>
   </div>
-{% endif %}
+{% else %}
 
-<form method="post" novalidate>
-{% for bloque in bloques %}
-  <section class="bloque">
-    <header>
-      <b>{{ bloque.titulo }}</b>
-      <span class="sub">{{ bloque.subtitulo }}</span>
-    </header>
+<form method="post" novalidate id="form-checklist">
 
-    {% for seccion in bloque.secciones %}
-      {% set tipo = seccion.tipo_formulario %}
-      {% set equipo = seccion.equipo %}
-      <div class="seccion">
-        <h4>{{ tipo.nombre }}</h4>
-        <div class="meta">
-          {% if equipo %}{{ equipo.etiqueta }} · {% endif %}
-          {{ tipo.frecuencia or 'sin frecuencia' }}
-          {% if tipo.referencia_normativa %} · {{ tipo.referencia_normativa }}{% endif %}
-        </div>
+  {# Progreso pegado arriba: en una rutina anual son casi 100 puntos y sin
+     esto no hay forma de saber cuánto falta. #}
+  <div class="progreso">
+    <div class="fila">
+      <b style="font-size:var(--t-base)">
+        <span id="pg-hechos" class="mono">0</span> de <span class="mono">{{ total }}</span> puntos</b>
+      <span class="sp"></span>
+      <span class="tiny" id="pg-nc"></span>
+      <button class="btn ghost sm" type="button" id="ir-pendiente">Ir al pendiente</button>
+    </div>
+    <div class="barra"><i id="pg-barra" style="width:0%"></i></div>
+  </div>
 
-        {% for campo in seccion.campos %}
-          {% set r = seccion.respuestas.get(campo.id) %}
-          {% set es_nc = r and r.estado == ESTADO_NO_CONFORME %}
-          <div class="punto {{ 'no-conforme' if es_nc }}">
-            <span class="lbl">{{ campo.label }}</span>
-            {% if campo.ayuda %}<span class="ayuda">{{ campo.ayuda }}</span>{% endif %}
+  {# Un <details> por bloque: el técnico abre el conjunto en el que está
+     parado y cierra el resto. El primero arranca abierto. #}
+  {% for bloque in bloques %}
+    {% set puntos_bloque = bloque.secciones | map(attribute='campos') | map('length') | sum %}
+    <details class="bloque" {{ 'open' if loop.first }}>
+      <summary>
+        {{ ico('chevron') }}
+        <span>
+          <b>{{ bloque.titulo }}</b>
+          <span class="sub">{{ bloque.subtitulo }}</span>
+        </span>
+        <span class="cuenta" data-cuenta-bloque>0/{{ puntos_bloque }}</span>
+      </summary>
 
-            {# --- el valor, según el tipo de campo --- #}
-            {% if campo.tipo == CAMPO_NUMERO %}
-              <input type="number" step="any" inputmode="decimal"
-                     name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
-                     value="{{ r.valor_numero if r and r.valor_numero is not none else '' }}"
-                     aria-label="{{ campo.label }}">
-              {% if campo.unidad or campo.tiene_rango %}
-                <span class="rango">
-                  {%- if campo.unidad %}{{ campo.unidad }}{% endif -%}
-                  {%- if campo.tiene_rango %} · esperado {{ campo.texto_rango() }}{% endif -%}
-                </span>
+      {% for seccion in bloque.secciones %}
+        {% set tipo = seccion.tipo_formulario %}
+        {% set equipo = seccion.equipo %}
+        <div class="seccion">
+          <h4>{{ tipo.nombre }}</h4>
+          <div class="meta">
+            {% if equipo %}{{ equipo.etiqueta }} · {% endif %}
+            {{ tipo.frecuencia or 'sin frecuencia' }}
+            {% if tipo.referencia_normativa %} · {{ tipo.referencia_normativa }}{% endif %}
+          </div>
+
+          <div class="puntos">
+          {% for campo in seccion.campos %}
+            {% set r = seccion.respuestas.get(campo.id) %}
+            {% set es_nc = r and r.estado == ESTADO_NO_CONFORME %}
+            <div class="punto {{ 'no-conforme' if es_nc }}">
+              <span class="lbl">{{ campo.label }}</span>
+              {% if campo.ayuda %}<span class="ayuda">{{ campo.ayuda }}</span>{% endif %}
+
+              {% if campo.tipo == CAMPO_NUMERO %}
+                <input type="number" step="any" inputmode="decimal"
+                       name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
+                       value="{{ r.valor_numero if r and r.valor_numero is not none else '' }}"
+                       aria-label="{{ campo.label }}">
+                {% if campo.unidad or campo.tiene_rango %}
+                  <span class="rango">
+                    {%- if campo.unidad %}{{ campo.unidad }}{% endif -%}
+                    {%- if campo.tiene_rango %} · esperado {{ campo.texto_rango() }}{% endif -%}
+                  </span>
+                {% endif %}
+
+              {% elif campo.tipo == CAMPO_SELECCION %}
+                <select name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}" aria-label="{{ campo.label }}">
+                  <option value="">— elegir —</option>
+                  {% for opcion in campo.opciones %}
+                    <option value="{{ opcion }}" {{ 'selected' if r and r.valor_texto == opcion }}>{{ opcion }}</option>
+                  {% endfor %}
+                </select>
+
+              {% elif campo.tipo == CAMPO_MULTI %}
+                {% set puestas = (r.valor_texto or '').split(' | ') if r else [] %}
+                {% for opcion in campo.opciones %}
+                  <label class="tiny">
+                    <input type="checkbox" style="width:auto;min-height:auto"
+                           name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
+                           value="{{ opcion }}" {{ 'checked' if opcion in puestas }}> {{ opcion }}
+                  </label>
+                {% endfor %}
+
+              {% elif campo.tipo != CAMPO_ESTADO %}
+                <textarea rows="2" name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
+                          aria-label="{{ campo.label }}">{{ r.valor_texto if r else '' }}</textarea>
               {% endif %}
 
-            {% elif campo.tipo == CAMPO_SELECCION %}
-              <select name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}" aria-label="{{ campo.label }}">
-                <option value="">— elegir —</option>
-                {% for opcion in campo.opciones %}
-                  <option value="{{ opcion }}" {{ 'selected' if r and r.valor_texto == opcion }}>{{ opcion }}</option>
-                {% endfor %}
-              </select>
-
-            {% elif campo.tipo == CAMPO_MULTI %}
-              {% set puestas = (r.valor_texto or '').split(' | ') if r else [] %}
-              {% for opcion in campo.opciones %}
-                <label class="tiny">
-                  <input type="checkbox" name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
-                         value="{{ opcion }}" {{ 'checked' if opcion in puestas }}> {{ opcion }}
-                </label>
-              {% endfor %}
-
-            {% elif campo.tipo != CAMPO_ESTADO %}
-              <textarea rows="2" name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
-                        aria-label="{{ campo.label }}">{{ r.valor_texto if r else '' }}</textarea>
-            {% endif %}
-
-            {# --- conforme / no conforme / n-a --- #}
-            {% if campo.lleva_estado %}
-              {% set n_estado = nombre_campo(tipo, equipo, campo, 'estado') %}
-              <div class="tri">
-                <label>
-                  <input type="radio" name="{{ n_estado }}" value="{{ ESTADO_CONFORME }}"
-                         data-estado="{{ ESTADO_CONFORME }}"
-                         {{ 'checked' if r and r.estado == ESTADO_CONFORME }}>
-                  <span class="ok">Conforme</span>
-                </label>
-                <label>
-                  <input type="radio" name="{{ n_estado }}" value="{{ ESTADO_NO_CONFORME }}"
-                         data-estado="{{ ESTADO_NO_CONFORME }}" {{ 'checked' if es_nc }}>
-                  <span class="no">No conforme</span>
-                </label>
-                <label>
-                  <input type="radio" name="{{ n_estado }}" value="{{ ESTADO_NA }}"
-                         data-estado="{{ ESTADO_NA }}"
-                         {{ 'checked' if r and r.estado == ESTADO_NA }}>
-                  <span class="na">N/A</span>
-                </label>
-              </div>
-
-              {# Solo visible con No conforme. La gravedad es lo que decide
-                 si la observación entra al banco como crítica o no crítica. #}
-              <div class="detalle">
-                <span class="lbl-nc">Comentario · obligatorio</span>
-                <textarea rows="2" data-comentario
-                          name="{{ nombre_campo(tipo, equipo, campo, 'comentario') }}"
-                          {{ 'required' if es_nc }}
-                          placeholder="Qué encontraste">{{ r.comentario if r else '' }}</textarea>
-                <span class="lbl-nc">Gravedad</span>
-                {% set n_grav = nombre_campo(tipo, equipo, campo, 'gravedad') %}
-                <div class="grav">
+              {% if campo.lleva_estado %}
+                {% set n_estado = nombre_campo(tipo, equipo, campo, 'estado') %}
+                <div class="tri">
                   <label>
-                    <input type="radio" name="{{ n_grav }}" value="{{ GRAVEDAD_CRITICA }}"
-                           {{ 'checked' if r and r.gravedad == GRAVEDAD_CRITICA }}>
-                    <span class="crit">Crítica</span>
+                    <input type="radio" name="{{ n_estado }}" value="{{ ESTADO_CONFORME }}"
+                           data-estado="{{ ESTADO_CONFORME }}"
+                           {{ 'checked' if r and r.estado == ESTADO_CONFORME }}>
+                    <span class="ok">Conforme</span>
                   </label>
                   <label>
-                    <input type="radio" name="{{ n_grav }}" value="{{ GRAVEDAD_NO_CRITICA }}"
-                           {{ 'checked' if not r or r.gravedad != GRAVEDAD_CRITICA }}>
-                    <span class="nocrit">No crítica</span>
+                    <input type="radio" name="{{ n_estado }}" value="{{ ESTADO_NO_CONFORME }}"
+                           data-estado="{{ ESTADO_NO_CONFORME }}" {{ 'checked' if es_nc }}>
+                    <span class="no">No conforme</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="{{ n_estado }}" value="{{ ESTADO_NA }}"
+                           data-estado="{{ ESTADO_NA }}"
+                           {{ 'checked' if r and r.estado == ESTADO_NA }}>
+                    <span class="na">N/A</span>
                   </label>
                 </div>
-                {% if r and r.disparo_automatico %}
-                  <span class="tiny">Marcado solo por estar fuera del rango esperado.</span>
-                {% endif %}
-              </div>
-            {% endif %}
-          </div>
-        {% endfor %}
-      </div>
-    {% endfor %}
-  </section>
-{% endfor %}
 
-{% if bloques %}
+                {# Solo con No conforme. La gravedad decide si la observación
+                   entra al banco como crítica o no crítica. #}
+                <div class="detalle">
+                  <span class="lbl-nc">Comentario · obligatorio</span>
+                  <textarea rows="2" data-comentario
+                            name="{{ nombre_campo(tipo, equipo, campo, 'comentario') }}"
+                            {{ 'required' if es_nc }}
+                            placeholder="Qué encontraste">{{ r.comentario if r else '' }}</textarea>
+                  <span class="lbl-nc">Gravedad</span>
+                  {% set n_grav = nombre_campo(tipo, equipo, campo, 'gravedad') %}
+                  <div class="grav">
+                    <label>
+                      <input type="radio" name="{{ n_grav }}" value="{{ GRAVEDAD_CRITICA }}"
+                             {{ 'checked' if r and r.gravedad == GRAVEDAD_CRITICA }}>
+                      <span class="crit">Crítica</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="{{ n_grav }}" value="{{ GRAVEDAD_NO_CRITICA }}"
+                             {{ 'checked' if not r or r.gravedad != GRAVEDAD_CRITICA }}>
+                      <span class="nocrit">No crítica</span>
+                    </label>
+                  </div>
+                  {% if r and r.disparo_automatico %}
+                    <span class="tiny">Marcado solo por estar fuera del rango esperado.</span>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </details>
+  {% endfor %}
+
   <div class="barra-guardar">
     <button class="btn" type="submit">Guardar checklist</button>
+    <span class="tiny">Se puede guardar a medias y seguir después.</span>
   </div>
-{% endif %}
 </form>
+
+<script>
+(function () {
+  var form = document.getElementById('form-checklist');
+  if (!form) return;
+
+  var puntos = Array.prototype.slice.call(form.querySelectorAll('.punto'));
+  var barra = document.getElementById('pg-barra');
+  var hechos = document.getElementById('pg-hechos');
+  var avisoNc = document.getElementById('pg-nc');
+
+  // Un punto cuenta como resuelto cuando tiene estado marcado, o cuando
+  // lleva valor y no pide estado (los de solo registro).
+  function resuelto(p) {
+    var radios = p.querySelectorAll('input[type=radio][data-estado]');
+    if (radios.length) return !!p.querySelector('input[type=radio][data-estado]:checked');
+    var campo = p.querySelector('input, select, textarea');
+    return !!(campo && campo.value.trim());
+  }
+
+  function actualizar() {
+    var listos = puntos.filter(resuelto).length;
+    var nc = form.querySelectorAll('.punto.no-conforme').length;
+    hechos.textContent = listos;
+    barra.style.width = puntos.length ? (listos / puntos.length * 100) + '%' : '0%';
+    avisoNc.textContent = nc ? nc + ' no conforme(s)' : '';
+    avisoNc.style.color = nc ? 'var(--ember)' : '';
+
+    form.querySelectorAll('.bloque').forEach(function (bloque) {
+      var suyos = Array.prototype.slice.call(bloque.querySelectorAll('.punto'));
+      var contador = bloque.querySelector('[data-cuenta-bloque]');
+      if (contador) contador.textContent = suyos.filter(resuelto).length + '/' + suyos.length;
+    });
+  }
+
+  form.addEventListener('change', actualizar);
+  form.addEventListener('input', actualizar);
+  actualizar();
+
+  // Saltar al primer punto sin resolver, abriendo su bloque si hace falta.
+  document.getElementById('ir-pendiente').addEventListener('click', function () {
+    var pendiente = null;
+    for (var i = 0; i < puntos.length; i++) {
+      if (!resuelto(puntos[i])) { pendiente = puntos[i]; break; }
+    }
+    if (!pendiente) return;
+    var bloque = pendiente.closest('.bloque');
+    if (bloque && !bloque.open) bloque.open = true;
+    pendiente.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    var foco = pendiente.querySelector('input, select, textarea');
+    if (foco) foco.focus({ preventScroll: true });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -27,8 +27,8 @@
 </div>
 
 {% if ordenes %}
-<div class="tabla-wrap">
-  <table>
+<div class="tabla-wrap apilada">
+  <table class="apilable">
     <thead>
       <tr>
         <th class="froz">OT</th><th>Cliente</th><th>Instalación</th>
@@ -39,22 +39,22 @@
     {% for o in ordenes %}
       {% set criticas = o.visita.observaciones | selectattr('clasificacion', 'equalto', CLASIF_CRITICA) | list %}
       <tr>
-        <td class="froz mono">
+        <td data-th="OT" class="froz mono">
           <a href="{{ url_for('principal.orden', orden_id=o.id) }}">{{ o.numero or '#' ~ o.id }}</a>
         </td>
-        <td>{{ o.visita.instalacion.cliente.nombre }}</td>
-        <td>{{ o.visita.instalacion.nombre }}</td>
-        <td>{{ o.tecnico.nombre_completo if o.tecnico else '—' }}</td>
-        <td class="mono">
+        <td data-th="Cliente">{{ o.visita.instalacion.cliente.nombre }}</td>
+        <td data-th="Instalación">{{ o.visita.instalacion.nombre }}</td>
+        <td data-th="Técnico">{{ o.tecnico.nombre_completo if o.tecnico else '—' }}</td>
+        <td data-th="Compromiso" class="mono">
           {{ o.fecha_compromiso.strftime('%d/%m/%y') if o.fecha_compromiso else '—' }}
           {% if o.vencida %}<span class="pill crit">vencida</span>{% endif %}
         </td>
-        <td>
+        <td data-th="Estado">
           {% if o.estado == OT_CERRADA %}<span class="pill ok">{{ o.estado }}</span>
           {% elif o.estado == OT_EN_REVISION %}<span class="pill nocrit">{{ o.estado }}</span>
           {% else %}<span class="pill com">{{ o.estado }}</span>{% endif %}
         </td>
-        <td>
+        <td data-th="Hallazgos">
           {% if criticas %}<span class="pill crit">{{ criticas|length }} crítica(s)</span>
           {% elif o.visita.observaciones %}<span class="pill nocrit">{{ o.visita.observaciones|length }}</span>
           {% else %}—{% endif %}

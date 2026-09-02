@@ -8,10 +8,9 @@
 {%- endmacro %}
 
 {% macro entrada(nombre, etiqueta, tipo='text', extra='', ayuda='') %}
-<label style="display:grid;gap:.2rem">
-  <span class="tiny">{{ etiqueta }}</span>
-  <input name="{{ nombre }}" type="{{ tipo }}" value="{{ val(nombre) }}" {{ extra | safe }}
-         style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit{% if tipo == 'number' %};font-family:var(--mono){% endif %}">
+<label class="campo">
+  <span class="rotulo">{{ etiqueta }}</span>
+  <input name="{{ nombre }}" type="{{ tipo }}" value="{{ val(nombre) }}" {{ extra | safe }}>
   {% if ayuda %}<span class="tiny">{{ ayuda }}</span>{% endif %}
 </label>
 {% endmacro %}
@@ -47,14 +46,14 @@
 <form method="post" style="max-width:760px">
   <div class="card">
     <h3 style="margin-bottom:.7rem">Identificación</h3>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem">
+    <div class="rejilla">
 
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Tipo de equipo <span style="color:var(--ember)">*</span></span>
+      <label class="campo">
+        <span class="rotulo">Tipo de equipo <span class="req">*</span></span>
         {% set tipo_puesto = datos.get('tipo_equipo_id')|int if datos.get('tipo_equipo_id')
                              else (equipo.tipo_equipo_id if editando else 0) %}
         <select name="tipo_equipo_id" required
-                style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+               >
           <option value="">— elegir —</option>
           {% for te in tipos %}
             <option value="{{ te.id }}" {{ 'selected' if te.id == tipo_puesto }}>
@@ -69,12 +68,12 @@
       {{ entrada('nombre', 'Nombre *', extra='required autofocus') }}
       {{ entrada('ubicacion', 'Ubicación', extra='placeholder="Ej. Subsuelo 1"') }}
 
-      <label style="display:grid;gap:.2rem;grid-column:1/-1">
-        <span class="tiny">Cuelga de</span>
+      <label class="campo ancho-total">
+        <span class="rotulo">Cuelga de</span>
         {% set padre_puesto = datos.get('padre_id')|int if datos.get('padre_id')
                               else (equipo.padre_id if editando else 0) %}
         <select name="padre_id"
-                style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+               >
           <option value="">— es un equipo suelto —</option>
           {% for p in padres %}
             <option value="{{ p.id }}" {{ 'selected' if p.id == padre_puesto }}>{{ p.etiqueta }}</option>
@@ -94,7 +93,7 @@
       <span class="sp"></span>
       <span class="tiny">Todo opcional</span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.7rem">
+    <div class="rejilla">
       {{ entrada('marca', 'Marca') }}
       {{ entrada('modelo', 'Modelo') }}
       {{ entrada('serie', 'N.º de serie') }}
@@ -123,8 +122,7 @@
 <form method="post" action="{{ url_for('principal.equipo_baja', equipo_id=equipo.id) }}"
       style="margin-top:1.2rem"
       onsubmit="return confirm('¿Dar de baja este equipo? Deja de aparecer en los checklist, pero su histórico se conserva.')">
-  <button class="btn ghost sm" type="submit" style="border-color:var(--ember);color:var(--ember)">
-    Dar de baja</button>
+  <button class="btn peligro sm" type="submit">Dar de baja</button>
   <span class="tiny" style="display:block;margin-top:.3rem">
     No se borra: el histórico de inspecciones lo referencia. Sus equipos hijos también se dan de baja.
   </span>

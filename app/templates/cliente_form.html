@@ -31,36 +31,30 @@
 <form method="post" style="max-width:720px">
   <div class="card">
     <h3 style="margin-bottom:.7rem">Datos del cliente</h3>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem">
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Nombre <span style="color:var(--ember)">*</span></span>
-        <input name="nombre" required autofocus value="{{ val('nombre') }}"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+    <div class="rejilla">
+      <label class="campo">
+        <span class="rotulo">Nombre <span class="req">*</span></span>
+        <input name="nombre" required autofocus value="{{ val('nombre') }}">
       </label>
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">RUT</span>
-        <input name="rut" inputmode="numeric" value="{{ val('rut') }}" class="mono"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      <label class="campo">
+        <span class="rotulo">RUT</span>
+        <input name="rut" inputmode="numeric" value="{{ val('rut') }}" class="mono">
       </label>
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Contacto</span>
-        <input name="contacto" value="{{ val('contacto') }}"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      <label class="campo">
+        <span class="rotulo">Contacto</span>
+        <input name="contacto" value="{{ val('contacto') }}">
       </label>
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Teléfono</span>
-        <input name="telefono" type="tel" inputmode="tel" value="{{ val('telefono') }}"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      <label class="campo">
+        <span class="rotulo">Teléfono</span>
+        <input name="telefono" type="tel" inputmode="tel" value="{{ val('telefono') }}">
       </label>
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Email</span>
-        <input name="email" type="email" value="{{ val('email') }}"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      <label class="campo">
+        <span class="rotulo">Email</span>
+        <input name="email" type="email" value="{{ val('email') }}">
       </label>
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Dirección</span>
-        <input name="direccion" value="{{ val('direccion') }}"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      <label class="campo">
+        <span class="rotulo">Dirección</span>
+        <input name="direccion" value="{{ val('direccion') }}">
       </label>
     </div>
   </div>
@@ -72,18 +66,16 @@
       <span class="sp"></span>
       <span class="tiny">Se puede omitir</span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem">
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Nombre</span>
+    <div class="rejilla">
+      <label class="campo">
+        <span class="rotulo">Nombre</span>
         <input name="instalacion_nombre" value="{{ datos.get('instalacion_nombre', '') }}"
-               placeholder="Ej. Cuarto de válvulas"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+               placeholder="Ej. Cuarto de válvulas">
       </label>
-      <label style="display:grid;gap:.2rem">
-        <span class="tiny">Dirección</span>
+      <label class="campo">
+        <span class="rotulo">Dirección</span>
         <input name="instalacion_direccion" value="{{ datos.get('instalacion_direccion', '') }}"
-               placeholder="Si la dejás vacía, toma la del cliente"
-               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+               placeholder="Si la dejás vacía, toma la del cliente">
       </label>
     </div>
     <p class="tiny" style="margin:.6rem 0 0">
