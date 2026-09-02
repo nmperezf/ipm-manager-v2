@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% set editando = cliente is not none %}
+{% block title %}{{ 'Editar cliente' if editando else 'Nuevo cliente' }} — IPM Manager v2{% endblock %}
+
+{% macro val(campo) -%}
+{%- if datos.get(campo) is not none -%}{{ datos.get(campo) }}
+{%- elif editando -%}{{ cliente[campo] or '' }}{%- endif -%}
+{%- endmacro %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.clientes') }}">Clientes</a>
+  {{ ico('chevron') }}
+  {% if editando %}
+    <a href="{{ url_for('principal.cliente', cliente_id=cliente.id) }}">{{ cliente.nombre }}</a>
+    {{ ico('chevron') }}<b>Editar</b>
+  {% else %}<b>Nuevo cliente</b>{% endif %}
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ 'Editar cliente' if editando else 'Nuevo cliente' }}</h2>
+    {% if not editando %}
+      <span class="sub">El cliente y su primera instalación se crean en un solo guardado.</span>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" style="max-width:720px">
+  <div class="card">
+    <h3 style="margin-bottom:.7rem">Datos del cliente</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem">
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Nombre <span style="color:var(--ember)">*</span></span>
+        <input name="nombre" required autofocus value="{{ val('nombre') }}"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">RUT</span>
+        <input name="rut" inputmode="numeric" value="{{ val('rut') }}" class="mono"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Contacto</span>
+        <input name="contacto" value="{{ val('contacto') }}"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Teléfono</span>
+        <input name="telefono" type="tel" inputmode="tel" value="{{ val('telefono') }}"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Email</span>
+        <input name="email" type="email" value="{{ val('email') }}"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Dirección</span>
+        <input name="direccion" value="{{ val('direccion') }}"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+    </div>
+  </div>
+
+  {% if not editando %}
+  <div class="card">
+    <div class="fila" style="margin-bottom:.7rem">
+      <h3>Primera instalación</h3>
+      <span class="sp"></span>
+      <span class="tiny">Se puede omitir</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem">
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Nombre</span>
+        <input name="instalacion_nombre" value="{{ datos.get('instalacion_nombre', '') }}"
+               placeholder="Ej. Cuarto de válvulas"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Dirección</span>
+        <input name="instalacion_direccion" value="{{ datos.get('instalacion_direccion', '') }}"
+               placeholder="Si la dejás vacía, toma la del cliente"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+    </div>
+    <p class="tiny" style="margin:.6rem 0 0">
+      Si la completás, al guardar vas directo a cargar sus equipos — que es lo que hace falta
+      para poder inspeccionarla.
+    </p>
+  </div>
+  {% endif %}
+
+  <div class="fila">
+    <button class="btn" type="submit">{{ 'Guardar cambios' if editando else 'Crear' }}</button>
+    <a class="btn ghost"
+       href="{{ url_for('principal.cliente', cliente_id=cliente.id) if editando else url_for('principal.clientes') }}">
+      Cancelar</a>
+  </div>
+</form>
+{% endblock %}

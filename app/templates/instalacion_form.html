@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% set editando = instalacion is not none %}
+{% block title %}{{ 'Editar instalación' if editando else 'Nueva instalación' }} — IPM Manager v2{% endblock %}
+
+{% macro val(campo) -%}
+{%- if datos.get(campo) is not none -%}{{ datos.get(campo) }}
+{%- elif editando -%}{{ instalacion[campo] or '' }}{%- endif -%}
+{%- endmacro %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.clientes') }}">Clientes</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.cliente', cliente_id=cliente.id) }}">{{ cliente.nombre }}</a>
+  {{ ico('chevron') }}
+  {% if editando %}
+    <a href="{{ url_for('principal.instalacion', instalacion_id=instalacion.id) }}">{{ instalacion.nombre }}</a>
+    {{ ico('chevron') }}<b>Editar</b>
+  {% else %}<b>Nueva instalación</b>{% endif %}
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ 'Editar instalación' if editando else 'Nueva instalación' }}</h2>
+    <span class="sub">{{ cliente.nombre }}</span>
+  </div>
+</div>
+
+<form method="post" style="max-width:640px">
+  <div class="card">
+    <div style="display:grid;gap:.7rem">
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Nombre <span style="color:var(--ember)">*</span></span>
+        <input name="nombre" required autofocus value="{{ val('nombre') }}"
+               placeholder="Ej. Sala de bombas"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Dirección</span>
+        <input name="direccion" value="{{ val('direccion') }}"
+               placeholder="{{ cliente.direccion or 'Si la dejás vacía, toma la del cliente' }}"
+               style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+      </label>
+    </div>
+    {% if not editando %}
+      <p class="tiny" style="margin:.7rem 0 0">
+        Una instalación es el lugar físico donde viven los equipos. Sin equipos cargados,
+        el checklist sale vacío aunque el catálogo esté completo.
+      </p>
+    {% endif %}
+  </div>
+
+  <div class="fila">
+    <button class="btn" type="submit">{{ 'Guardar cambios' if editando else 'Crear' }}</button>
+    <a class="btn ghost"
+       href="{{ url_for('principal.instalacion', instalacion_id=instalacion.id) if editando else url_for('principal.cliente', cliente_id=cliente.id) }}">
+      Cancelar</a>
+  </div>
+</form>
+{% endblock %}

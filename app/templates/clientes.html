@@ -11,6 +11,10 @@
     <h2>Clientes</h2>
     <span class="sub">{{ clientes|length }} cargado(s)</span>
   </div>
+  <span class="sp"></span>
+  {% if current_user.puede_aprobar %}
+    <a class="btn" href="{{ url_for('principal.cliente_nuevo') }}">{{ ico('mas') }}Nuevo cliente</a>
+  {% endif %}
 </div>
 
 <div class="stack" id="instalaciones">
@@ -54,7 +58,10 @@
   <div class="vacio">
     <span class="chip neu">{{ ico('clientes') }}</span>
     <b>Todavía no hay clientes</b>
-    <p>Corré <span class="mono">flask seed</span> para cargar el catálogo y las instalaciones de ejemplo.</p>
+    <p>El cliente es el punto de partida: de ahí cuelgan las instalaciones y sus equipos.</p>
+    {% if current_user.puede_aprobar %}
+      <a class="btn" href="{{ url_for('principal.cliente_nuevo') }}">{{ ico('mas') }}Crear tu primer cliente</a>
+    {% endif %}
   </div>
 {% endfor %}
 </div>

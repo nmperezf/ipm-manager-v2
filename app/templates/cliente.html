@@ -21,10 +21,20 @@
   <span class="sp"></span>
   <a class="btn ghost sm" href="{{ url_for('principal.deficiencias', cliente_id=cliente.id) }}">
     Banco de deficiencias</a>
+  {% if current_user.puede_aprobar %}
+    <a class="btn ghost sm" href="{{ url_for('principal.cliente_editar', cliente_id=cliente.id) }}">Editar</a>
+  {% endif %}
 </div>
 
 <div class="card">
-  <h3 style="margin-bottom:.6rem">Instalaciones</h3>
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Instalaciones</h3>
+    <span class="sp"></span>
+    {% if current_user.puede_aprobar %}
+      <a class="btn sm" href="{{ url_for('principal.instalacion_nueva', cliente_id=cliente.id) }}">
+        {{ ico('mas') }}Nueva instalación</a>
+    {% endif %}
+  </div>
   <div class="stack">
     {% for inst in cliente.instalaciones %}
       <a class="item" href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">
@@ -44,6 +54,10 @@
         <span class="chip neu">{{ ico('equipos') }}</span>
         <b>Sin instalaciones</b>
         <p>Una instalación es el lugar físico donde viven los equipos que se inspeccionan.</p>
+        {% if current_user.puede_aprobar %}
+          <a class="btn" href="{{ url_for('principal.instalacion_nueva', cliente_id=cliente.id) }}">
+            {{ ico('mas') }}Crear la primera</a>
+        {% endif %}
       </div>
     {% endfor %}
   </div>

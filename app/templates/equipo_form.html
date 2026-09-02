@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% set editando = equipo is not none %}
+{% block title %}{{ 'Editar equipo' if editando else 'Nuevo equipo' }} — IPM Manager v2{% endblock %}
+
+{% macro val(campo) -%}
+{%- if datos.get(campo) is not none -%}{{ datos.get(campo) }}
+{%- elif editando and equipo[campo] is not none -%}{{ equipo[campo] }}{%- endif -%}
+{%- endmacro %}
+
+{% macro entrada(nombre, etiqueta, tipo='text', extra='', ayuda='') %}
+<label style="display:grid;gap:.2rem">
+  <span class="tiny">{{ etiqueta }}</span>
+  <input name="{{ nombre }}" type="{{ tipo }}" value="{{ val(nombre) }}" {{ extra | safe }}
+         style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit{% if tipo == 'number' %};font-family:var(--mono){% endif %}">
+  {% if ayuda %}<span class="tiny">{{ ayuda }}</span>{% endif %}
+</label>
+{% endmacro %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.clientes') }}">Clientes</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.cliente', cliente_id=instalacion.cliente_id) }}">{{ instalacion.cliente.nombre }}</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.instalacion', instalacion_id=instalacion.id) }}">{{ instalacion.nombre }}</a>
+  {{ ico('chevron') }}<b>{{ 'Editar equipo' if editando else 'Nuevo equipo' }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ 'Editar equipo' if editando else 'Nuevo equipo' }}</h2>
+    <span class="sub">{{ instalacion.cliente.nombre }} · {{ instalacion.nombre }}</span>
+  </div>
+</div>
+
+{% if not tipos %}
+  <div class="vacio">
+    <span class="chip warn">{{ ico('catalogo') }}</span>
+    <b>El catálogo está vacío</b>
+    <p>Sin tipos de equipo cargados a nivel empresa no se puede dar de alta nada acá.</p>
+    <a class="btn" href="{{ url_for('principal.catalogo') }}">Ver catálogo</a>
+  </div>
+{% else %}
+
+<form method="post" style="max-width:760px">
+  <div class="card">
+    <h3 style="margin-bottom:.7rem">Identificación</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.7rem">
+
+      <label style="display:grid;gap:.2rem">
+        <span class="tiny">Tipo de equipo <span style="color:var(--ember)">*</span></span>
+        {% set tipo_puesto = datos.get('tipo_equipo_id')|int if datos.get('tipo_equipo_id')
+                             else (equipo.tipo_equipo_id if editando else 0) %}
+        <select name="tipo_equipo_id" required
+                style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+          <option value="">— elegir —</option>
+          {% for te in tipos %}
+            <option value="{{ te.id }}" {{ 'selected' if te.id == tipo_puesto }}>
+              {% if te.categoria %}{{ te.categoria.nombre }} · {% endif %}{{ te.nombre }}
+            </option>
+          {% endfor %}
+        </select>
+        <span class="tiny">Decide qué formularios se le cargan en la visita.</span>
+      </label>
+
+      {{ entrada('codigo', 'Código', extra='placeholder="Ej. BP-01"') }}
+      {{ entrada('nombre', 'Nombre *', extra='required autofocus') }}
+      {{ entrada('ubicacion', 'Ubicación', extra='placeholder="Ej. Subsuelo 1"') }}
+
+      <label style="display:grid;gap:.2rem;grid-column:1/-1">
+        <span class="tiny">Cuelga de</span>
+        {% set padre_puesto = datos.get('padre_id')|int if datos.get('padre_id')
+                              else (equipo.padre_id if editando else 0) %}
+        <select name="padre_id"
+                style="border:1px solid var(--border);border-radius:var(--r-sm);padding:.45rem .55rem;font:inherit">
+          <option value="">— es un equipo suelto —</option>
+          {% for p in padres %}
+            <option value="{{ p.id }}" {{ 'selected' if p.id == padre_puesto }}>{{ p.etiqueta }}</option>
+          {% endfor %}
+        </select>
+        <span class="tiny">
+          Solo se ofrecen equipos que encabezan conjunto. Un controlador que cuelga de su bomba
+          se recorre junto a ella en el checklist, en vez de suelto entre todos los controladores.
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="fila" style="margin-bottom:.7rem">
+      <h3>Datos de placa</h3>
+      <span class="sp"></span>
+      <span class="tiny">Todo opcional</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.7rem">
+      {{ entrada('marca', 'Marca') }}
+      {{ entrada('modelo', 'Modelo') }}
+      {{ entrada('serie', 'N.º de serie') }}
+      {{ entrada('caudal_nominal', 'Caudal nominal (GPM)', 'number', 'step="any" inputmode="decimal"') }}
+      {{ entrada('presion_diseno', 'Presión a 100 % (psi)', 'number', 'step="any" inputmode="decimal"') }}
+      {{ entrada('presion_maxima', 'Presión en churn (psi)', 'number', 'step="any" inputmode="decimal"') }}
+      {{ entrada('presion_sobrecarga', 'Presión a 150 % (psi)', 'number', 'step="any" inputmode="decimal"') }}
+      {{ entrada('rpm_nominal', 'RPM nominales', 'number', 'step="1" inputmode="numeric"') }}
+    </div>
+    <p class="tiny" style="margin:.7rem 0 0">
+      Es el rango esperado propio de <em>este</em> equipo. Los umbrales universales
+      (combustible, temperatura de rodamientos) viven en el formulario, no acá.
+    </p>
+  </div>
+
+  <div class="fila">
+    <button class="btn" type="submit">{{ 'Guardar cambios' if editando else 'Agregar' }}</button>
+    {% if not editando %}
+      <button class="btn ghost" type="submit" name="otro" value="1">Agregar y cargar otro</button>
+    {% endif %}
+    <a class="btn ghost" href="{{ url_for('principal.instalacion', instalacion_id=instalacion.id) }}">Cancelar</a>
+  </div>
+</form>
+
+{% if editando %}
+<form method="post" action="{{ url_for('principal.equipo_baja', equipo_id=equipo.id) }}"
+      style="margin-top:1.2rem"
+      onsubmit="return confirm('¿Dar de baja este equipo? Deja de aparecer en los checklist, pero su histórico se conserva.')">
+  <button class="btn ghost sm" type="submit" style="border-color:var(--ember);color:var(--ember)">
+    Dar de baja</button>
+  <span class="tiny" style="display:block;margin-top:.3rem">
+    No se borra: el histórico de inspecciones lo referencia. Sus equipos hijos también se dan de baja.
+  </span>
+</form>
+{% endif %}
+
+{% endif %}
+{% endblock %}

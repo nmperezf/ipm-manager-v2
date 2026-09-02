@@ -16,6 +16,11 @@
     <h2>{{ instalacion.nombre }}</h2>
     <span class="sub">{{ instalacion.cliente.nombre }}{% if instalacion.direccion %} · {{ instalacion.direccion }}{% endif %}</span>
   </div>
+  <span class="sp"></span>
+  {% if current_user.puede_aprobar %}
+    <a class="btn ghost sm" href="{{ url_for('principal.instalacion_editar', instalacion_id=instalacion.id) }}">
+      Editar</a>
+  {% endif %}
 </div>
 
 {# Arrancar una inspección: la rutina define hasta qué nivel de campos se
@@ -45,8 +50,12 @@
 <div class="card">
   <div class="fila" style="margin-bottom:.6rem">
     <h3>Equipos</h3>
-    <span class="sp"></span>
     <span class="tiny">{{ instalacion.equipos | selectattr('activo') | list | length }} activos</span>
+    <span class="sp"></span>
+    {% if current_user.puede_aprobar %}
+      <a class="btn sm" href="{{ url_for('principal.equipo_nuevo', instalacion_id=instalacion.id) }}">
+        {{ ico('mas') }}Agregar equipo</a>
+    {% endif %}
   </div>
 
   {# Se listan como el técnico los recorre: la bomba o la estación arrastra
@@ -66,6 +75,9 @@
                 <span class="mono">{{ eq.caudal_nominal|round|int }} GPM</span>{% endif %}
             </span>
           </span>
+          {% if current_user.puede_aprobar %}
+            <a class="btn ghost sm" href="{{ url_for('principal.equipo_editar', equipo_id=eq.id) }}">Editar</a>
+          {% endif %}
         </div>
         {% for hijo in eq.hijos if hijo.activo %}
           <div class="item" style="margin-left:1.6rem;margin-top:.35rem;border-left:2px solid var(--border-strong)">
@@ -74,6 +86,9 @@
               <b>{% if hijo.codigo %}<span class="mono">{{ hijo.codigo }}</span> · {% endif %}{{ hijo.nombre }}</b>
               <span>{{ hijo.tipo_equipo.nombre }} · cuelga de {{ eq.codigo or eq.nombre }}</span>
             </span>
+            {% if current_user.puede_aprobar %}
+              <a class="btn ghost sm" href="{{ url_for('principal.equipo_editar', equipo_id=hijo.id) }}">Editar</a>
+            {% endif %}
           </div>
         {% endfor %}
       </div>
@@ -82,6 +97,10 @@
         <span class="chip neu">{{ ico('equipos') }}</span>
         <b>Sin equipos</b>
         <p>Sin equipos cargados, el checklist sale vacío aunque el catálogo esté completo.</p>
+        {% if current_user.puede_aprobar %}
+          <a class="btn" href="{{ url_for('principal.equipo_nuevo', instalacion_id=instalacion.id) }}">
+            {{ ico('mas') }}Cargar el primer equipo</a>
+        {% endif %}
       </div>
     {% endfor %}
   </div>

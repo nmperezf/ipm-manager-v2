@@ -270,6 +270,297 @@ def abrir_inspeccion(instalacion_id, categoria_id):
 
 
 # ---------------------------------------------------------------------------
+# Altas y ediciones
+#
+# Ninguna devuelve a la lista: todas dejan al usuario donde sigue el
+# trabajo. Volver al listado obliga a buscar a mano lo que se acaba de
+# crear, y es la fricción que más se nota al cargar un cliente nuevo.
+# ---------------------------------------------------------------------------
+
+
+def _solo_gestion():
+    if not current_user.puede_aprobar:
+        abort(403)
+
+
+def _numero(valor):
+    """Los campos de placa son opcionales y vienen como texto del form."""
+    valor = (valor or "").strip().replace(",", ".")
+    if not valor:
+        return None
+    try:
+        return float(valor)
+    except ValueError:
+        return None
+
+
+@principal.route("/cliente/nuevo", methods=["GET", "POST"])
+@login_required
+def cliente_nuevo():
+    """Alta unificada: cliente y, si se completa, su primera instalación en
+    un solo guardado."""
+    _solo_gestion()
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        if not nombre:
+            flash("El nombre del cliente es obligatorio.", "error")
+            return render_template("cliente_form.html", cliente=None, datos=request.form)
+
+        nuevo = Cliente(
+            empresa_id=current_user.empresa_id,
+            nombre=nombre,
+            rut=(request.form.get("rut") or "").strip() or None,
+            contacto=(request.form.get("contacto") or "").strip() or None,
+            telefono=(request.form.get("telefono") or "").strip() or None,
+            email=(request.form.get("email") or "").strip() or None,
+            direccion=(request.form.get("direccion") or "").strip() or None,
+        )
+        db.session.add(nuevo)
+        db.session.flush()
+
+        inst_nombre = (request.form.get("instalacion_nombre") or "").strip()
+        creada = None
+        if inst_nombre:
+            creada = Instalacion(
+                cliente_id=nuevo.id,
+                nombre=inst_nombre,
+                direccion=(request.form.get("instalacion_direccion") or "").strip()
+                or nuevo.direccion,
+            )
+            db.session.add(creada)
+            db.session.flush()
+
+        db.session.commit()
+
+        if creada:
+            flash(f"Cliente e instalación creados. Cargá los equipos de «{creada.nombre}».", "ok")
+            return redirect(url_for("principal.instalacion", instalacion_id=creada.id))
+        flash("Cliente creado.", "ok")
+        return redirect(url_for("principal.cliente", cliente_id=nuevo.id))
+
+    return render_template("cliente_form.html", cliente=None, datos={})
+
+
+@principal.route("/cliente/<int:cliente_id>/editar", methods=["GET", "POST"])
+@login_required
+def cliente_editar(cliente_id):
+    _solo_gestion()
+    obj = db.session.get(Cliente, cliente_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.empresa_id)
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        if not nombre:
+            flash("El nombre del cliente es obligatorio.", "error")
+            return render_template("cliente_form.html", cliente=obj, datos=request.form)
+
+        obj.nombre = nombre
+        obj.rut = (request.form.get("rut") or "").strip() or None
+        obj.contacto = (request.form.get("contacto") or "").strip() or None
+        obj.telefono = (request.form.get("telefono") or "").strip() or None
+        obj.email = (request.form.get("email") or "").strip() or None
+        obj.direccion = (request.form.get("direccion") or "").strip() or None
+        db.session.commit()
+        flash("Cliente actualizado.", "ok")
+        return redirect(url_for("principal.cliente", cliente_id=obj.id))
+
+    return render_template("cliente_form.html", cliente=obj, datos={})
+
+
+@principal.route("/cliente/<int:cliente_id>/instalacion/nueva", methods=["GET", "POST"])
+@login_required
+def instalacion_nueva(cliente_id):
+    _solo_gestion()
+    padre = db.session.get(Cliente, cliente_id)
+    if padre is None:
+        abort(404)
+    _verificar_empresa(padre.empresa_id)
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        if not nombre:
+            flash("El nombre de la instalación es obligatorio.", "error")
+            return render_template("instalacion_form.html", cliente=padre,
+                                   instalacion=None, datos=request.form)
+
+        creada = Instalacion(
+            cliente_id=padre.id,
+            nombre=nombre,
+            direccion=(request.form.get("direccion") or "").strip() or padre.direccion,
+        )
+        db.session.add(creada)
+        db.session.commit()
+        flash("Instalación creada. Cargá sus equipos para poder inspeccionarla.", "ok")
+        return redirect(url_for("principal.instalacion", instalacion_id=creada.id))
+
+    return render_template("instalacion_form.html", cliente=padre, instalacion=None, datos={})
+
+
+@principal.route("/instalacion/<int:instalacion_id>/editar", methods=["GET", "POST"])
+@login_required
+def instalacion_editar(instalacion_id):
+    _solo_gestion()
+    obj = db.session.get(Instalacion, instalacion_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.cliente.empresa_id)
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        if not nombre:
+            flash("El nombre de la instalación es obligatorio.", "error")
+            return render_template("instalacion_form.html", cliente=obj.cliente,
+                                   instalacion=obj, datos=request.form)
+        obj.nombre = nombre
+        obj.direccion = (request.form.get("direccion") or "").strip() or None
+        db.session.commit()
+        flash("Instalación actualizada.", "ok")
+        return redirect(url_for("principal.instalacion", instalacion_id=obj.id))
+
+    return render_template("instalacion_form.html", cliente=obj.cliente,
+                           instalacion=obj, datos={})
+
+
+def _opciones_equipo(inst, excluir_id=None):
+    """Tipos del catálogo y posibles padres. Solo se ofrece como padre un
+    equipo que encabece conjunto: es lo que hace que el controlador se
+    recorra junto a su bomba y no suelto."""
+    tipos = (
+        TipoEquipo.query.filter_by(empresa_id=current_user.empresa_id)
+        .order_by(TipoEquipo.categoria_id, TipoEquipo.orden).all()
+    )
+    padres = [
+        e for e in inst.equipos
+        if e.activo and e.tipo_equipo and e.tipo_equipo.encabeza_conjunto and e.id != excluir_id
+    ]
+    padres.sort(key=lambda e: (e.codigo or "", e.nombre))
+    return tipos, padres
+
+
+@principal.route("/instalacion/<int:instalacion_id>/equipo/nuevo", methods=["GET", "POST"])
+@login_required
+def equipo_nuevo(instalacion_id):
+    _solo_gestion()
+    inst = db.session.get(Instalacion, instalacion_id)
+    if inst is None:
+        abort(404)
+    _verificar_empresa(inst.cliente.empresa_id)
+
+    tipos, padres = _opciones_equipo(inst)
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        tipo_id = request.form.get("tipo_equipo_id", type=int)
+        tipo = db.session.get(TipoEquipo, tipo_id) if tipo_id else None
+
+        if not nombre or tipo is None or tipo.empresa_id != current_user.empresa_id:
+            flash("Hacen falta un nombre y un tipo de equipo del catálogo.", "error")
+            return render_template("equipo_form.html", instalacion=inst, equipo=None,
+                                   tipos=tipos, padres=padres, datos=request.form)
+
+        padre_id = request.form.get("padre_id", type=int) or None
+        if padre_id and padre_id not in [p.id for p in padres]:
+            padre_id = None
+
+        creado = Equipo(
+            instalacion_id=inst.id,
+            tipo_equipo_id=tipo.id,
+            padre_id=padre_id,
+            codigo=(request.form.get("codigo") or "").strip() or None,
+            nombre=nombre,
+            ubicacion=(request.form.get("ubicacion") or "").strip() or None,
+            marca=(request.form.get("marca") or "").strip() or None,
+            modelo=(request.form.get("modelo") or "").strip() or None,
+            serie=(request.form.get("serie") or "").strip() or None,
+            caudal_nominal=_numero(request.form.get("caudal_nominal")),
+            presion_diseno=_numero(request.form.get("presion_diseno")),
+            presion_maxima=_numero(request.form.get("presion_maxima")),
+            presion_sobrecarga=_numero(request.form.get("presion_sobrecarga")),
+            rpm_nominal=int(_numero(request.form.get("rpm_nominal")) or 0) or None,
+        )
+        db.session.add(creado)
+        db.session.commit()
+        flash(f"Equipo «{creado.etiqueta}» agregado.", "ok")
+        # Cargar equipos es repetitivo: se puede volver al mismo formulario.
+        if request.form.get("otro"):
+            return redirect(url_for("principal.equipo_nuevo", instalacion_id=inst.id))
+        return redirect(url_for("principal.instalacion", instalacion_id=inst.id))
+
+    return render_template("equipo_form.html", instalacion=inst, equipo=None,
+                           tipos=tipos, padres=padres, datos={})
+
+
+@principal.route("/equipo/<int:equipo_id>/editar", methods=["GET", "POST"])
+@login_required
+def equipo_editar(equipo_id):
+    _solo_gestion()
+    obj = db.session.get(Equipo, equipo_id)
+    if obj is None:
+        abort(404)
+    inst = obj.instalacion
+    _verificar_empresa(inst.cliente.empresa_id)
+
+    tipos, padres = _opciones_equipo(inst, excluir_id=obj.id)
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        tipo_id = request.form.get("tipo_equipo_id", type=int)
+        tipo = db.session.get(TipoEquipo, tipo_id) if tipo_id else None
+
+        if not nombre or tipo is None or tipo.empresa_id != current_user.empresa_id:
+            flash("Hacen falta un nombre y un tipo de equipo del catálogo.", "error")
+            return render_template("equipo_form.html", instalacion=inst, equipo=obj,
+                                   tipos=tipos, padres=padres, datos=request.form)
+
+        padre_id = request.form.get("padre_id", type=int) or None
+        if padre_id and padre_id not in [p.id for p in padres]:
+            padre_id = None
+
+        obj.tipo_equipo_id = tipo.id
+        obj.padre_id = padre_id
+        obj.codigo = (request.form.get("codigo") or "").strip() or None
+        obj.nombre = nombre
+        obj.ubicacion = (request.form.get("ubicacion") or "").strip() or None
+        obj.marca = (request.form.get("marca") or "").strip() or None
+        obj.modelo = (request.form.get("modelo") or "").strip() or None
+        obj.serie = (request.form.get("serie") or "").strip() or None
+        obj.caudal_nominal = _numero(request.form.get("caudal_nominal"))
+        obj.presion_diseno = _numero(request.form.get("presion_diseno"))
+        obj.presion_maxima = _numero(request.form.get("presion_maxima"))
+        obj.presion_sobrecarga = _numero(request.form.get("presion_sobrecarga"))
+        obj.rpm_nominal = int(_numero(request.form.get("rpm_nominal")) or 0) or None
+        db.session.commit()
+        flash("Equipo actualizado.", "ok")
+        return redirect(url_for("principal.instalacion", instalacion_id=inst.id))
+
+    return render_template("equipo_form.html", instalacion=inst, equipo=obj,
+                           tipos=tipos, padres=padres, datos={})
+
+
+@principal.route("/equipo/<int:equipo_id>/baja", methods=["POST"])
+@login_required
+def equipo_baja(equipo_id):
+    """Baja lógica. No se borra: el histórico de inspecciones lo referencia,
+    y un equipo retirado tiene que seguir explicando las visitas viejas."""
+    _solo_gestion()
+    obj = db.session.get(Equipo, equipo_id)
+    if obj is None:
+        abort(404)
+    inst = obj.instalacion
+    _verificar_empresa(inst.cliente.empresa_id)
+
+    obj.activo = False
+    for hijo in obj.hijos:
+        hijo.activo = False
+    db.session.commit()
+    flash(f"«{obj.etiqueta}» dado de baja. El histórico de sus inspecciones se conserva.", "ok")
+    return redirect(url_for("principal.instalacion", instalacion_id=inst.id))
+
+
+# ---------------------------------------------------------------------------
 # Visitas
 # ---------------------------------------------------------------------------
 
