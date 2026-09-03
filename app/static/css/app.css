@@ -27,7 +27,11 @@
      para los controles de checklist que se tocan a la intemperie (ver
      sección Checklist más abajo), separados de --warn porque ese sigue
      usándose como texto sobre fondo claro y el amarillo puro ahí no se lee. */
-  --brand:#1B3A5C; --brand-light:#2E5883; --brand-dark:#12283F;
+  /* Grafito + ámbar: el marino quedó descartado (ver pitch de paleta) —
+     ahora la marca es un acento ámbar sobre un riel casi negro, y el rojo
+     queda 100% libre para "crítico", sin competir con nada de marca. */
+  --brand:#B45309; --brand-light:#C2760C; --brand-dark:#1C2126;
+  --riel-on:#3A424A;
   --ember:#C81E0A; --ember-soft:#F9D9CF;
   --warn:#8A5A00;  --warn-soft:#FBEEDA;
   --warn-fill:#F2B705; --warn-ink:#141400;
@@ -103,20 +107,21 @@ main:focus-visible{outline:none}
    propia capa de composición: sin eso, Chromium a veces no repinta a
    tiempo en un scroll grande/rápido y deja un hueco en blanco hasta que
    se estabiliza — el layout ya estaba bien (top:0), era el repintado. */
-.riel{background:var(--brand-dark);color:#C6D6E5;display:flex;flex-direction:column;
+.riel{background:var(--brand-dark);color:#C7CDD3;display:flex;flex-direction:column;
   padding:var(--e4) var(--e3);gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;
   transform:translateZ(0)}
 @media (max-width:900px){.riel{display:none}}
 .riel .marca{display:flex;align-items:center;gap:var(--e2);color:#fff;text-decoration:none;
   padding:var(--e2) var(--e3) var(--e5);font-family:var(--display);font-weight:700;font-size:var(--t-med)}
-.riel .marca em{font-style:normal;color:var(--ember)}
 .riel .marca-logo{height:26px;width:auto;flex:none}
 .riel .grupo{font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
-  color:#6E8CA8;padding:var(--e4) var(--e3) var(--e1)}
+  color:#7C848D;padding:var(--e4) var(--e3) var(--e1)}
 .riel a.nav{display:flex;align-items:center;gap:var(--e3);padding:var(--e2) var(--e3);
-  border-radius:var(--r-sm);color:#C6D6E5;text-decoration:none;font-size:var(--t-base)}
+  border-radius:var(--r-sm);color:#C7CDD3;text-decoration:none;font-size:var(--t-base)}
 .riel a.nav:hover{background:rgba(255,255,255,.07);color:#fff}
-.riel a.nav.on{background:var(--brand-light);color:#fff;font-weight:600}
+/* Activo = grafito más claro, no el ámbar de marca: si no, cada link
+   "acá estás parado" se leería como un botón de acción. */
+.riel a.nav.on{background:var(--riel-on);color:#fff;font-weight:600}
 .riel a.nav .tag{margin-left:auto;font-family:var(--mono);font-size:.62rem;background:var(--ember);
   color:#fff;border-radius:var(--r-px);padding:.05rem .36rem}
 .riel .pie{margin-top:auto;padding-top:var(--e4);border-top:1px solid rgba(255,255,255,.1);
@@ -271,7 +276,7 @@ a.item:hover{border-color:var(--border-strong);box-shadow:var(--sombra)}
   width:100%;border:1px solid var(--border);background:var(--surface);border-radius:var(--r-sm);
   padding:var(--e2) var(--e3);font:inherit;font-size:var(--t-base);color:var(--ink);min-height:38px}
 .input:focus,.campo input:focus,.campo select:focus,.campo textarea:focus{
-  border-color:var(--brand-light);outline:none;box-shadow:0 0 0 3px rgba(46,88,131,.12)}
+  border-color:var(--brand-light);outline:none;box-shadow:0 0 0 3px rgba(194,118,12,.15)}
 .campo textarea{min-height:auto;resize:vertical}
 .input.num,.campo input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}IPM Manager v2{% endblock %}</title>
+<title>{% block title %}IPM Manager{% endblock %}</title>
 <link rel="icon" href="{{ url_for('static', filename='img/logo.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,7 +50,7 @@
     {% if current_user.es_cliente %}
     <a class="marca" href="{{ url_for('principal.portal') }}">
       <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" class="marca-logo">
-      IPM Manager <em>v2</em></a>
+      IPM Manager</a>
     <a class="nav {{ 'on' if ep == 'principal.portal' }}" href="{{ url_for('principal.portal') }}">
       {{ ico('inicio') }}Mis instalaciones</a>
     <a class="nav {{ 'on' if ep == 'principal.cuenta' }}" href="{{ url_for('principal.cuenta') }}">
@@ -59,7 +59,7 @@
     {% else %}
     <a class="marca" href="{{ url_for('principal.inicio') }}">
       <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" class="marca-logo">
-      IPM Manager <em>v2</em></a>
+      IPM Manager</a>
 
     <a class="nav {{ 'on' if ep == 'principal.inicio' }}" href="{{ url_for('principal.inicio') }}">
       {{ ico('inicio') }}Inicio</a>

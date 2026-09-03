@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% set editando = cliente is not none %}
-{% block title %}{{ 'Editar cliente' if editando else 'Nuevo cliente' }} — IPM Manager v2{% endblock %}
+{% block title %}{{ 'Editar cliente' if editando else 'Nuevo cliente' }} — IPM Manager{% endblock %}
 
 {% macro val(campo) -%}
 {%- if datos.get(campo) is not none -%}{{ datos.get(campo) }}

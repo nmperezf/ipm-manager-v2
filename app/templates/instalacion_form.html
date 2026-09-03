@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% set editando = instalacion is not none %}
-{% block title %}{{ 'Editar instalación' if editando else 'Nueva instalación' }} — IPM Manager v2{% endblock %}
+{% block title %}{{ 'Editar instalación' if editando else 'Nueva instalación' }} — IPM Manager{% endblock %}
 
 {% macro val(campo) -%}
 {%- if datos.get(campo) is not none -%}{{ datos.get(campo) }}
