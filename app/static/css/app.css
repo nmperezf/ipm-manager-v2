@@ -50,16 +50,20 @@
   /* --- escala de espaciado --- */
   --e1:.25rem; --e2:.4rem; --e3:.6rem; --e4:.9rem; --e5:1.35rem; --e6:2rem;
 
-  /* --- escala tipográfica --- */
-  --t-micro:.68rem;   /* etiquetas mono, metadatos */
-  --t-mini:.78rem;    /* texto secundario */
-  --t-base:.88rem;    /* cuerpo */
-  --t-med:1rem;       /* títulos de tarjeta */
-  --t-alto:1.3rem;    /* título de página */
-  --t-cifra:1.75rem;  /* números de panorama */
+  /* --- escala tipográfica ---
+     El cuerpo sube a 16px: es el mínimo aceptado para texto de lectura,
+     no un capricho — por debajo de eso alguien con baja visión ya está
+     forzando el zoom del navegador en cada pantalla. El resto de la
+     escala sube con el mismo criterio, conservando la jerarquía. */
+  --t-micro:.74rem;   /* etiquetas mono, metadatos */
+  --t-mini:.85rem;    /* texto secundario */
+  --t-base:1rem;      /* cuerpo */
+  --t-med:1.15rem;    /* títulos de tarjeta */
+  --t-alto:1.45rem;   /* título de página */
+  --t-cifra:1.9rem;   /* números de panorama */
 
   --r:10px; --r-sm:7px; --r-px:99px;
-  --riel:212px;
+  --riel:246px;
   --display:'Space Grotesk',system-ui,sans-serif;
   --body:'Inter',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
@@ -79,6 +83,15 @@ p:last-child{margin-bottom:0}
 :focus-visible{outline:2px solid var(--brand-light);outline-offset:2px;border-radius:4px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
+/* Invisible hasta que se navega con teclado: sin esto, alguien que usa
+   teclado o lector de pantalla tiene que pasar por todo el riel lateral
+   en cada página antes de llegar al contenido. */
+.skip-link{position:absolute;top:-3rem;left:.6rem;z-index:100;background:var(--brand-dark);
+  color:#fff;padding:.6rem 1rem;border-radius:var(--r-sm);text-decoration:none;font-weight:600;
+  transition:top .15s ease}
+.skip-link:focus{top:.6rem}
+main:focus-visible{outline:none}
+
 /* =========================================================================
    Estructura
    ========================================================================= */
@@ -86,8 +99,13 @@ p:last-child{margin-bottom:0}
 .app{display:grid;grid-template-columns:var(--riel) 1fr;min-height:100vh}
 @media (max-width:900px){.app{grid-template-columns:1fr}}
 
+/* transform:translateZ(0) en los "position:sticky" de esta hoja fuerza su
+   propia capa de composición: sin eso, Chromium a veces no repinta a
+   tiempo en un scroll grande/rápido y deja un hueco en blanco hasta que
+   se estabiliza — el layout ya estaba bien (top:0), era el repintado. */
 .riel{background:var(--brand-dark);color:#C6D6E5;display:flex;flex-direction:column;
-  padding:var(--e4) var(--e3);gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto}
+  padding:var(--e4) var(--e3);gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;
+  transform:translateZ(0)}
 @media (max-width:900px){.riel{display:none}}
 .riel .marca{display:flex;align-items:center;gap:var(--e2);color:#fff;text-decoration:none;
   padding:var(--e2) var(--e3) var(--e5);font-family:var(--display);font-weight:700;font-size:var(--t-med)}
@@ -107,7 +125,8 @@ p:last-child{margin-bottom:0}
 .col{display:flex;flex-direction:column;min-width:0}
 
 .topbar{display:flex;align-items:center;gap:var(--e3);padding:var(--e2) var(--e4);
-  background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+  background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;
+  transform:translateZ(0)}
 .buscador{flex:1;max-width:420px;position:relative;display:flex;align-items:center}
 .buscador svg{position:absolute;left:var(--e3);color:var(--ink-faint);width:1rem;height:1rem}
 .buscador input{width:100%;padding:var(--e2) var(--e3) var(--e2) 2.1rem;border:1px solid var(--border);
@@ -198,7 +217,10 @@ a.item:hover{border-color:var(--border-strong);box-shadow:var(--sombra)}
 .item.warn{border-left:3px solid var(--warn)}
 .item .t{flex:1;min-width:0}
 .item .t b{display:block;font-size:var(--t-base)}
-.item .t span{display:block;font-size:var(--t-mini);color:var(--ink-muted)}
+/* Hijo directo, no descendiente: si fuera ".item .t span" también se
+   aplicaría al <span class="mono"> que a veces va anidado adentro (un
+   contador, por ejemplo), y ese quedaba forzado a su propia línea. */
+.item .t > span{display:block;font-size:var(--t-mini);color:var(--ink-muted)}
 
 .chip{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;flex:none}
 .chip.crit{background:var(--ember-soft);color:var(--ember)}
@@ -299,7 +321,7 @@ tbody tr:hover .froz{background:var(--surface-muted)}
 
 .progreso{position:sticky;top:52px;z-index:15;background:var(--surface);
   border:1px solid var(--border);border-radius:var(--r);padding:var(--e3) var(--e4);
-  margin-bottom:var(--e4);box-shadow:var(--sombra)}
+  margin-bottom:var(--e4);box-shadow:var(--sombra);transform:translateZ(0)}
 .progreso .barra{height:6px;border-radius:var(--r-px);background:var(--surface-muted);
   overflow:hidden;margin-top:var(--e2)}
 .progreso .barra i{display:block;height:100%;background:var(--ok);border-radius:var(--r-px);
@@ -436,7 +458,7 @@ tbody tr:hover .froz{background:var(--surface-muted)}
    ========================================================================= */
 
 @media (pointer:coarse){
-  :root{--t-base:.95rem; --t-mini:.82rem; --t-micro:.72rem}
+  :root{--t-base:1.05rem; --t-mini:.92rem; --t-micro:.8rem}
   .btn{min-height:46px;padding:var(--e3) var(--e5)}
   .btn.sm{min-height:40px;padding:var(--e2) var(--e4)}
   .input,.campo input,.campo select,.campo textarea,

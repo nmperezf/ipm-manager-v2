@@ -243,7 +243,7 @@
            target="_blank" rel="noopener">
           <img src="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}"
                alt="{{ f.equipo.etiqueta if f.equipo else 'Foto de la inspección' }}" loading="lazy"></a>
-        <button type="button" title="Eliminar foto"
+        <button type="button" title="Eliminar foto" aria-label="Eliminar foto"
                 data-borrar="{{ url_for('principal.foto_borrar', foto_id=f.id) }}">×</button>
       </div>
     {% endfor %}
@@ -327,7 +327,7 @@
     mini.innerHTML =
       '<a href="' + datos.url + '" target="_blank" rel="noopener">' +
       '<img src="' + datos.url + '" alt="' + datos.equipo + '"></a>' +
-      '<button type="button" title="Eliminar foto" data-borrar="' + datos.borrar + '">&times;</button>';
+      '<button type="button" title="Eliminar foto" aria-label="Eliminar foto" data-borrar="' + datos.borrar + '">&times;</button>';
     tira.appendChild(mini);
   }
 
