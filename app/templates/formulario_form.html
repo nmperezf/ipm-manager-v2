@@ -83,6 +83,24 @@
       </select>
     </label>
 
+    <label class="campo">
+      <span class="rotulo">Rango por equipo</span>
+      <select name="atributo_equipo_{{ idx }}">
+        <option value="">— ninguno —</option>
+        {% for clave, etiqueta in ATRIBUTOS_EQUIPO.items() %}
+          <option value="{{ clave }}" {{ 'selected' if campo and campo.atributo_equipo == clave }}>
+            {{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+      <span class="nota">Sale de la placa del equipo, no de un valor fijo.</span>
+    </label>
+    <label class="campo">
+      <span class="rotulo">Tolerancia</span>
+      <input name="tolerancia_{{ idx }}" type="number" step="any" class="num" min="0"
+             value="{{ campo.tolerancia_pct if campo and campo.tolerancia_pct is not none else 10 }}">
+      <span class="nota">% admitido alrededor del valor de placa.</span>
+    </label>
+
     <label class="campo ancho-total">
       <span class="rotulo">Opciones</span>
       <input name="opciones_{{ idx }}" value="{{ (campo.opciones_raw or '') if campo else '' }}"

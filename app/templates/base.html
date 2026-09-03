@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}IPM Manager v2{% endblock %}</title>
+<link rel="icon" href="{{ url_for('static', filename='img/logo.png') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
@@ -42,7 +43,19 @@
 
 <div class="app">
   <nav class="riel">
-    <a class="marca" href="{{ url_for('principal.inicio') }}">IPM Manager <em>v2</em></a>
+    {% if current_user.es_cliente %}
+    <a class="marca" href="{{ url_for('principal.portal') }}">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" class="marca-logo">
+      IPM Manager <em>v2</em></a>
+    <a class="nav {{ 'on' if ep == 'principal.portal' }}" href="{{ url_for('principal.portal') }}">
+      {{ ico('inicio') }}Mis instalaciones</a>
+    <a class="nav {{ 'on' if ep == 'principal.cuenta' }}" href="{{ url_for('principal.cuenta') }}">
+      {{ ico('config') }}Mi cuenta</a>
+    <div class="pie">{{ current_user.cliente.nombre if current_user.cliente }}</div>
+    {% else %}
+    <a class="marca" href="{{ url_for('principal.inicio') }}">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" class="marca-logo">
+      IPM Manager <em>v2</em></a>
 
     <a class="nav {{ 'on' if ep == 'principal.inicio' }}" href="{{ url_for('principal.inicio') }}">
       {{ ico('inicio') }}Inicio</a>
@@ -78,20 +91,25 @@
        href="{{ url_for('principal.cuenta') }}">{{ ico('config') }}Mi cuenta</a>
 
     <div class="pie">{{ current_user.empresa.nombre }}</div>
+    {% endif %}
   </nav>
 
   <div class="col">
     <div class="topbar">
+      {% if not current_user.es_cliente %}
       <form class="buscador" method="get" action="{{ url_for('principal.buscar') }}" role="search">
         {{ ico('buscar') }}
         <input type="search" name="q" value="{{ request.args.get('q', '') }}"
                placeholder="Buscar cliente, instalación, equipo, visita…" aria-label="Buscar">
       </form>
+      {% endif %}
       <span class="sp"></span>
+      {% if not current_user.es_cliente %}
       <a class="icono-btn" href="{{ url_for('principal.deficiencias') }}" title="Deficiencias pendientes"
          aria-label="Deficiencias pendientes">
         {{ ico('campana') }}{% if pendientes_aprobacion %}<span class="punto"></span>{% endif %}
       </a>
+      {% endif %}
       <a class="avatar" href="{{ url_for('principal.cuenta') }}" title="{{ current_user.nombre_completo }}">
         {{ (current_user.nombre_completo or current_user.username)[:2] | upper }}
       </a>
@@ -112,6 +130,7 @@
   </div>
 </div>
 
+{% if not current_user.es_cliente %}
 <nav class="nav-inferior">
   <a href="{{ url_for('principal.inicio') }}" class="{{ 'on' if ep == 'principal.inicio' }}">
     {{ ico('inicio') }}Inicio</a>
@@ -126,6 +145,7 @@
   <a href="{{ url_for('principal.cuenta') }}" class="{{ 'on' if ep == 'principal.cuenta' }}">
     {{ ico('config') }}Cuenta</a>
 </nav>
+{% endif %}
 
 {% else %}
   {% block anonimo %}{% endblock %}

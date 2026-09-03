@@ -21,6 +21,7 @@
         <tr><th style="width:12rem">Usuario</th><td class="mono">{{ current_user.username }}</td></tr>
         <tr><th>Nombre</th><td>{{ current_user.nombre_completo or '—' }}</td></tr>
         <tr><th>Rol</th><td>{{ current_user.rol }}</td></tr>
+        {% if not current_user.es_cliente %}
         <tr>
           <th>Aprueba deficiencias</th>
           <td>
@@ -35,11 +36,13 @@
             {% endif %}
           </td>
         </tr>
+        {% endif %}
       </tbody>
     </table>
   </div>
 </div>
 
+{% if not current_user.es_cliente %}
 <div class="card">
   <h3 style="margin-bottom:.6rem">Empresa</h3>
   <div class="tabla-wrap">
@@ -58,12 +61,13 @@
     </table>
   </div>
 </div>
+{% endif %}
 
 <div class="card">
   <h3>Todavía no implementado</h3>
   <p class="muted" style="margin:.4rem 0 0">
-    Cambio de contraseña, edición de datos de empresa y alta de usuarios. Se listan acá para que
-    quede claro que faltan, en vez de mostrar botones que no hacen nada.
+    Cambio de contraseña{{ '' if current_user.es_cliente else ', edición de datos de empresa y alta de usuarios' }}.
+    Se listan acá para que quede claro que faltan, en vez de mostrar botones que no hacen nada.
   </p>
 </div>
 

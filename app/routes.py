@@ -34,12 +34,14 @@ from app.models import (
     ESTADO_CONFORME,
     ESTADO_NA,
     ESTADO_NO_CONFORME,
+    ATRIBUTOS_EQUIPO,
     FRECUENCIA_MENSUAL,
     FRECUENCIAS,
     GRAVEDAD_CRITICA,
     GRAVEDAD_NO_CRITICA,
     REVISION_APROBADA,
     REVISION_PENDIENTE,
+    VISIBILIDAD_INTERNA,
     ESTADOS_OT,
     OT_CERRADA,
     OT_EN_CURSO,
@@ -93,6 +95,7 @@ def inyectar_contexto():
         "CLASIF_NO_CRITICA": CLASIF_NO_CRITICA,
         "REVISION_APROBADA": REVISION_APROBADA,
         "FRECUENCIAS": FRECUENCIAS,
+        "ATRIBUTOS_EQUIPO": ATRIBUTOS_EQUIPO,
         "ESTADOS_OT": ESTADOS_OT,
         "OT_PENDIENTE": OT_PENDIENTE,
         "OT_EN_CURSO": OT_EN_CURSO,
@@ -108,9 +111,48 @@ def inyectar_contexto():
     return contexto
 
 
+# Lo único que alcanza un usuario del lado del cliente. Es lista blanca a
+# propósito: una ruta nueva queda bloqueada por omisión en vez de quedar
+# expuesta por olvido. Antes de esto, un usuario con rol Cliente entraba a
+# toda la operación interna, incluidos los datos de OTROS clientes.
+RUTAS_CLIENTE = {
+    "principal.login",
+    "principal.logout",
+    "principal.cuenta",
+    "principal.portal",
+}
+
+
+@principal.before_request
+def _cerrar_para_clientes():
+    if current_user.is_authenticated and current_user.es_cliente:
+        if request.endpoint not in RUTAS_CLIENTE:
+            abort(403)
+    return None
+
+
 def _verificar_empresa(empresa_id):
     if empresa_id != current_user.empresa_id:
         abort(403)
+
+
+def _deficiencias_visibles(cliente):
+    """Lo que el cliente tiene derecho a ver.
+
+    Es el criterio que el modelo ya definía en `visible_para_cliente` y que
+    hasta ahora ninguna vista consultaba: solo lo aprobado por un jefe
+    técnico, y nunca lo marcado como interno.
+    """
+    return (
+        Observacion.query
+        .join(Instalacion, Observacion.instalacion_id == Instalacion.id)
+        .filter(
+            Instalacion.cliente_id == cliente.id,
+            Observacion.estado_revision == REVISION_APROBADA,
+            Observacion.visibilidad != VISIBILIDAD_INTERNA,
+        )
+        .order_by(Observacion.resuelto, Observacion.fecha_carga.desc())
+    )
 
 
 def _instalaciones_empresa():
@@ -161,14 +203,17 @@ principal.add_app_template_global(categorias_de, "categorias_de")
 @principal.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("principal.inicio"))
+        return redirect(url_for(
+            "principal.portal" if current_user.es_cliente else "principal.inicio"))
     if request.method == "POST":
         usuario = Usuario.query.filter_by(
             username=request.form.get("username", "").strip()
         ).first()
         if usuario and usuario.activo and usuario.check_password(request.form.get("password", "")):
             login_user(usuario)
-            return redirect(url_for("principal.inicio"))
+            # El cliente no tiene panorama interno: va directo a lo suyo.
+            destino = "principal.portal" if usuario.es_cliente else "principal.inicio"
+            return redirect(url_for(destino))
         flash("Usuario o contraseña incorrectos.", "error")
     return render_template("login.html")
 
@@ -1348,6 +1393,9 @@ def _guardar_campos(formulario):
         campo.gravedad_fuera_rango = (
             request.form.get(f"gravedad_{idx}") or GRAVEDAD_NO_CRITICA
         )
+        atributo_equipo = (request.form.get(f"atributo_equipo_{idx}") or "").strip() or None
+        campo.atributo_equipo = atributo_equipo if atributo_equipo in ATRIBUTOS_EQUIPO else None
+        campo.tolerancia_pct = _numero(request.form.get(f"tolerancia_{idx}")) or 10.0
         campo.frecuencia = (request.form.get(f"frecuencia_{idx}") or "").strip() or None
         campo.ayuda = (request.form.get(f"ayuda_{idx}") or "").strip() or None
         campo.orden = request.form.get(f"orden_{idx}", type=int) or 0
@@ -1412,6 +1460,40 @@ def catalogo_borrar(tipo, objeto_id):
     db.session.commit()
     flash("Eliminado del catálogo.", "ok")
     return redirect(url_for("principal.catalogo"))
+
+
+@principal.route("/portal")
+@login_required
+def portal():
+    """Lo que ve el cliente: sus instalaciones y sus deficiencias aprobadas.
+
+    Nada más. No hay órdenes de trabajo, ni el catálogo, ni otros clientes,
+    ni lo que un jefe técnico todavía no revisó.
+    """
+    cliente_obj = current_user.cliente
+    if cliente_obj is None:
+        return render_template("portal.html", cliente=None, instalaciones=[],
+                               abiertas=[], resueltas=[], visitas=[])
+
+    instalaciones = (
+        Instalacion.query.filter_by(cliente_id=cliente_obj.id)
+        .order_by(Instalacion.nombre).all()
+    )
+    visibles = _deficiencias_visibles(cliente_obj).all()
+
+    ids = [i.id for i in instalaciones]
+    visitas_cliente = (
+        Visita.query.filter(Visita.instalacion_id.in_(ids))
+        .order_by(Visita.fecha.desc()).limit(10).all()
+        if ids else []
+    )
+
+    return render_template(
+        "portal.html", cliente=cliente_obj, instalaciones=instalaciones,
+        abiertas=[o for o in visibles if not o.resuelto],
+        resueltas=[o for o in visibles if o.resuelto],
+        visitas=visitas_cliente,
+    )
 
 
 @principal.route("/cuenta")

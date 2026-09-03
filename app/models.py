@@ -32,7 +32,8 @@ db = SQLAlchemy()
 # Constantes de dominio
 # ---------------------------------------------------------------------------
 
-ROLES = ["Administrador", "Jefe técnico", "Técnico", "Cliente"]
+ROL_CLIENTE = "Cliente"
+ROLES = ["Administrador", "Jefe técnico", "Técnico", ROL_CLIENTE]
 
 # Roles que pueden aprobar una observación para que la vea el cliente.
 ROLES_APRUEBAN = ("Administrador", "Jefe técnico")
@@ -107,6 +108,18 @@ NIVEL_FRECUENCIA = {
 }
 FRECUENCIAS = sorted(NIVEL_FRECUENCIA, key=NIVEL_FRECUENCIA.get)
 
+# Datos de placa contra los que se puede validar un campo numérico (ver
+# CampoFormulario.atributo_equipo). Es lista blanca a propósito: evita que
+# un valor mal tipeado en el catálogo termine leyendo un atributo del
+# modelo Equipo que no es un dato numérico de placa.
+ATRIBUTOS_EQUIPO = {
+    "presion_diseno": "Presión de diseño (100 % del caudal)",
+    "presion_maxima": "Presión máxima (churn, 0 % del caudal)",
+    "presion_sobrecarga": "Presión de sobrecarga (150 % del caudal)",
+    "caudal_nominal": "Caudal nominal",
+    "rpm_nominal": "RPM nominal",
+}
+
 # Cada cuántos meses cae cada rutina. Es lo que hace predecible el año:
 # sabiendo el mes ancla del contrato, se deriva qué toca cada mes sin
 # guardar un calendario.
@@ -172,7 +185,13 @@ class Usuario(UserMixin, db.Model):
     rol = db.Column(db.String(30), nullable=False)
     activo = db.Column(db.Boolean, default=True, nullable=False)
 
+    # A qué cliente pertenece, si es un usuario del lado del cliente. Sin
+    # esto no hay forma de responder "lo suyo": el contacto de un cliente
+    # no puede ver las instalaciones de otro.
+    cliente_id = db.Column(db.Integer, db.ForeignKey("clientes.id"), nullable=True, index=True)
+
     empresa = db.relationship("Empresa", backref="usuarios")
+    cliente = db.relationship("Cliente", backref="usuarios")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -185,6 +204,12 @@ class Usuario(UserMixin, db.Model):
         """Flask-Login lo consulta al iniciar sesión. Se mapea a `activo`
         para que dar de baja a un usuario le impida entrar."""
         return self.activo
+
+    @property
+    def es_cliente(self):
+        """Usuario del lado del cliente. No ve la operación interna: ni
+        otros clientes, ni el catálogo, ni lo que todavía no se aprobó."""
+        return self.rol == ROL_CLIENTE
 
     @property
     def puede_aprobar(self):
@@ -422,6 +447,14 @@ class CampoFormulario(db.Model):
     ayuda = db.Column(db.String(300))
     orden = db.Column(db.Integer, default=0, nullable=False)
 
+    # Rango por equipo (pendiente del README, cambio complementario al 3).
+    # A diferencia de minimo/maximo, este no es fijo: sale de la placa del
+    # equipo que responde la sección, con una tolerancia porque un valor de
+    # campo nunca coincide exactamente con el de fábrica. Sin equipo (una
+    # sección de recinto) o sin ese dato cargado en la placa, no aplica.
+    atributo_equipo = db.Column(db.String(30))  # ver ATRIBUTOS_EQUIPO
+    tolerancia_pct = db.Column(db.Float, default=10.0)
+
     @property
     def frecuencia_efectiva(self):
         return self.frecuencia or (self.tipo_formulario.frecuencia if self.tipo_formulario else None)
@@ -467,6 +500,40 @@ class CampoFormulario(db.Model):
         if self.maximo is not None:
             return f"máx. {self.maximo:g}{sufijo}"
         return ""
+
+    def rango_equipo(self, equipo):
+        """Rango esperado según la placa del equipo, o None si el campo no
+        depende de un atributo de equipo, no hay equipo (sección de
+        recinto), o la placa no tiene ese dato cargado."""
+        if not self.atributo_equipo or equipo is None:
+            return None
+        if self.atributo_equipo not in ATRIBUTOS_EQUIPO:
+            return None
+        valor_placa = getattr(equipo, self.atributo_equipo, None)
+        if valor_placa is None:
+            return None
+        tolerancia = (self.tolerancia_pct if self.tolerancia_pct is not None else 10.0) / 100.0
+        return (valor_placa * (1 - tolerancia), valor_placa * (1 + tolerancia))
+
+    def fuera_de_rango_equipo(self, valor, equipo):
+        """True si el valor cae fuera del rango de la placa del equipo."""
+        rango = self.rango_equipo(equipo)
+        if rango is None or valor is None:
+            return False
+        try:
+            n = float(valor)
+        except (TypeError, ValueError):
+            return False
+        minimo, maximo = rango
+        return n < minimo or n > maximo
+
+    def texto_rango_equipo(self, equipo):
+        rango = self.rango_equipo(equipo)
+        if rango is None:
+            return ""
+        minimo, maximo = rango
+        sufijo = f" {self.unidad}" if self.unidad else ""
+        return f"{minimo:g} – {maximo:g}{sufijo} según placa del equipo"
 
     def __repr__(self):
         return f"<CampoFormulario {self.clave}>"

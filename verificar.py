@@ -188,6 +188,72 @@ def main():
         check("Critica, segun el campo", bool(o3) and o3[0].clasificacion == CLASIF_CRITICA,
               o3[0].descripcion if o3 else "-")
 
+        print("\n3c - Rango por equipo: sale de la placa, no de un valor fijo")
+        item3c = item_para("Torre Ejecutiva", tecnico)
+        b3c = armar_bloques(item3c)
+        s3c = next(
+            s for b in b3c for s in b.secciones
+            if s.tipo_formulario.nombre == "Bomba eléctrica — prueba sin flujo"
+        )
+        equipo3c = s3c.equipo
+        c3c = next(c for c in s3c.tipo_formulario.campos if c.clave == "p_churn")
+        check("El campo apunta a la presion maxima de placa",
+              c3c.atributo_equipo == "presion_maxima")
+        check("Placa de esta bomba: 120 psi", equipo3c.presion_maxima == 120)
+
+        # Dentro de la tolerancia (10 % por defecto: 108-132) no dispara nada.
+        form3c_ok = MultiDict({
+            nombre_campo(s3c.tipo_formulario, equipo3c, c3c, "valor"): "125",
+            nombre_campo(s3c.tipo_formulario, equipo3c, c3c, "estado"): ESTADO_CONFORME,
+        })
+        r3c_ok = guardar_checklist(item3c, form3c_ok, tecnico)
+        check("Guardado sin errores", r3c_ok.ok, str(r3c_ok.errores))
+        check("125 psi esta dentro de tolerancia: no abre nada",
+              Observacion.query.filter_by(visita_id=item3c.visita_id).count() == 0)
+
+        # Otra sala, otra bomba, mismo campo: el limite es el de SU placa
+        # (135 psi), no el de la Torre Ejecutiva. Ese es el punto del cambio.
+        item3d = item_para("Planta Industrial Norte", tecnico)
+        b3d = armar_bloques(item3d)
+        s3d = next(
+            s for b in b3d for s in b.secciones
+            if s.tipo_formulario.nombre == "Bomba diesel - prueba sin flujo"
+            or s.tipo_formulario.nombre == "Bomba diesel — prueba sin flujo"
+        )
+        equipo3d = s3d.equipo
+        c3d = next(c for c in s3d.tipo_formulario.campos if c.clave == "p_churn")
+        check("Placa de la bomba diesel: 135 psi", equipo3d.presion_maxima == 135)
+        form3d = MultiDict({
+            nombre_campo(s3d.tipo_formulario, equipo3d, c3d, "valor"): "125",
+            nombre_campo(s3d.tipo_formulario, equipo3d, c3d, "estado"): ESTADO_CONFORME,
+        })
+        r3d = guardar_checklist(item3d, form3d, tecnico)
+        check("Guardado sin errores", r3d.ok, str(r3d.errores))
+        check("El mismo 125 psi acá no dispara nada — la placa es otra",
+              Observacion.query.filter_by(visita_id=item3d.visita_id).count() == 0)
+
+        # Fuera de la tolerancia de SU placa (120 psi ± 10 % = 108-132).
+        item3e = item_para("Torre Ejecutiva", tecnico)
+        b3e = armar_bloques(item3e)
+        s3e = next(
+            s for b in b3e for s in b.secciones
+            if s.tipo_formulario.nombre == "Bomba eléctrica — prueba sin flujo"
+        )
+        equipo3e = s3e.equipo
+        c3e = next(c for c in s3e.tipo_formulario.campos if c.clave == "p_churn")
+        form3e = MultiDict({
+            nombre_campo(s3e.tipo_formulario, equipo3e, c3e, "valor"): "150",
+            # El tecnico lo marca Conforme por distraccion, igual que en 3b.
+            nombre_campo(s3e.tipo_formulario, equipo3e, c3e, "estado"): ESTADO_CONFORME,
+        })
+        r3e = guardar_checklist(item3e, form3e, tecnico)
+        check("Guardado sin errores", r3e.ok, str(r3e.errores))
+        o3e = Observacion.query.filter_by(visita_id=item3e.visita_id).all()
+        check("150 psi fuera de la placa (108-132) abre deficiencia sola", len(o3e) == 1)
+        check("El comentario cita la placa del equipo, no un rango fijo",
+              bool(o3e) and "según placa del equipo" in o3e[0].descripcion,
+              o3e[0].descripcion if o3e else "-")
+
         print("\n7 - Auto-aprobacion cuando la visita la hace un jefe tecnico")
         item4 = item_para("Torre Ejecutiva", jefe)
         b4 = armar_bloques(item4)

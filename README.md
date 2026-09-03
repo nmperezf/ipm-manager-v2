@@ -91,8 +91,11 @@ verificar.py        verificación de los seis cambios
   contra la edición a la que se certifica. La prueba sin flujo de bombas
   eléctricas pasó de semanal a mensual en ediciones recientes; las diesel
   siguen siendo semanales.
-- Los rangos **por equipo** (presiones, caudal, RPM) están en la placa
-  (`Equipo.presion_diseno`, `presion_maxima`, `presion_sobrecarga`,
-  `caudal_nominal`, `rpm_nominal`) pero todavía no se usan al validar la carga.
-- Falta el resto del CMMS: contratos, coordinación mensual, órdenes de trabajo,
-  portal del cliente, PDF.
+- Los rangos **por equipo** (presiones, caudal, RPM) ya se usan al validar la
+  carga (`CampoFormulario.atributo_equipo` + `tolerancia_pct`, ver
+  `checklist.guardar_checklist`). La tolerancia por defecto es **±10 %**
+  alrededor del valor de placa — un placeholder razonable, no un criterio de
+  aceptación de NFPA 20 confirmado. Falta contrastarla contra la norma
+  (p.ej. el criterio de curva de fábrica de la prueba anual de caudal).
+- Falta el resto del CMMS: PDF. (Contratos, coordinación mensual, órdenes de
+  trabajo y portal del cliente ya están implementados.)

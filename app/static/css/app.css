@@ -18,16 +18,31 @@
    ========================================================================= */
 
 :root{
-  /* --- color --- */
+  /* --- color ---
+     Endurecido para lectura al sol (ver decisión "Opción C" del pitch de
+     contraste): los tintes pastel de --*-soft eran lo primero que se lavaba
+     afuera. El texto/ícono sobre ellos ahora es más oscuro y saturado —
+     misma familia de color, más plantado. --warn-fill/--warn-ink son
+     nuevos: relleno sólido de amarillo de seguridad + tinta casi negra,
+     para los controles de checklist que se tocan a la intemperie (ver
+     sección Checklist más abajo), separados de --warn porque ese sigue
+     usándose como texto sobre fondo claro y el amarillo puro ahí no se lee. */
   --brand:#1B3A5C; --brand-light:#2E5883; --brand-dark:#12283F;
-  --ember:#C1440E; --ember-soft:#FBE7DE;
-  --warn:#B45309;  --warn-soft:#FBEEDA;
-  --ok:#15803D;    --ok-soft:#DDF0E3;
-  --neutral:#4A6072; --neutral-soft:#E4EBF2;
+  --ember:#C81E0A; --ember-soft:#F9D9CF;
+  --warn:#8A5A00;  --warn-soft:#FBEEDA;
+  --warn-fill:#F2B705; --warn-ink:#141400;
+  --ok:#0B7A3B;    --ok-soft:#D8F0DE;
+  --neutral:#39434C; --neutral-soft:#E1E8EF;
 
-  --ground:#F4F7FA; --surface:#FFF; --surface-muted:#EDF2F7;
-  --border:#D9E1EA; --border-strong:#BDCAD8;
-  --ink:#16202B; --ink-muted:#5A6C7D; --ink-faint:#8598A8;
+  /* Fondo y superficie separados a propósito, no por matiz sutil: en
+     glare, "casi blanco sobre blanco" colapsa en un solo plano y las
+     tarjetas dejan de leerse como tarjetas. Papel blanco de verdad sobre
+     un fondo notablemente más oscuro es la fórmula que sí sobrevive al
+     sol (confirmado contra el patrón "alto contraste" del buscador de
+     paletas: fondo/tarjeta/borde bien separados, texto casi negro). */
+  --ground:#E4EAF0; --surface:#FFF; --surface-muted:#DCE4EC;
+  --border:#C7D2DC; --border-strong:#9FB0C0;
+  --ink:#12191F; --ink-muted:#48586A; --ink-faint:#65778A;
 
   --sombra:0 1px 2px rgba(18,40,63,.05);
   --sombra-alta:0 1px 2px rgba(18,40,63,.06), 0 12px 28px -18px rgba(18,40,63,.3);
@@ -77,6 +92,7 @@ p:last-child{margin-bottom:0}
 .riel .marca{display:flex;align-items:center;gap:var(--e2);color:#fff;text-decoration:none;
   padding:var(--e2) var(--e3) var(--e5);font-family:var(--display);font-weight:700;font-size:var(--t-med)}
 .riel .marca em{font-style:normal;color:var(--ember)}
+.riel .marca-logo{height:26px;width:auto;flex:none}
 .riel .grupo{font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
   color:#6E8CA8;padding:var(--e4) var(--e3) var(--e1)}
 .riel a.nav{display:flex;align-items:center;gap:var(--e3);padding:var(--e2) var(--e3);
@@ -312,9 +328,9 @@ tbody tr:hover .froz{background:var(--surface-muted)}
    checklist de 96 puntos en una sola columna es scroll puro. */
 .puntos{display:grid;gap:var(--e3)}
 @media (min-width:1000px){.puntos{grid-template-columns:1fr 1fr}}
-.punto{border:1px solid var(--border);border-radius:var(--r-sm);padding:var(--e3);
+.punto{border:1.5px solid var(--border-strong);border-radius:var(--r-sm);padding:var(--e3);
   display:grid;gap:var(--e2);align-content:start}
-.punto.no-conforme{border-color:var(--ember);background:var(--ember-soft)}
+.punto.no-conforme{border-width:2px;border-color:var(--ember);background:var(--ember-soft)}
 .punto > .lbl{font-size:var(--t-base);font-weight:600}
 .punto .ayuda{font-size:var(--t-mini);color:var(--ink-faint)}
 .punto .rango{font-family:var(--mono);font-size:var(--t-micro);color:var(--ink-faint)}
@@ -327,13 +343,14 @@ tbody tr:hover .froz{background:var(--surface-muted)}
 .tri{display:flex;gap:var(--e1)}
 .tri label{flex:1;position:relative}
 .tri input{position:absolute;opacity:0;width:0;height:0}
-.tri span{display:block;text-align:center;border:1px solid var(--border);border-radius:var(--r-sm);
+.tri span{display:block;text-align:center;border:1.5px solid var(--border-strong);border-radius:var(--r-sm);
   padding:var(--e2);font-size:var(--t-mini);font-weight:600;color:var(--ink-muted);
   cursor:pointer;background:var(--surface);min-height:38px;display:grid;place-items:center}
-.tri input:checked + span.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+/* Relleno sólido en los tres estados, no un tinte: es lo que se sigue
+   distinguiendo de refilón y con sol de frente. */
+.tri input:checked + span.ok{background:var(--ok);border-color:var(--ok);color:#fff}
 .tri input:checked + span.no{background:var(--ember);border-color:var(--ember);color:#fff}
-.tri input:checked + span.na{background:var(--neutral-soft);border-color:var(--border-strong);
-  color:var(--neutral)}
+.tri input:checked + span.na{background:var(--ink);border-color:var(--ink);color:#fff}
 .tri input:focus-visible + span{outline:2px solid var(--brand-light);outline-offset:1px}
 
 .detalle{display:none;border-top:1px dashed var(--border-strong);padding-top:var(--e2);gap:var(--e2)}
@@ -343,11 +360,15 @@ tbody tr:hover .froz{background:var(--surface-muted)}
 .grav{display:flex;gap:var(--e1)}
 .grav label{flex:1;position:relative}
 .grav input{position:absolute;opacity:0;width:0;height:0}
-.grav span{display:block;text-align:center;border:1px solid var(--border);border-radius:var(--r-sm);
+.grav span{display:block;text-align:center;border:1.5px solid var(--border-strong);border-radius:var(--r-sm);
   padding:var(--e2);font-size:var(--t-mini);font-weight:600;color:var(--ink-muted);cursor:pointer;
   background:var(--surface);min-height:34px;display:grid;place-items:center}
 .grav input:checked + span.crit{background:var(--ember);border-color:var(--ember);color:#fff}
-.grav input:checked + span.nocrit{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+/* Amarillo de seguridad sólido, no el tinte ámbar suave de antes: es el
+   par de mayor contraste que existe y es la gravedad que más se carga. */
+.grav input:checked + span.nocrit{background:var(--warn-fill);border-color:var(--warn-fill);
+  color:var(--warn-ink)}
+.grav input:focus-visible + span{outline:2px solid var(--brand-light);outline-offset:1px}
 
 .barra-guardar{position:sticky;bottom:0;background:linear-gradient(to top,var(--ground) 70%,transparent);
   padding:var(--e4) 0;display:flex;gap:var(--e3);align-items:center;flex-wrap:wrap}

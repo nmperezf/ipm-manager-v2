@@ -288,10 +288,20 @@ def guardar_checklist(item, form, usuario):
                     continue
 
             # El rango universal puede forzar la no conformidad aunque el
-            # técnico haya marcado Conforme por distracción.
+            # técnico haya marcado Conforme por distracción. El rango de
+            # equipo hace lo mismo pero sale de la placa (cambio pendiente
+            # del README): mismo campo "Presión de descarga", umbral
+            # distinto según la bomba instalada.
             automatico = False
+            texto_rango = None
             if numero is not None and campo.fuera_de_rango(numero):
                 automatico = True
+                texto_rango = campo.texto_rango()
+            elif numero is not None and campo.fuera_de_rango_equipo(numero, equipo):
+                automatico = True
+                texto_rango = campo.texto_rango_equipo(equipo)
+
+            if automatico:
                 estado = ESTADO_NO_CONFORME
                 if not gravedad:
                     gravedad = campo.gravedad_fuera_rango or GRAVEDAD_NO_CRITICA
@@ -299,7 +309,7 @@ def guardar_checklist(item, form, usuario):
                     unidad = f" {campo.unidad}" if campo.unidad else ""
                     comentario = (
                         f"Valor {numero:g}{unidad} fuera del rango esperado "
-                        f"({campo.texto_rango()})."
+                        f"({texto_rango})."
                     )
 
             if estado == ESTADO_NO_CONFORME:
