@@ -289,13 +289,18 @@ def sembrar_catalogo(empresa):
         ],
     )
 
-    # ---- 5 · Prueba anual de caudal — fuera del paquete de rutina --------
+    # ---- 5 · Prueba anual de caudal — parte del paquete, entra en la
+    # rutina anual junto con todo lo semanal y mensual que ya acumula esa
+    # rutina (ver nivel_frecuencia). Antes quedaba "fuera de paquete" y
+    # nunca tenía una visita, un ítem ni una OT propia: no había forma de
+    # llegar a cargarla desde la interfaz. Ahora sale del mismo mecanismo
+    # de calendario que el resto — un mes ancla la dispara, coordinar()
+    # le arma su OT — igual que cualquier otra rutina. -------------------
     for te_bomba, sufijo in ((te_elec, "eléctrica"), (te_diesel, "diesel")):
         _formulario(
             empresa, categoria, f"Prueba anual de caudal — bomba {sufijo}", 50,
             tipo_equipo=te_bomba, frecuencia="anual", referencia="NFPA 25 · cap. 8",
-            en_paquete=False,
-            descripcion="Se carga aparte de la inspección de rutina.",
+            descripcion="Entra con la rutina anual, junto al resto de la sala.",
             campos=[
                 _campo("metodo", "Método de medición", CAMPO_SELECCION, 10,
                        opciones=["Manifold", "Caudalímetro", "Recirculación"],

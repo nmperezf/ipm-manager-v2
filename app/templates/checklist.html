@@ -98,10 +98,12 @@
                        name="{{ nombre_campo(tipo, equipo, campo, 'valor') }}"
                        value="{{ r.valor_numero if r and r.valor_numero is not none else '' }}"
                        aria-label="{{ campo.label }}">
-                {% if campo.unidad or campo.tiene_rango %}
+                {% set rango_placa = campo.rango_equipo(equipo) %}
+                {% if campo.unidad or campo.tiene_rango or rango_placa %}
                   <span class="rango">
                     {%- if campo.unidad %}{{ campo.unidad }}{% endif -%}
                     {%- if campo.tiene_rango %} · esperado {{ campo.texto_rango() }}{% endif -%}
+                    {%- if rango_placa %} · esperado {{ campo.texto_rango_equipo(equipo) }}{% endif -%}
                   </span>
                 {% endif %}
 
