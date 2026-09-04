@@ -28,11 +28,15 @@ from app.models import (
     Respuesta,
     TipoFormulario,
     db,
+    nivel_frecuencia,
 )
 
 # Una sección es un formulario tipo aplicado a un equipo concreto (o al
-# recinto entero, con equipo=None).
-Seccion = namedtuple("Seccion", "tipo_formulario equipo formulario respuestas campos")
+# recinto entero, con equipo=None). `es_curva` marca la prueba anual de
+# caudal: no tiene campos genéricos, se completa con su propio widget
+# (ver EnsayoCaudal / app/ensayo_caudal.py), así que `campos` queda vacío
+# a propósito y `guardar_checklist` la deja pasar de largo sin tocarla.
+Seccion = namedtuple("Seccion", "tipo_formulario equipo formulario respuestas campos es_curva")
 
 # Un bloque agrupa las secciones que el técnico recorre juntas: el recinto,
 # un equipo suelto, o un conjunto (bomba principal con su controlador y su
@@ -87,7 +91,20 @@ def _seccion(tipo, equipo, cargados, rutina):
 
     Devuelve None si no queda ningún campo: una estación húmeda en la
     rutina mensual no tiene por qué mostrar la purga del inspector.
+
+    La prueba anual de caudal (`es_ensayo_curva`) no tiene campos que
+    filtrar por rutina — es un widget aparte — así que ahí se compara la
+    frecuencia del *formulario* directamente contra la rutina, en vez de
+    campo por campo.
     """
+    if tipo.es_ensayo_curva:
+        if nivel_frecuencia(tipo.frecuencia) > nivel_frecuencia(rutina):
+            return None
+        return Seccion(
+            tipo_formulario=tipo, equipo=equipo, formulario=None,
+            respuestas={}, campos=[], es_curva=True,
+        )
+
     campos = [c for c in tipo.campos if c.entra_en(rutina)]
     if not campos:
         return None
@@ -98,6 +115,7 @@ def _seccion(tipo, equipo, cargados, rutina):
         formulario=formulario,
         respuestas=_respuestas_por_campo(formulario),
         campos=campos,
+        es_curva=False,
     )
 
 

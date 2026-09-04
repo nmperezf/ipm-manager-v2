@@ -1,0 +1,411 @@
+{#
+  Widget de la prueba anual de caudal. Se incluye desde checklist.html
+  cuando `seccion.es_curva` es True — `equipo`, `item` y `tipo` ya están
+  en contexto porque {% include %} comparte el scope del que lo llama.
+
+  No usa el <form> del checklist ni "Guardar checklist": tiene su propio
+  botón de guardado que postea JSON a /checklist/<item>/ensayo/<equipo>,
+  porque succión/afinidad/gráfico se recalculan en el navegador y el
+  servidor los vuelve a evaluar al guardar contra la placa vigente.
+
+  `ec-{{ tipo.id }}-{{ equipo.id }}` como raíz única: una instalación con
+  dos bombas del mismo tipo (Hospital Central) repite este partial dos
+  veces en la misma página, y cada copia necesita su propio estado.
+#}
+{% set ec = "ec-%d-%d" % (tipo.id, equipo.id) %}
+<div class="ec" id="{{ ec }}"
+     data-guardar="{{ url_for('principal.ensayo_caudal', item_id=item.id, equipo_id=equipo.id) }}"
+     data-q-nom="{{ equipo.caudal_nominal or '' }}" data-rpm-nom="{{ equipo.rpm_nominal or '' }}"
+     data-p-max="{{ equipo.presion_maxima or '' }}" data-p100="{{ equipo.presion_diseno or '' }}"
+     data-p150="{{ equipo.presion_sobrecarga or '' }}">
+
+  <div class="ec-placa">
+    <div><span class="k">Caudal nom.</span><b>{{ equipo.caudal_nominal or '—' }} GPM</b></div>
+    <div><span class="k">RPM nom.</span><b>{{ equipo.rpm_nominal or '—' }}</b></div>
+    <div><span class="k">PSI máx. (churn)</span><b>{{ equipo.presion_maxima or '—' }}</b></div>
+    <div><span class="k">PSIG (100 %)</span><b>{{ equipo.presion_diseno or '—' }}</b></div>
+    <div><span class="k">PSI 1.5 (150 %)</span><b>{{ equipo.presion_sobrecarga or '—' }}</b></div>
+    <a class="ec-editar" href="{{ url_for('principal.equipo_editar', equipo_id=equipo.id) }}"
+       target="_blank" rel="noopener">Editar placa</a>
+  </div>
+  {% if not (equipo.presion_diseno and equipo.presion_maxima and equipo.presion_sobrecarga and equipo.rpm_nominal and equipo.caudal_nominal) %}
+    <p class="ec-aviso">Falta algún dato de placa — los puntos sin referencia quedan sin
+      evaluar hasta que se complete en la ficha del equipo.</p>
+  {% endif %}
+
+  <div class="ec-resumen"></div>
+
+  <div class="ec-leyenda">
+    <label><input type="checkbox" class="ec-ver" data-serie="corregida" checked>
+      <span class="ec-sw ec-sw-corregida"></span>Corregida</label>
+    <label><input type="checkbox" class="ec-ver" data-serie="medida" checked>
+      <span class="ec-sw ec-sw-medida"></span>Medida</label>
+    <label><input type="checkbox" class="ec-ver" data-serie="succion" checked>
+      <span class="ec-sw ec-sw-succion"></span>Succión</label>
+    <label><input type="checkbox" class="ec-ver" data-serie="placa" checked>
+      <span class="ec-sw ec-sw-placa"></span>Placa</label>
+  </div>
+
+  <svg class="ec-chart" viewBox="0 0 760 300" role="img" aria-label="Curva de la bomba"></svg>
+
+  <div class="ec-lista"></div>
+
+  <button class="btn ghost sm ec-agregar" type="button">{{ ico('mas') }}Agregar punto</button>
+
+  <div class="rejilla" style="margin-top:.9rem">
+    <label class="campo">
+      <span class="rotulo">Método de medición</span>
+      <select class="ec-metodo">
+        <option value="">— elegir —</option>
+        <option value="Manifold">Manifold</option>
+        <option value="Caudalímetro">Caudalímetro</option>
+        <option value="Recirculación">Recirculación</option>
+      </select>
+    </label>
+    <label class="campo">
+      <span class="rotulo">Comparación con curva de fábrica</span>
+      <div class="tri" style="margin-top:.2rem">
+        <label><input type="radio" name="{{ ec }}-curva" class="ec-curva-si" value="1"><span class="ok">Conforme</span></label>
+        <label><input type="radio" name="{{ ec }}-curva" class="ec-curva-no" value="0"><span class="no">No conforme</span></label>
+      </div>
+    </label>
+    <label class="campo ancho-total">
+      <span class="rotulo">Comentario</span>
+      <textarea class="ec-comentario" rows="2" placeholder="Opcional, salvo que la curva no coincida"></textarea>
+    </label>
+  </div>
+
+  <div class="fila" style="margin-top:.8rem">
+    <button class="btn sm ec-guardar" type="button">Guardar ensayo</button>
+    <span class="tiny ec-estado"></span>
+  </div>
+
+  <template class="ec-plantilla-punto">
+    <div class="ec-punto">
+      <div class="ec-punto-tit">
+        <span class="ec-dot"></span>
+        <b class="ec-punto-nombre"></b>
+        <span class="ec-punto-ref tiny"></span>
+        <button type="button" class="ec-quitar" title="Quitar punto" aria-label="Quitar punto">×</button>
+      </div>
+      <div class="ec-punto-grid">
+        <label class="campo ec-campo-caudal"><span class="rotulo">Caudal</span>
+          <div class="fila"><input type="number" step="any" inputmode="decimal" class="ec-caudal"><span class="u">GPM</span></div></label>
+        <label class="campo"><span class="rotulo">RPM medido</span>
+          <div class="fila"><input type="number" step="any" inputmode="decimal" class="ec-rpm"><span class="u"></span></div></label>
+        <label class="campo"><span class="rotulo">Succión</span>
+          <div class="fila"><input type="number" step="any" inputmode="decimal" class="ec-succion"><span class="u">psi</span></div></label>
+        <label class="campo"><span class="rotulo">Descarga</span>
+          <div class="fila"><input type="number" step="any" inputmode="decimal" class="ec-descarga"><span class="u">psi</span></div></label>
+      </div>
+    </div>
+  </template>
+</div>
+
+<script>
+(function () {
+  var raiz = document.getElementById({{ ec | tojson }});
+  if (!raiz || raiz.dataset.iniciado) return;
+  raiz.dataset.iniciado = "1";
+
+  var qNom = parseFloat(raiz.dataset.qNom) || 0;
+  var rpmNom = parseFloat(raiz.dataset.rpmNom) || 0;
+  var pMax = parseFloat(raiz.dataset.pMax) || null;
+  var p100 = parseFloat(raiz.dataset.p100) || null;
+  var p150 = parseFloat(raiz.dataset.p150) || null;
+
+  var lista = raiz.querySelector('.ec-lista');
+  var plantilla = raiz.querySelector('.ec-plantilla-punto');
+  var svg = raiz.querySelector('.ec-chart');
+  var resumen = raiz.querySelector('.ec-resumen');
+  var btnAgregar = raiz.querySelector('.ec-agregar');
+  var btnGuardar = raiz.querySelector('.ec-guardar');
+  var estado = raiz.querySelector('.ec-estado');
+
+  var FIJOS = [
+    { etiqueta: 'churn', nombre: 'Churn — 0 % caudal', ref: pMax, tipoRef: 'max', refTexto: pMax ? ('tope: ' + pMax.toFixed(0) + ' psi') : '', qFijo: 0 },
+    { etiqueta: '50', nombre: '50 % del caudal', ref: null, tipoRef: null, refTexto: 'sin referencia de placa', qFijo: null },
+    { etiqueta: '100', nombre: '100 % del caudal', ref: p100, tipoRef: 'min', refTexto: p100 ? ('piso: ' + p100.toFixed(0) + ' psi') : '', qFijo: null },
+    { etiqueta: '150', nombre: '150 % del caudal', ref: p150, tipoRef: 'min', refTexto: p150 ? ('piso: ' + p150.toFixed(0) + ' psi') : '', qFijo: null },
+  ];
+  var puntos = []; // {etiqueta, fijo, nodo, elQ, elRpm, elSucc, elDesc}
+  var extraSeq = 0;
+
+  function num(input) { return input && input.value !== '' ? parseFloat(input.value) : null; }
+
+  function crearPunto(fijoDef) {
+    var nodo = plantilla.content.firstElementChild.cloneNode(true);
+    var esFijo = !!fijoDef;
+    var etiqueta = esFijo ? fijoDef.etiqueta : 'extra' + (++extraSeq);
+    nodo.classList.toggle('ec-fijo', esFijo);
+    nodo.querySelector('.ec-punto-nombre').textContent = esFijo ? fijoDef.nombre : 'Punto extra';
+    nodo.querySelector('.ec-punto-ref').textContent = esFijo ? fijoDef.refTexto : '';
+    var elQ = nodo.querySelector('.ec-caudal');
+    var elRpm = nodo.querySelector('.ec-rpm');
+    var elSucc = nodo.querySelector('.ec-succion');
+    var elDesc = nodo.querySelector('.ec-descarga');
+    var btnQuitar = nodo.querySelector('.ec-quitar');
+
+    if (esFijo && fijoDef.qFijo === 0) {
+      elQ.value = '0';
+      elQ.disabled = true;
+      nodo.querySelector('.ec-campo-caudal').style.display = 'none';
+    }
+    if (esFijo) {
+      btnQuitar.remove();
+    } else {
+      btnQuitar.addEventListener('click', function () {
+        puntos = puntos.filter(function (p) { return p.nodo !== nodo; });
+        nodo.remove();
+        dibujar();
+      });
+    }
+
+    var punto = { etiqueta: etiqueta, fijo: esFijo, nodo: nodo, elQ: elQ, elRpm: elRpm, elSucc: elSucc, elDesc: elDesc };
+    [elQ, elRpm, elSucc, elDesc].forEach(function (input) {
+      input.addEventListener('input', dibujar);
+    });
+    if (!esFijo || fijoDef.qFijo !== 0) {
+      elQ.addEventListener('change', reordenar);
+    }
+    lista.appendChild(nodo);
+    puntos.push(punto);
+    return punto;
+  }
+
+  FIJOS.forEach(function (def) { crearPunto(def); });
+  btnAgregar.addEventListener('click', function () { crearPunto(null); reordenar(); });
+
+  // Reordena por caudal SOLO al salir del campo (change), no en cada
+  // tecla: moverlas mientras se tipea corta el valor a la mitad, porque
+  // el input se desprende del documento un instante.
+  function reordenar() {
+    var ordenLocal = puntos.map(function (p) { return { p: p, q: (p.etiqueta === 'churn') ? 0 : (num(p.elQ) || 0) }; });
+    ordenLocal.sort(function (a, b) { return a.q - b.q; });
+    ordenLocal.forEach(function (o) { lista.appendChild(o.p.nodo); });
+  }
+
+  function corregir(caudal, succion, descarga, rpmMedido) {
+    var neta = (descarga || 0) - (succion || 0);
+    var factor = (rpmMedido && rpmNom) ? (rpmNom / rpmMedido) : 1;
+    return { q: (caudal || 0) * factor, h: neta * factor * factor, neta: neta };
+  }
+
+  function dist(a, b) {
+    var dx = b.x - a.x, dy = b.y - a.y;
+    return Math.pow(dx * dx + dy * dy, 0.25) || 1e-4;
+  }
+
+  function pathSuave(pts) {
+    if (pts.length < 2) return '';
+    if (pts.length === 2) return 'M' + pts[0].x.toFixed(1) + ',' + pts[0].y.toFixed(1) + ' L' + pts[1].x.toFixed(1) + ',' + pts[1].y.toFixed(1);
+    var d = 'M' + pts[0].x.toFixed(1) + ',' + pts[0].y.toFixed(1);
+    for (var i = 0; i < pts.length - 1; i++) {
+      var p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      var t0 = 0, t1 = t0 + dist(p0, p1), t2 = t1 + dist(p1, p2), t3 = t2 + dist(p2, p3);
+      var m1x, m1y, m2x, m2y;
+      if (t2 - t0 < 1e-4) { m1x = p2.x - p1.x; m1y = p2.y - p1.y; }
+      else {
+        m1x = (t2 - t1) * ((p1.x - p0.x) / (t1 - t0) - (p2.x - p0.x) / (t2 - t0) + (p2.x - p1.x) / (t2 - t1));
+        m1y = (t2 - t1) * ((p1.y - p0.y) / (t1 - t0) - (p2.y - p0.y) / (t2 - t0) + (p2.y - p1.y) / (t2 - t1));
+      }
+      if (t3 - t1 < 1e-4) { m2x = p2.x - p1.x; m2y = p2.y - p1.y; }
+      else {
+        m2x = (t2 - t1) * ((p2.x - p1.x) / (t2 - t1) - (p3.x - p1.x) / (t3 - t1) + (p3.x - p2.x) / (t3 - t2));
+        m2y = (t2 - t1) * ((p2.y - p1.y) / (t2 - t1) - (p3.y - p1.y) / (t3 - t1) + (p3.y - p2.y) / (t3 - t2));
+      }
+      var c1x = p1.x + m1x / 3, c1y = p1.y + m1y / 3, c2x = p2.x - m2x / 3, c2y = p2.y - m2y / 3;
+      d += ' C' + c1x.toFixed(1) + ',' + c1y.toFixed(1) + ' ' + c2x.toFixed(1) + ',' + c2y.toFixed(1) + ' ' + p2.x.toFixed(1) + ',' + p2.y.toFixed(1);
+    }
+    return d;
+  }
+
+  function svgEl(tag, attrs) {
+    var e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  var PISO_RPM_PCT = 0.90;
+
+  function dibujar() {
+    var W = 760, H = 300, M = { l: 54, r: 18, t: 16, b: 34 };
+    var plotW = W - M.l - M.r, plotH = H - M.t - M.b;
+
+    var calc = puntos.map(function (p) {
+      var caudal = p.etiqueta === 'churn' ? 0 : num(p.elQ);
+      var succ = num(p.elSucc), desc = num(p.elDesc), rpm = num(p.elRpm);
+      var tieneDatos = succ !== null && desc !== null;
+      var c = tieneDatos ? corregir(caudal, succ, desc, rpm) : null;
+      var okRpm = !rpm || !rpmNom || rpm >= rpmNom * PISO_RPM_PCT;
+      var fijoDef = FIJOS.filter(function (f) { return f.etiqueta === p.etiqueta; })[0];
+      var ref = fijoDef ? fijoDef.ref : null;
+      var tipoRef = fijoDef ? fijoDef.tipoRef : null;
+      var okPresion = (c && ref != null) ? (tipoRef === 'max' ? c.h <= ref : c.h >= ref) : null;
+      var ok = (okPresion === null) ? null : (okPresion && okRpm);
+      return { punto: p, caudal: caudal, succ: succ, desc: desc, corr: c, okRpm: okRpm, ref: ref, ok: ok };
+    });
+
+    // resumen: solo los 3 puntos con referencia de placa
+    resumen.innerHTML = calc
+      .filter(function (c) { return ['churn', '100', '150'].indexOf(c.punto.etiqueta) !== -1; })
+      .map(function (c) {
+        var nombre = { churn: 'Churn', '100': '100 %', '150': '150 %' }[c.punto.etiqueta];
+        if (!c.corr || c.ref === undefined || c.ref === null) {
+          return chip(nombre, null, null, false);
+        }
+        return chip(nombre, c.corr.h, c.ok, !c.okRpm);
+      }).join('');
+
+    var puntosCorr = [], puntosMed = [], puntosSucc = [];
+    calc.forEach(function (c) {
+      if (!c.corr) return;
+      puntosCorr.push({ q: c.corr.q, h: c.corr.h });
+      puntosMed.push({ q: c.caudal || 0, h: c.corr.neta });
+      puntosSucc.push({ q: c.caudal || 0, h: c.succ });
+    });
+    puntosCorr.sort(function (a, b) { return a.q - b.q; });
+    puntosMed.sort(function (a, b) { return a.q - b.q; });
+    puntosSucc.sort(function (a, b) { return a.q - b.q; });
+    var puntosPlaca = (pMax != null && p100 != null && p150 != null)
+      ? [{ q: 0, h: pMax }, { q: qNom, h: p100 }, { q: qNom * 1.5, h: p150 }] : [];
+
+    var todosQ = puntosCorr.concat(puntosPlaca).map(function (p) { return p.q; });
+    var todosH = puntosCorr.concat(puntosSucc).concat(puntosPlaca).map(function (p) { return p.h; });
+    var qMax = Math.max.apply(null, todosQ.concat([10])) * 1.12;
+    var hMax = Math.max.apply(null, todosH.concat([10])) * 1.12;
+
+    function x(q) { return M.l + (q / qMax) * plotW; }
+    function y(h) { return M.t + plotH - (h / hMax) * plotH; }
+    function proy(pts) { return pts.map(function (p) { return { x: x(p.q), y: y(p.h) }; }); }
+
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    for (var i = 0; i <= 4; i++) {
+      var gy = M.t + (plotH / 4) * i;
+      svg.appendChild(svgEl('line', { class: 'ec-grilla', x1: M.l, x2: W - M.r, y1: gy, y2: gy }));
+      var ty = svgEl('text', { class: 'ec-eje-tx', x: M.l - 8, y: gy + 3, 'text-anchor': 'end' });
+      ty.textContent = (hMax - (hMax / 4) * i).toFixed(0);
+      svg.appendChild(ty);
+    }
+    for (var j = 0; j <= 4; j++) {
+      var gx = M.l + (plotW / 4) * j;
+      var tx = svgEl('text', { class: 'ec-eje-tx', x: gx, y: H - M.b + 16, 'text-anchor': 'middle' });
+      tx.textContent = ((qMax / 4) * j).toFixed(0);
+      svg.appendChild(tx);
+    }
+    svg.appendChild(svgEl('line', { class: 'ec-eje', x1: M.l, x2: M.l, y1: M.t, y2: H - M.b }));
+    svg.appendChild(svgEl('line', { class: 'ec-eje', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }));
+
+    function serieVisible(nombre) {
+      var chk = raiz.querySelector('.ec-ver[data-serie="' + nombre + '"]');
+      return !chk || chk.checked;
+    }
+
+    if (serieVisible('succion') && puntosSucc.length > 1) {
+      var pS = proy(puntosSucc);
+      svg.appendChild(svgEl('path', { class: 'ec-curva ec-curva-succion', d: pathSuave(pS) }));
+      pS.forEach(function (p) { svg.appendChild(svgEl('circle', { class: 'ec-pt ec-pt-succion', cx: p.x, cy: p.y, r: 4 })); });
+    }
+    if (serieVisible('medida') && puntosMed.length > 1) {
+      var pM = proy(puntosMed);
+      svg.appendChild(svgEl('path', { class: 'ec-curva ec-curva-medida', d: pathSuave(pM) }));
+      pM.forEach(function (p) { svg.appendChild(svgEl('circle', { class: 'ec-pt ec-pt-medida', cx: p.x, cy: p.y, r: 4 })); });
+    }
+    if (serieVisible('placa') && puntosPlaca.length) {
+      var pP = proy(puntosPlaca);
+      svg.appendChild(svgEl('path', { class: 'ec-curva ec-curva-placa', d: pathSuave(pP) }));
+      pP.forEach(function (p) { svg.appendChild(svgEl('circle', { class: 'ec-pt ec-pt-placa', cx: p.x, cy: p.y, r: 3 })); });
+    }
+    if (serieVisible('corregida') && puntosCorr.length > 1) {
+      var pC = proy(puntosCorr);
+      svg.appendChild(svgEl('path', { class: 'ec-curva ec-curva-corregida', d: pathSuave(pC) }));
+      calc.forEach(function (c) {
+        if (!c.corr) return;
+        var idxPt = puntosCorr.findIndex(function (pp) { return pp.q === c.corr.q && pp.h === c.corr.h; });
+        var pt = pC[idxPt];
+        if (!pt) return;
+        var fail = c.ok === false;
+        svg.appendChild(svgEl('circle', { class: 'ec-pt ec-pt-corregida' + (fail ? ' ec-pt-fail' : ''), cx: pt.x, cy: pt.y, r: fail ? 5.5 : 4 }));
+      });
+    }
+  }
+
+  function chip(nombre, valor, ok, porRpm) {
+    if (ok === null) {
+      return '<div class="ec-chip ec-chip-neu"><b>' + nombre + '</b><span>sin dato</span></div>';
+    }
+    var sub = (porRpm ? 'RPM bajo · ' : '') + valor.toFixed(1) + ' psi';
+    return '<div class="ec-chip ' + (ok ? 'ec-chip-ok' : 'ec-chip-crit') + '"><b>' + nombre + '</b><span>' + sub + '</span></div>';
+  }
+
+  raiz.querySelectorAll('.ec-ver').forEach(function (chk) { chk.addEventListener('change', dibujar); });
+
+  // --- cargar lo ya guardado ------------------------------------------
+  fetch(raiz.dataset.guardar, { headers: { 'X-Requested-With': 'fetch' } })
+    .then(function (r) { return r.json(); })
+    .then(function (datos) {
+      if (!datos.ok || !datos.ensayo) { dibujar(); return; }
+      var ensayo = datos.ensayo;
+      raiz.querySelector('.ec-metodo').value = ensayo.metodo || '';
+      if (ensayo.curva_conforme === true) raiz.querySelector('.ec-curva-si').checked = true;
+      if (ensayo.curva_conforme === false) raiz.querySelector('.ec-curva-no').checked = true;
+      raiz.querySelector('.ec-comentario').value = ensayo.comentario || '';
+
+      (ensayo.puntos || []).forEach(function (pd) {
+        var esFijo = ['churn', '50', '100', '150'].indexOf(pd.etiqueta) !== -1;
+        var punto = esFijo
+          ? puntos.filter(function (p) { return p.etiqueta === pd.etiqueta; })[0]
+          : crearPunto(null);
+        if (!punto) return;
+        if (pd.caudal != null && !punto.elQ.disabled) punto.elQ.value = pd.caudal;
+        if (pd.succion != null) punto.elSucc.value = pd.succion;
+        if (pd.descarga != null) punto.elDesc.value = pd.descarga;
+        if (pd.rpm != null) punto.elRpm.value = pd.rpm;
+      });
+      reordenar();
+      dibujar();
+    })
+    .catch(function () { dibujar(); });
+
+  // --- guardar ----------------------------------------------------------
+  btnGuardar.addEventListener('click', function () {
+    var cuerpo = {
+      metodo: raiz.querySelector('.ec-metodo').value,
+      curva_conforme: raiz.querySelector('.ec-curva-si').checked ? true
+        : (raiz.querySelector('.ec-curva-no').checked ? false : null),
+      comentario: raiz.querySelector('.ec-comentario').value,
+      puntos: puntos.map(function (p) {
+        return {
+          etiqueta: p.etiqueta,
+          caudal: p.etiqueta === 'churn' ? 0 : num(p.elQ),
+          succion: num(p.elSucc), descarga: num(p.elDesc), rpm: num(p.elRpm),
+        };
+      }),
+    };
+    estado.textContent = 'Guardando…';
+    estado.style.color = '';
+    fetch(raiz.dataset.guardar, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch' },
+      body: JSON.stringify(cuerpo),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (datos) {
+        if (!datos.ok) {
+          estado.textContent = datos.error || 'No se pudo guardar.';
+          estado.style.color = 'var(--ember)';
+          return;
+        }
+        estado.textContent = 'Guardado.';
+        estado.style.color = 'var(--ok)';
+        dibujar();
+      })
+      .catch(function () {
+        estado.textContent = 'Sin conexión — no se guardó.';
+        estado.style.color = 'var(--ember)';
+      });
+  });
+
+  dibujar();
+})();
+</script>

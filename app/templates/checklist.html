@@ -85,6 +85,9 @@
             {% if tipo.referencia_normativa %} · {{ tipo.referencia_normativa }}{% endif %}
           </div>
 
+          {% if seccion.es_curva %}
+            {% include "_ensayo_caudal.html" %}
+          {% else %}
           <div class="puntos">
           {% for campo in seccion.campos %}
             {% set r = seccion.respuestas.get(campo.id) %}
@@ -186,6 +189,7 @@
             </div>
           {% endfor %}
           </div>
+          {% endif %}
         </div>
       {% endfor %}
     </details>

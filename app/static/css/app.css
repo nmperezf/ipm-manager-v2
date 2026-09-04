@@ -475,3 +475,72 @@ tbody tr:hover .froz{background:var(--surface-muted)}
   .riel a.nav{padding:var(--e3)}
   th,td{padding:var(--e4) var(--e3)}
 }
+
+/* =========================================================================
+   Prueba anual de caudal
+   Colores propios (azul/violeta) para succión/medida porque no son
+   "estado" (conforme/no-conforme) sino series de un gráfico — usar los
+   semánticos del resto de la app ahí hubiera mezclado los dos lenguajes.
+   ========================================================================= */
+
+.ec{border:1px dashed var(--border-strong);border-radius:var(--r);padding:var(--e4);
+  background:var(--surface-muted)}
+.ec-placa{display:flex;flex-wrap:wrap;gap:var(--e4) var(--e5);align-items:baseline;margin-bottom:.5rem}
+.ec-placa .k{display:block;font-family:var(--mono);font-size:.62rem;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--ink-faint)}
+.ec-placa b{font-family:var(--display);font-size:.95rem}
+.ec-editar{margin-left:auto;font-size:var(--t-mini)}
+.ec-aviso{font-size:var(--t-mini);color:var(--warn);background:var(--warn-soft);border-radius:6px;
+  padding:.4rem .6rem;margin-bottom:.6rem}
+
+.ec-resumen{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.6rem}
+.ec-chip{border-radius:8px;padding:.5rem .6rem;border:1.5px solid var(--border-strong);min-height:44px}
+.ec-chip b{display:block;font-size:var(--t-mini)}
+.ec-chip span{display:block;font-size:var(--t-micro);font-family:var(--mono);color:var(--ink-muted)}
+.ec-chip-ok{background:var(--ok-soft);border-color:var(--ok)}
+.ec-chip-crit{background:var(--ember-soft);border-color:var(--ember)}
+.ec-chip-neu{background:var(--surface);color:var(--ink-faint)}
+
+.ec-leyenda{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem}
+.ec-leyenda label{display:flex;align-items:center;gap:.35rem;font-size:var(--t-mini);color:var(--ink-muted);
+  padding:.3rem .6rem;min-height:36px;border:1px solid var(--border);border-radius:99px;cursor:pointer}
+.ec-sw{width:14px;height:3px;border-radius:2px;flex:none}
+.ec-sw-corregida{background:var(--brand)}
+.ec-sw-medida{background:#2563EB;border-top:2px dashed #2563EB;height:0}
+.ec-sw-succion{background:#7C3AED}
+.ec-sw-placa{background:var(--ink-faint);border-top:2px dashed var(--ink-faint);height:0}
+
+.ec-chart{width:100%;height:auto;display:block;margin-bottom:.6rem;background:var(--surface);
+  border-radius:8px;border:1px solid var(--border)}
+.ec-eje{stroke:var(--ink-faint);stroke-width:1}
+.ec-grilla{stroke:var(--border);stroke-width:1}
+.ec-eje-tx{font-family:var(--mono);font-size:9.5px;fill:var(--ink-faint)}
+.ec-curva{fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.ec-curva-corregida{stroke:var(--brand)}
+.ec-curva-medida{stroke:#2563EB;stroke-dasharray:5 4}
+.ec-curva-succion{stroke:#7C3AED}
+.ec-curva-placa{stroke:var(--ink-faint);stroke-dasharray:2 4;stroke-width:1.6}
+.ec-pt{stroke-width:2}
+.ec-pt-corregida{fill:var(--surface);stroke:var(--brand)}
+.ec-pt-medida{fill:var(--surface);stroke:#2563EB}
+.ec-pt-succion{fill:var(--surface);stroke:#7C3AED}
+.ec-pt-placa{fill:var(--surface-muted);stroke:var(--ink-faint)}
+.ec-pt-fail{fill:var(--ember);stroke:var(--ember)}
+
+.ec-punto{border:1px solid var(--border);border-radius:8px;padding:.7rem;margin-bottom:.5rem;
+  background:var(--surface)}
+.ec-punto:last-child{margin-bottom:0}
+.ec-fijo{border-style:solid}
+.ec-punto:not(.ec-fijo){border-style:dashed}
+.ec-punto-tit{display:flex;align-items:center;gap:.4rem;font-size:var(--t-base);margin-bottom:.5rem}
+.ec-dot{width:8px;height:8px;border-radius:50%;background:var(--brand);flex:none}
+.ec-punto-ref{margin-left:auto;color:var(--ink-faint)}
+.ec-quitar{border:1px solid var(--border-strong);background:none;color:var(--ember);border-radius:6px;
+  min-width:32px;min-height:32px;cursor:pointer;font-size:1rem;line-height:1;flex:none}
+.ec-punto-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+@media (min-width:600px){.ec-punto-grid{grid-template-columns:repeat(4,1fr)}}
+
+@media (pointer:coarse){
+  .ec-leyenda label{min-height:44px}
+  .ec-quitar{min-width:40px;min-height:40px}
+}

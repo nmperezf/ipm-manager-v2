@@ -386,9 +386,17 @@ class TipoFormulario(db.Model):
     frecuencia = db.Column(db.String(30))             # semanal | mensual | anual
     referencia_normativa = db.Column(db.String(200))  # ej. "NFPA 25 · cap. 8"
     orden = db.Column(db.Integer, default=0, nullable=False)
-    # Los que quedan fuera del paquete de rutina (ej. la prueba anual de
-    # caudal) para no mezclarlos con la inspección semanal.
+    # Los que quedan fuera del paquete de rutina, para no mezclarlos con
+    # la inspección de rutina (hoy no hay ninguno así, pero el mecanismo
+    # sigue disponible por si hace falta un formulario que no cuelgue de
+    # ninguna frecuencia calendario).
     incluir_en_paquete = db.Column(db.Boolean, default=True, nullable=False)
+    # La prueba anual de caudal no se completa como una grilla de campos:
+    # es un ensayo con puntos dinámicos (churn/50/100/150 + los que se
+    # agreguen), succión, corrección por afinidad y un gráfico en vivo.
+    # Este flag le dice al motor del checklist que renderice ese widget
+    # en vez de la grilla genérica de CampoFormulario (ver checklist.py).
+    es_ensayo_curva = db.Column(db.Boolean, default=False, nullable=False)
 
     empresa = db.relationship("Empresa", backref="tipos_formulario")
     tipo_equipo = db.relationship("TipoEquipo", backref="tipos_formulario")
@@ -786,6 +794,97 @@ class Respuesta(db.Model):
 
 
 # ---------------------------------------------------------------------------
+# Prueba anual de caudal — succión, corrección por afinidad y comparación
+# directa contra los tres psi de placa (churn / 100 % / 150 %). Ver
+# app/ensayo_caudal.py para el cálculo; acá solo vive el dato.
+# ---------------------------------------------------------------------------
+
+# Etiquetas de los puntos fijos del ensayo. "50" no tiene referencia de
+# placa (ningún fabricante certifica un cuarto punto ahí) pero se pide
+# igual porque ayuda a leer la forma de la curva.
+PUNTO_CHURN = "churn"
+PUNTO_50 = "50"
+PUNTO_100 = "100"
+PUNTO_150 = "150"
+PUNTO_EXTRA = "extra"
+PUNTOS_FIJOS = (PUNTO_CHURN, PUNTO_50, PUNTO_100, PUNTO_150)
+
+
+class EnsayoCaudal(db.Model):
+    """Un ensayo de curva de caudal cargado para un equipo, en una visita.
+
+    Uno por (item_visita, equipo): repetir el ensayo en la misma visita
+    pisa el anterior, no lo duplica — no tiene sentido guardar dos
+    intentos del mismo día como si fueran mediciones distintas.
+    """
+
+    __tablename__ = "ensayos_caudal"
+
+    id = db.Column(db.Integer, primary_key=True)
+    item_visita_id = db.Column(db.Integer, db.ForeignKey("items_visita.id"), nullable=False, index=True)
+    tipo_formulario_id = db.Column(db.Integer, db.ForeignKey("tipos_formulario.id"), nullable=False, index=True)
+    equipo_id = db.Column(db.Integer, db.ForeignKey("equipos.id"), nullable=False, index=True)
+
+    metodo = db.Column(db.String(30))  # Manifold | Caudalímetro | Recirculación
+    # Comparación con la curva certificada de fábrica: no es un número, es
+    # que la forma medida se parezca a la de fábrica — eso lo juzga el
+    # técnico mirando el gráfico, no se deriva de los puntos.
+    curva_conforme = db.Column(db.Boolean)
+    comentario = db.Column(db.Text)
+
+    creado_por_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    fecha_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    item_visita = db.relationship("ItemVisita", backref=db.backref("ensayos_caudal", cascade="all, delete-orphan"))
+    tipo_formulario = db.relationship("TipoFormulario")
+    equipo = db.relationship("Equipo", backref="ensayos_caudal")
+    creado_por = db.relationship("Usuario")
+
+    __table_args__ = (
+        db.UniqueConstraint("item_visita_id", "equipo_id", name="uq_ensayo_item_equipo"),
+    )
+
+    def __repr__(self):
+        return f"<EnsayoCaudal equipo={self.equipo_id}>"
+
+
+class PuntoEnsayoCaudal(db.Model):
+    """Una medición del ensayo: succión, descarga y RPM en un caudal dado.
+
+    `caudal`/`succion`/`descarga`/`rpm` son el dato crudo tal como lo lee
+    el técnico de los manómetros — la resta de succión y la corrección
+    por afinidad se calculan al vuelo (ver ensayo_caudal.py), no se
+    guardan, para que cambiar la placa del equipo después no deje corregido
+    guardado y crudo desincronizados.
+    """
+
+    __tablename__ = "puntos_ensayo_caudal"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ensayo_id = db.Column(db.Integer, db.ForeignKey("ensayos_caudal.id"), nullable=False, index=True)
+
+    etiqueta = db.Column(db.String(20), nullable=False)  # ver PUNTO_*
+    orden = db.Column(db.Integer, default=0, nullable=False)
+
+    caudal = db.Column(db.Float)
+    succion = db.Column(db.Float)
+    descarga = db.Column(db.Float)
+    rpm = db.Column(db.Float)
+
+    ensayo = db.relationship(
+        "EnsayoCaudal",
+        backref=db.backref("puntos", cascade="all, delete-orphan", order_by="PuntoEnsayoCaudal.orden"),
+    )
+
+    @property
+    def fijo(self):
+        return self.etiqueta in PUNTOS_FIJOS
+
+    def __repr__(self):
+        return f"<PuntoEnsayoCaudal {self.etiqueta} q={self.caudal}>"
+
+
+# ---------------------------------------------------------------------------
 # Banco de deficiencias
 # ---------------------------------------------------------------------------
 
@@ -854,6 +953,9 @@ class Observacion(db.Model):
     instalacion_id = db.Column(db.Integer, db.ForeignKey("instalaciones.id"), nullable=False, index=True)
     equipo_id = db.Column(db.Integer, db.ForeignKey("equipos.id"), nullable=True, index=True)
     respuesta_id = db.Column(db.Integer, db.ForeignKey("respuestas.id"), nullable=True, index=True)
+    # Alternativa a respuesta_id para lo que dispara un punto del ensayo
+    # de curva de caudal, que no tiene Respuesta propia (ver EnsayoCaudal).
+    punto_ensayo_id = db.Column(db.Integer, db.ForeignKey("puntos_ensayo_caudal.id"), nullable=True, index=True)
     visita_id = db.Column(db.Integer, db.ForeignKey("visitas.id"), nullable=True, index=True)
 
     clasificacion = db.Column(db.String(40), nullable=False)  # ver CLASIFICACIONES
@@ -874,6 +976,13 @@ class Observacion(db.Model):
     instalacion = db.relationship("Instalacion", backref="observaciones")
     equipo = db.relationship("Equipo", backref="observaciones")
     respuesta = db.relationship("Respuesta", backref="observacion", uselist=False)
+    # uselist=False en los DOS lados: sin el del backref, PuntoEnsayoCaudal
+    # .observacion queda como lista (nada impide en la FK que dos
+    # Observacion apunten al mismo punto), y actualizar_observacion() la
+    # trata como una fila sola. Un punto nunca tiene más de una a la vez.
+    punto_ensayo = db.relationship(
+        "PuntoEnsayoCaudal", backref=db.backref("observacion", uselist=False), uselist=False,
+    )
     visita = db.relationship("Visita", backref="observaciones")
     aprobada_por = db.relationship("Usuario", foreign_keys=[aprobada_por_id])
     creado_por = db.relationship("Usuario", foreign_keys=[creado_por_id])

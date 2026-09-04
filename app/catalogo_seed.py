@@ -80,7 +80,7 @@ def _modo_encendido(orden):
 
 def _formulario(empresa, categoria, nombre, orden, campos, tipo_equipo=None,
                 por_equipo=True, frecuencia=None, referencia=None, en_paquete=True,
-                descripcion=None):
+                descripcion=None, es_curva=False):
     tipo = TipoFormulario(
         empresa_id=empresa.id,
         categoria_id=categoria.id,
@@ -92,6 +92,7 @@ def _formulario(empresa, categoria, nombre, orden, campos, tipo_equipo=None,
         referencia_normativa=referencia,
         orden=orden,
         incluir_en_paquete=en_paquete,
+        es_ensayo_curva=es_curva,
     )
     tipo.campos = campos
     db.session.add(tipo)
@@ -301,28 +302,7 @@ def sembrar_catalogo(empresa):
             empresa, categoria, f"Prueba anual de caudal — bomba {sufijo}", 50,
             tipo_equipo=te_bomba, frecuencia="anual", referencia="NFPA 25 · cap. 8",
             descripcion="Entra con la rutina anual, junto al resto de la sala.",
-            campos=[
-                _campo("metodo", "Método de medición", CAMPO_SELECCION, 10,
-                       opciones=["Manifold", "Caudalímetro", "Recirculación"],
-                       con_estado=False),
-                _campo("churn_succion", "Churn — presión de succión", CAMPO_NUMERO, 20, unidad="psi"),
-                _campo("churn_descarga", "Churn — presión de descarga", CAMPO_NUMERO, 30, unidad="psi",
-                       atributo_equipo="presion_maxima"),
-                _campo("c100_caudal", "100 % — caudal", CAMPO_NUMERO, 40, unidad="GPM",
-                       atributo_equipo="caudal_nominal"),
-                _campo("c100_succion", "100 % — presión de succión", CAMPO_NUMERO, 50, unidad="psi"),
-                _campo("c100_descarga", "100 % — presión de descarga", CAMPO_NUMERO, 60, unidad="psi",
-                       atributo_equipo="presion_diseno"),
-                _campo("c150_caudal", "150 % — caudal", CAMPO_NUMERO, 70, unidad="GPM"),
-                _campo("c150_succion", "150 % — presión de succión", CAMPO_NUMERO, 80, unidad="psi"),
-                _campo("c150_descarga", "150 % — presión de descarga", CAMPO_NUMERO, 90,
-                       unidad="psi", ayuda="Mín. 65 % de la presión nominal",
-                       atributo_equipo="presion_sobrecarga"),
-                _campo("rpm", "Velocidad", CAMPO_NUMERO, 100, unidad="RPM",
-                       atributo_equipo="rpm_nominal"),
-                _campo("curva", "Comparación con curva de fábrica", CAMPO_ESTADO, 110,
-                       ayuda="Degradación respecto del ensayo de aceptación"),
-            ],
+            es_curva=True, campos=[],
         )
 
     db.session.commit()

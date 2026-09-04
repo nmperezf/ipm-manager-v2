@@ -17,6 +17,7 @@ from werkzeug.datastructures import MultiDict
 from app import crear_app
 from app.catalogo_seed import CATEGORIA, CATEGORIA_ECA, sembrar_demo
 from app.checklist import armar_bloques, guardar_checklist, nombre_campo
+from app.ensayo_caudal import actualizar_observacion, corregir, evaluar_punto, rpm_ok
 from app.models import (
     CAMPO_SELECCION,
     CLASIF_CRITICA,
@@ -27,14 +28,17 @@ from app.models import (
     FRECUENCIA_MENSUAL,
     FRECUENCIA_SEMESTRAL,
     GRAVEDAD_CRITICA,
+    PUNTOS_FIJOS,
     REVISION_APROBADA,
     REVISION_PENDIENTE,
     CampoFormulario,
     CategoriaEquipo,
     Cliente,
+    EnsayoCaudal,
     Instalacion,
     ItemVisita,
     Observacion,
+    PuntoEnsayoCaudal,
     TipoFormulario,
     Usuario,
     Visita,
@@ -582,6 +586,91 @@ def main():
         # que no existe.
         check("Una sola medición no genera gráfico",
               preparar_grafico(serie[:1], campo_nivel) is None)
+
+        print("\n14 - Prueba anual de caudal: succión, afinidad y placa directa")
+        inst14 = Instalacion.query.join(Cliente).filter(Cliente.nombre == "Torre Ejecutiva").one()
+        equipo14 = next(e for e in inst14.equipos if e.tipo_equipo.nombre == "Bomba principal eléctrica")
+        check("La bomba tiene la placa completa",
+              all([equipo14.caudal_nominal, equipo14.rpm_nominal, equipo14.presion_maxima,
+                   equipo14.presion_diseno, equipo14.presion_sobrecarga]))
+
+        categoria14 = CategoriaEquipo.query.filter_by(nombre=CATEGORIA).one()
+        visita14 = Visita(instalacion_id=inst14.id, fecha=date.today(), tecnico_id=tecnico.id)
+        db.session.add(visita14)
+        db.session.flush()
+        item14 = ItemVisita(visita_id=visita14.id, categoria_id=categoria14.id, rutina=FRECUENCIA_ANUAL)
+        db.session.add(item14)
+        db.session.commit()
+
+        bloques14 = armar_bloques(item14)
+        seccion14 = next(
+            (s for b in bloques14 for s in b.secciones if s.es_curva and s.equipo and s.equipo.id == equipo14.id),
+            None,
+        )
+        check("La rutina anual trae la sección de la prueba de caudal", seccion14 is not None)
+        check("Es una sección de curva, sin campos genéricos",
+              seccion14 is not None and seccion14.es_curva and seccion14.campos == [])
+
+        # Corrección por afinidad: mismos números que el mockup validado con
+        # el usuario antes de implementarlo.
+        qc, hc = corregir(490, 14, 108, 3420, equipo14.rpm_nominal)
+        check("Corrige la presión neta al 100 %", round(hc, 1) == 98.4, f"{hc:.2f} psi")
+        check("Corrige el caudal al 100 %", round(qc, 1) == 501.5, f"{qc:.2f} GPM")
+        check("RPM dentro del 10 % no penaliza", rpm_ok(3420, equipo14.rpm_nominal))
+        check("RPM más de 10 % bajo la nominal no cumple", not rpm_ok(3000, equipo14.rpm_nominal))
+
+        ensayo14 = EnsayoCaudal(item_visita_id=item14.id, tipo_formulario_id=seccion14.tipo_formulario.id,
+                                equipo_id=equipo14.id)
+        db.session.add(ensayo14)
+        db.session.flush()
+
+        def guardar_puntos14(datos_puntos):
+            """Espejo de lo que hace la ruta: fijos se actualizan en la
+            misma fila, nunca se borran y recrean."""
+            existentes = {p.etiqueta: p for p in ensayo14.puntos if p.etiqueta in PUNTOS_FIJOS}
+            for p in list(ensayo14.puntos):
+                if p.etiqueta not in PUNTOS_FIJOS:
+                    db.session.delete(p)
+            db.session.flush()
+            for i, d in enumerate(datos_puntos):
+                punto = existentes.get(d["etiqueta"])
+                if punto is None:
+                    punto = PuntoEnsayoCaudal(ensayo_id=ensayo14.id, etiqueta=d["etiqueta"])
+                    db.session.add(punto)
+                punto.orden = i
+                punto.caudal, punto.succion = d.get("caudal"), d.get("succion")
+                punto.descarga, punto.rpm = d.get("descarga"), d.get("rpm")
+                db.session.flush()
+                resultado = evaluar_punto(equipo14, punto)
+                actualizar_observacion(punto, resultado, equipo14, inst14, item14, tecnico, False)
+            db.session.commit()
+
+        datos14 = [
+            {"etiqueta": "churn", "caudal": 0, "succion": 18, "descarga": 132, "rpm": 3450},
+            {"etiqueta": "100", "caudal": 490, "succion": 14, "descarga": 108, "rpm": 3420},
+            {"etiqueta": "150", "caudal": 740, "succion": 9, "descarga": 60, "rpm": 3390},
+        ]
+        guardar_puntos14(datos14)
+        obs14 = Observacion.query.filter_by(visita_id=visita14.id).all()
+        check("100 % y 150 % fuera de placa abren 2 deficiencias (churn cumple)", len(obs14) == 2)
+        check("Quedan críticas — un pump fuera de curva no es un matiz",
+              all(o.clasificacion == CLASIF_CRITICA for o in obs14))
+
+        # Guardar de nuevo con los mismos datos no debe duplicar ni dejar
+        # huerfanas las deficiencias — el bug real que encontramos probando
+        # la primera versión de la ruta.
+        guardar_puntos14(datos14)
+        obs14_repetido = Observacion.query.filter_by(visita_id=visita14.id).all()
+        check("Guardar dos veces no duplica las deficiencias", len(obs14_repetido) == 2)
+        check("Las deficiencias siguen ligadas a un punto vivo",
+              all(o.punto_ensayo is not None for o in obs14_repetido))
+
+        # Corregir el 150 % ya en la placa cierra su deficiencia sola.
+        datos14_ok = [d.copy() for d in datos14]
+        datos14_ok[2] = {**datos14_ok[2], "descarga": 75}  # neta 66, corregido > piso 65
+        guardar_puntos14(datos14_ok)
+        obs14_final = Observacion.query.filter_by(visita_id=visita14.id).all()
+        check("Arreglar el 150 % cierra esa deficiencia sola", len(obs14_final) == 1)
 
     print()
     if fallos:

@@ -15,6 +15,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import or_
 
 from app.checklist import armar_bloques, guardar_checklist, nombre_campo
+from app.ensayo_caudal import actualizar_observacion, evaluar_punto
 from app.fotos import FotoInvalida, borrar_archivo, guardar_archivo, ruta_relativa
 from app.graficos import graficos_de_equipo
 from app.planificacion import (
@@ -48,10 +49,12 @@ from app.models import (
     OT_EN_REVISION,
     OT_PENDIENTE,
     OT_PREVENTIVO,
+    PUNTOS_FIJOS,
     CampoFormulario,
     CategoriaEquipo,
     Cliente,
     Contrato,
+    EnsayoCaudal,
     Equipo,
     Foto,
     Instalacion,
@@ -59,6 +62,7 @@ from app.models import (
     ItemVisita,
     Observacion,
     OrdenTrabajo,
+    PuntoEnsayoCaudal,
     Respuesta,
     ServicioContrato,
     TipoEquipo,
@@ -1085,6 +1089,116 @@ def foto_borrar(foto_id):
         return jsonify(ok=True)
     flash("Foto eliminada.", "ok")
     return redirect(request.referrer or url_for("principal.banco_fotos"))
+
+
+# ---------------------------------------------------------------------------
+# Prueba anual de caudal
+# ---------------------------------------------------------------------------
+
+
+def _serializar_ensayo(ensayo):
+    if ensayo is None:
+        return None
+    return {
+        "metodo": ensayo.metodo,
+        "curva_conforme": ensayo.curva_conforme,
+        "comentario": ensayo.comentario,
+        "puntos": [
+            {
+                "etiqueta": p.etiqueta, "caudal": p.caudal, "succion": p.succion,
+                "descarga": p.descarga, "rpm": p.rpm,
+            }
+            for p in ensayo.puntos
+        ],
+    }
+
+
+@principal.route("/checklist/<int:item_id>/ensayo/<int:equipo_id>", methods=["GET", "POST"])
+@login_required
+def ensayo_caudal(item_id, equipo_id):
+    """Carga y guarda la prueba anual de caudal de un equipo.
+
+    Aparte del resto del checklist porque no es una grilla de campos: es
+    un ensayo con puntos dinámicos que se recalculan en el navegador
+    (succión, corrección por afinidad) y se reevalúan acá al guardar,
+    contra la placa VIGENTE del equipo — no contra la que había cuando
+    se cargó, para no arrastrar un resultado desincronizado si alguien
+    corrige la placa después.
+    """
+    item = db.session.get(ItemVisita, item_id)
+    if item is None:
+        return jsonify(ok=False, error="Ítem de visita inexistente."), 404
+    instalacion = item.visita.instalacion
+    if instalacion.cliente.empresa_id != current_user.empresa_id:
+        return jsonify(ok=False, error="Sin acceso."), 403
+
+    equipo = db.session.get(Equipo, equipo_id)
+    if equipo is None or equipo.instalacion_id != instalacion.id:
+        return jsonify(ok=False, error="El equipo no es de esta instalación."), 400
+
+    tipo = TipoFormulario.query.filter_by(
+        empresa_id=current_user.empresa_id,
+        categoria_id=item.categoria_id,
+        tipo_equipo_id=equipo.tipo_equipo_id,
+        es_ensayo_curva=True,
+    ).first()
+    if tipo is None:
+        return jsonify(ok=False, error="Este equipo no tiene prueba de caudal en el catálogo."), 400
+
+    ensayo = EnsayoCaudal.query.filter_by(item_visita_id=item.id, equipo_id=equipo.id).first()
+
+    if request.method == "GET":
+        return jsonify(ok=True, ensayo=_serializar_ensayo(ensayo))
+
+    datos = request.get_json(silent=True) or {}
+    if ensayo is None:
+        ensayo = EnsayoCaudal(item_visita_id=item.id, tipo_formulario_id=tipo.id, equipo_id=equipo.id)
+        db.session.add(ensayo)
+    ensayo.metodo = (datos.get("metodo") or "").strip() or None
+    ensayo.curva_conforme = datos.get("curva_conforme")
+    ensayo.comentario = (datos.get("comentario") or "").strip() or None
+    ensayo.creado_por_id = current_user.id
+    db.session.flush()
+
+    # Los 4 puntos fijos (churn/50/100/150) se actualizan EN LA MISMA
+    # fila, no se borran y recrean: son los únicos que pueden tener una
+    # deficiencia abierta (ver actualizar_observacion), y esa deficiencia
+    # se encuentra por punto_ensayo_id. Borrar y recrear le cambiaría el
+    # id al punto en cada guardado, la función nunca encontraría la
+    # deficiencia existente y terminaría abriendo una nueva cada vez.
+    # Los extras no tienen ese problema — nunca cargan una deficiencia —
+    # así que esos sí se reemplazan enteros, es más simple.
+    existentes_fijos = {p.etiqueta: p for p in ensayo.puntos if p.etiqueta in PUNTOS_FIJOS}
+    for punto_extra in [p for p in ensayo.puntos if p.etiqueta not in PUNTOS_FIJOS]:
+        db.session.delete(punto_extra)
+    db.session.flush()
+
+    aprueba_solo = bool(current_user.puede_aprobar)
+    resultados = []
+    for indice, dato_punto in enumerate(datos.get("puntos") or []):
+        etiqueta = (dato_punto.get("etiqueta") or "extra")[:20]
+        punto = existentes_fijos.get(etiqueta) if etiqueta in PUNTOS_FIJOS else None
+        if punto is None:
+            punto = PuntoEnsayoCaudal(ensayo_id=ensayo.id, etiqueta=etiqueta)
+            db.session.add(punto)
+        punto.orden = indice
+        punto.caudal = dato_punto.get("caudal")
+        punto.succion = dato_punto.get("succion")
+        punto.descarga = dato_punto.get("descarga")
+        punto.rpm = dato_punto.get("rpm")
+        db.session.flush()
+        resultado = evaluar_punto(equipo, punto)
+        actualizar_observacion(punto, resultado, equipo, instalacion, item, current_user, aprueba_solo)
+        resultados.append({"etiqueta": punto.etiqueta, **(resultado or {})})
+
+    # Cargar el ensayo pone la OT en curso, igual que el resto del
+    # checklist (ver checklist.py: guardar_checklist).
+    orden_asociada = item.visita.orden
+    if orden_asociada and orden_asociada.estado == OT_PENDIENTE:
+        orden_asociada.estado = OT_EN_CURSO
+
+    db.session.commit()
+    return jsonify(ok=True, resultados=resultados)
 
 
 @principal.route("/fotos")
