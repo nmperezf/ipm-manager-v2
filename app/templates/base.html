@@ -92,10 +92,8 @@
        href="{{ url_for('principal.repuestos') }}">{{ ico('repuesto') }}Repuestos</a>
 
     <div class="grupo">Clientes</div>
-    <a class="nav {{ 'on' if ep in ('principal.clientes', 'principal.cliente') }}"
+    <a class="nav {{ 'on' if ep in ('principal.clientes', 'principal.cliente', 'principal.instalacion') }}"
        href="{{ url_for('principal.clientes') }}">{{ ico('clientes') }}Clientes</a>
-    <a class="nav {{ 'on' if ep == 'principal.instalacion' }}"
-       href="{{ url_for('principal.clientes') }}#instalaciones">{{ ico('equipos') }}Instalaciones</a>
 
     {% if gestion %}
     <div class="grupo">Administración</div>
