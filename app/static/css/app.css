@@ -27,10 +27,14 @@
      para los controles de checklist que se tocan a la intemperie (ver
      sección Checklist más abajo), separados de --warn porque ese sigue
      usándose como texto sobre fondo claro y el amarillo puro ahí no se lee. */
-  /* Grafito + ámbar: el marino quedó descartado (ver pitch de paleta) —
-     ahora la marca es un acento ámbar sobre un riel casi negro, y el rojo
-     queda 100% libre para "crítico", sin competir con nada de marca. */
-  --brand:#B45309; --brand-light:#C2760C; --brand-dark:#1C2126;
+  /* Acero + acento: el ámbar de marca chocaba de matiz con el ámbar de
+     "warn" (revisión UX, sept. 2026) — dos significados distintos en la
+     misma familia de color. La marca pasa a un azul acero, que no compite
+     con ningún semántico; el rojo queda 100% libre para "crítico" y de
+     paso hace de acento de marca (franja del ítem activo del riel) —
+     mismo rojo, dos usos que no se pisan porque uno es identidad y el
+     otro es estado. */
+  --brand:#2E6DA4; --brand-light:#3F86C2; --brand-dark:#1C2126;
   --riel-on:#3A424A;
   --ember:#C81E0A; --ember-soft:#F9D9CF;
   --warn:#8A5A00;  --warn-soft:#FBEEDA;
@@ -117,11 +121,15 @@ main:focus-visible{outline:none}
 .riel .grupo{font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
   color:#7C848D;padding:var(--e4) var(--e3) var(--e1)}
 .riel a.nav{display:flex;align-items:center;gap:var(--e3);padding:var(--e2) var(--e3);
-  border-radius:var(--r-sm);color:#C7CDD3;text-decoration:none;font-size:var(--t-base)}
+  border-radius:var(--r-sm);color:#C7CDD3;text-decoration:none;font-size:var(--t-base);
+  transition:background-color .15s ease,color .15s ease}
 .riel a.nav:hover{background:rgba(255,255,255,.07);color:#fff}
-/* Activo = grafito más claro, no el ámbar de marca: si no, cada link
-   "acá estás parado" se leería como un botón de acción. */
-.riel a.nav.on{background:var(--riel-on);color:#fff;font-weight:600}
+/* Activo = grafito más claro, no el acero de marca: si no, cada link
+   "acá estás parado" se leería como un botón de acción. La franja roja
+   es el único lugar donde el acento de marca vuelve a aparecer en el
+   riel — mismo rojo que "crítico", pero acá es identidad, no estado. */
+.riel a.nav.on{background:var(--riel-on);color:#fff;font-weight:600;
+  box-shadow:inset 3px 0 0 var(--ember)}
 .riel a.nav .tag{margin-left:auto;font-family:var(--mono);font-size:.62rem;background:var(--ember);
   color:#fff;border-radius:var(--r-px);padding:.05rem .36rem}
 .riel .pie{margin-top:auto;padding-top:var(--e4);border-top:1px solid rgba(255,255,255,.1);
@@ -244,7 +252,8 @@ a.item:hover{border-color:var(--border-strong);box-shadow:var(--sombra)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--e2);
   background:var(--brand);color:#fff;border:0;border-radius:var(--r-sm);
   padding:var(--e2) var(--e4);font:inherit;font-size:var(--t-base);font-weight:600;
-  cursor:pointer;text-decoration:none;min-height:36px}
+  cursor:pointer;text-decoration:none;min-height:36px;
+  transition:background-color .15s ease,border-color .15s ease,color .15s ease}
 .btn:hover{background:var(--brand-light)}
 .btn.ember{background:var(--ember)}
 .btn.ghost{background:none;border:1px solid var(--border-strong);color:var(--ink)}
@@ -297,6 +306,7 @@ th{font-family:var(--mono);font-size:.63rem;letter-spacing:.08em;text-transform:
   color:var(--ink-faint);background:var(--surface-muted);white-space:nowrap;
   position:sticky;top:0;z-index:2}
 tbody tr:last-child td{border-bottom:0}
+tbody tr td{transition:background-color .12s ease}
 tbody tr:hover td{background:var(--surface-muted)}
 .froz{position:sticky;left:0;background:var(--surface);font-weight:600;
   box-shadow:1px 0 0 var(--border);z-index:1}
