@@ -751,15 +751,25 @@ def _numero(valor):
 @principal.route("/cliente/nuevo", methods=["GET", "POST"])
 @login_required
 def cliente_nuevo():
-    """Alta unificada: cliente y, si se completa, su primera instalación en
-    un solo guardado."""
+    """Alta unificada: cliente, su primera instalación y los equipos de esa
+    instalación, todo en un solo guardado.
+
+    Los equipos que se cargan acá son el alta rápida (tipo, código, nombre):
+    los datos de placa y los conjuntos (padre_id) se completan después
+    desde equipo_editar, igual que en el alta de equipo individual.
+    """
     _solo_gestion()
+    tipos_equipo = (
+        TipoEquipo.query.filter_by(empresa_id=current_user.empresa_id)
+        .order_by(TipoEquipo.orden, TipoEquipo.nombre).all()
+    )
 
     if request.method == "POST":
         nombre = (request.form.get("nombre") or "").strip()
         if not nombre:
             flash("El nombre del cliente es obligatorio.", "error")
-            return render_template("cliente_form.html", cliente=None, datos=request.form)
+            return render_template("cliente_form.html", cliente=None, datos=request.form,
+                                   tipos_equipo=tipos_equipo)
 
         nuevo = Cliente(
             empresa_id=current_user.empresa_id,
@@ -785,15 +795,37 @@ def cliente_nuevo():
             db.session.add(creada)
             db.session.flush()
 
+            tipos_ids = request.form.getlist("equipo_tipo_id")
+            codigos = request.form.getlist("equipo_codigo")
+            nombres = request.form.getlist("equipo_nombre")
+            tipos_validos = {t.id for t in tipos_equipo}
+            cuantos = 0
+            for tipo_id_raw, codigo, nombre_equipo in zip(tipos_ids, codigos, nombres):
+                nombre_equipo = (nombre_equipo or "").strip()
+                tipo_id = int(tipo_id_raw) if tipo_id_raw and tipo_id_raw.isdigit() else None
+                if not nombre_equipo or tipo_id not in tipos_validos:
+                    continue
+                db.session.add(Equipo(
+                    instalacion_id=creada.id, tipo_equipo_id=tipo_id,
+                    codigo=(codigo or "").strip() or None, nombre=nombre_equipo,
+                ))
+                cuantos += 1
+
         db.session.commit()
 
         if creada:
-            flash(f"Cliente e instalación creados. Cargá los equipos de «{creada.nombre}».", "ok")
+            if cuantos:
+                flash(
+                    f"Cliente, «{creada.nombre}» y {cuantos} equipo(s) creados. "
+                    "Completá los datos de placa de cada uno cuando puedas.", "ok",
+                )
+            else:
+                flash(f"Cliente e instalación creados. Cargá los equipos de «{creada.nombre}».", "ok")
             return redirect(url_for("principal.instalacion", instalacion_id=creada.id))
         flash("Cliente creado.", "ok")
         return redirect(url_for("principal.cliente", cliente_id=nuevo.id))
 
-    return render_template("cliente_form.html", cliente=None, datos={})
+    return render_template("cliente_form.html", cliente=None, datos={}, tipos_equipo=tipos_equipo)
 
 
 @principal.route("/cliente/<int:cliente_id>/editar", methods=["GET", "POST"])

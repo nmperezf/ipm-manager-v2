@@ -79,9 +79,40 @@
       </label>
     </div>
     <p class="tiny" style="margin:.6rem 0 0">
-      Si la completás, al guardar vas directo a cargar sus equipos — que es lo que hace falta
-      para poder inspeccionarla.
+      Si la completás, podés cargar sus equipos acá abajo, o dejarlo para después.
     </p>
+  </div>
+
+  <div class="card">
+    <div class="fila" style="margin-bottom:.7rem">
+      <h3>Equipos de la instalación</h3>
+      <span class="sp"></span>
+      <span class="tiny">Opcional — alta rápida, los datos de placa se completan después</span>
+    </div>
+
+    {% if not tipos_equipo %}
+      <p class="tiny">
+        Sin tipos de equipo en el catálogo todavía no se puede cargar ninguno acá.
+        <a href="{{ url_for('principal.catalogo') }}">Ver catálogo</a> (podés volver después).
+      </p>
+    {% else %}
+      <div id="equipos-filas"></div>
+      <button type="button" class="btn ghost sm" id="equipo-agregar">{{ ico('mas') }}Agregar equipo</button>
+
+      <template id="equipo-fila-tpl">
+        <div class="fila equipo-fila" style="flex-wrap:wrap;margin-top:.5rem">
+          <select name="equipo_tipo_id" style="flex:1;min-width:11rem">
+            <option value="">— tipo —</option>
+            {% for te in tipos_equipo %}
+              <option value="{{ te.id }}">{% if te.categoria %}{{ te.categoria.nombre }} · {% endif %}{{ te.nombre }}</option>
+            {% endfor %}
+          </select>
+          <input name="equipo_codigo" placeholder="Código" style="width:8rem">
+          <input name="equipo_nombre" placeholder="Nombre" style="flex:1;min-width:10rem">
+          <button type="button" class="btn ghost sm equipo-quitar">Quitar</button>
+        </div>
+      </template>
+    {% endif %}
   </div>
   {% endif %}
 
@@ -92,4 +123,25 @@
       Cancelar</a>
   </div>
 </form>
+
+{% if not editando and tipos_equipo %}
+<script>
+(function () {
+  var contenedor = document.getElementById('equipos-filas');
+  var plantilla = document.getElementById('equipo-fila-tpl');
+  if (!contenedor || !plantilla) return;
+
+  function agregarFila() {
+    var fila = plantilla.content.cloneNode(true);
+    fila.querySelector('.equipo-quitar').addEventListener('click', function (ev) {
+      ev.target.closest('.equipo-fila').remove();
+    });
+    contenedor.appendChild(fila);
+  }
+
+  document.getElementById('equipo-agregar').addEventListener('click', agregarFila);
+  agregarFila(); // arranca con una fila lista para no obligar a un click extra
+})();
+</script>
+{% endif %}
 {% endblock %}
