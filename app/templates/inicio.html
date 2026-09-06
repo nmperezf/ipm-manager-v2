@@ -31,7 +31,34 @@
     <div class="v">{{ total_ordenes }}</div>
     <div class="d">{{ total_visitas }} visitas en 30 días</div>
   </a>
+  <a class="stat {{ 'warn' if total_repuestos_criticos }}" href="{{ url_for('principal.repuestos_criticos_lista') }}">
+    <div class="k">Repuestos críticos</div>
+    <div class="v">{{ total_repuestos_criticos }}</div>
+    <div class="d">bajo el stock mínimo</div>
+  </a>
 </div>
+
+{% if repuestos_criticos %}
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Repuestos en nivel crítico</h3>
+    <span class="sp"></span>
+    <a class="tiny" href="{{ url_for('principal.repuestos_criticos_lista') }}">ver todos →</a>
+  </div>
+  <div class="stack">
+    {% for r in repuestos_criticos %}
+      <div class="item crit">
+        <span class="chip crit">{{ ico('repuesto') }}</span>
+        <span class="t">
+          <b>{{ r.nombre }}</b>
+          <span>stock {{ r.stock_actual }} {{ r.unidad }}(s) · mínimo {{ r.stock_minimo }}</span>
+        </span>
+        <span class="pill crit">Crítico</span>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 {# Lo primero que necesita ver un técnico: qué tiene pendiente y por dónde
    entrar. Cada OT lleva a su checklist, no a un listado intermedio. #}

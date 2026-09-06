@@ -15,8 +15,8 @@
   <div>
     <h2>{{ MESES[mes] | capitalize }} {{ anio }}</h2>
     <span class="sub">
-      Lo que los contratos mandan hacer este mes. Se calcula: cambiar un contrato
-      se refleja en el acto.
+      Lo que los contratos mandan hacer este mes. Cada solicitud se puede recoordinar
+      sin perder el historial de fechas.
     </span>
   </div>
   <span class="sp"></span>
@@ -27,101 +27,93 @@
     {{ MESES[mes_sig] | capitalize }} →</a>
 </div>
 
+<form method="post" action="{{ url_for('principal.coordinacion_generar') }}" class="fila" style="margin-bottom:.8rem">
+  <input type="hidden" name="anio" value="{{ anio }}">
+  <input type="hidden" name="mes" value="{{ mes }}">
+  <button class="btn ghost sm" type="submit">Generar solicitudes del mes</button>
+  <span class="tiny">Crea una solicitud por cada servicio de contrato pendiente. No duplica.</span>
+</form>
+
 <div class="seccion-tit">
-  <h3>A coordinar</h3>
-  <span class="pill {{ 'nocrit' if pendientes else 'ok' }}">{{ pendientes|length }}</span>
+  <h3>Solicitudes de {{ MESES[mes] }}</h3>
+  <span class="pill {{ 'nocrit' if solicitudes else 'ok' }}">{{ solicitudes|length }}</span>
   <span class="linea"></span>
 </div>
 
-{% for p in pendientes %}
-  <div class="card destacada">
-    <form method="post" action="{{ url_for('principal.coordinar_servicio', servicio_id=p.servicio.id) }}"
-          class="fila">
-      <span class="chip neu">{{ ico('visitas') }}</span>
+{% for s in solicitudes %}
+  {% set servicio = s.servicio %}
+  {% set inst = servicio.contrato.instalacion %}
+  <div class="card {{ 'destacada' if s.estado_derivado == 'sin_coordinar' }}">
+    <div class="fila" style="margin-bottom:.5rem">
+      <span class="chip {{ 'ok' if s.estado_derivado == 'ejecutada' else ('neu' if s.estado_derivado != 'sin_coordinar' else 'warn') }}">
+        {{ ico('visitas') }}</span>
       <div style="flex:1;min-width:14rem">
         <b style="font-family:var(--display);font-size:var(--t-med);display:block">
-          {{ p.instalacion.cliente.nombre }} · {{ p.instalacion.nombre }}</b>
-        <span class="tiny">
-          {{ p.categoria.nombre }} ·
-          {# La rutina no se elige a dedo: sale del mes ancla del contrato
-             cruzado con las cadencias del catálogo. #}
-          rutina <b>{{ p.rutina }}</b> según contrato
-        </span>
+          {{ inst.cliente.nombre }} · {{ inst.nombre }}</b>
+        <span class="tiny">{{ servicio.categoria.nombre }}</span>
       </div>
+      <span class="pill {{ 'ok' if s.estado_derivado == 'ejecutada' else 'com' }}">
+        {{ {'sin_coordinar': 'Sin coordinar', 'coordinada': 'Coordinada', 'asignada': 'Asignada',
+            'en_ejecucion': 'En ejecución', 'ejecutada': 'Ejecutada'}[s.estado_derivado] }}</span>
+    </div>
 
+    {% if s.coordinada %}
+      <p class="tiny" style="margin:0 0 .5rem">
+        Coordinada para el <b>{{ s.fecha_coordinada.strftime('%d/%m/%Y') }}</b>
+        {%- if s.orden %} · <a href="{{ url_for('principal.orden', orden_id=s.orden.id) }}">{{ s.orden.numero }}</a>
+          {%- if s.orden.tecnico %} · {{ s.orden.tecnico.nombre_completo }}{% endif -%}
+        {% endif %}
+      </p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('principal.solicitud_coordinar', solicitud_id=s.id) }}" class="fila" style="flex-wrap:wrap">
       <label class="campo" style="min-width:9rem">
-        <span class="rotulo">Fecha acordada</span>
-        <input type="date" name="fecha" required value="{{ sugerida.isoformat() }}">
+        <span class="rotulo">{{ 'Recoordinar a' if s.coordinada else 'Fecha acordada' }}</span>
+        <input type="date" name="fecha" required value="{{ (s.fecha_coordinada or sugerida).isoformat() }}">
       </label>
-
-      <label class="campo" style="min-width:9rem">
-        <span class="rotulo">Rutina</span>
-        <select name="rutina">
-          {% for f in FRECUENCIAS %}
-            {% if f in ('mensual', 'trimestral', 'semestral', 'anual') %}
-              <option value="{{ f }}" {{ 'selected' if f == p.rutina }}>{{ f }}</option>
-            {% endif %}
-          {% endfor %}
-        </select>
-      </label>
-
       <label class="campo" style="min-width:10rem">
         <span class="rotulo">Técnico</span>
         <select name="tecnico_id">
           <option value="">— sin asignar —</option>
           {% for t in tecnicos %}
-            <option value="{{ t.id }}">{{ t.nombre_completo or t.username }}</option>
+            <option value="{{ t.id }}" {{ 'selected' if s.orden and s.orden.tecnico_id == t.id }}>
+              {{ t.nombre_completo or t.username }}</option>
           {% endfor %}
         </select>
       </label>
-
-      <button class="btn" type="submit">Confirmar</button>
+      <label class="campo" style="flex:1;min-width:12rem">
+        <span class="rotulo">Notas</span>
+        <input type="text" name="notas" value="{{ s.notas or '' }}">
+      </label>
+      <button class="btn sm" type="submit">{{ 'Recoordinar' if s.coordinada else 'Confirmar' }}</button>
     </form>
+
+    {% if s.auditoria %}
+      <details style="margin-top:.5rem">
+        <summary class="tiny">Historial de coordinación ({{ s.auditoria|length }})</summary>
+        <div class="stack" style="margin-top:.4rem">
+          {% for a in s.auditoria %}
+            <div class="item">
+              <span class="chip neu">{{ ico('reloj') }}</span>
+              <span class="t">
+                <b>{% if a.fecha_anterior %}{{ a.fecha_anterior.strftime('%d/%m/%Y') }} → {% endif %}{{ a.fecha_nueva.strftime('%d/%m/%Y') }}</b>
+                <span>
+                  {{ a.fecha_cambio.strftime('%d/%m/%Y %H:%M') }}
+                  {%- if a.usuario %} · {{ a.usuario.nombre_completo }}{% endif %}
+                  {%- if a.nota %} · {{ a.nota }}{% endif %}
+                </span>
+              </span>
+            </div>
+          {% endfor %}
+        </div>
+      </details>
+    {% endif %}
   </div>
 {% else %}
   <div class="vacio">
     <span class="chip ok">{{ ico('check') }}</span>
-    <b>Nada pendiente de coordinar</b>
-    <p>
-      O ya está todo coordinado, o los contratos no mandan trabajo este mes.
-      Probá con {{ MESES[mes_sig] }}.
-    </p>
+    <b>Sin solicitudes generadas para este mes</b>
+    <p>Probá "Generar solicitudes del mes" arriba.</p>
   </div>
 {% endfor %}
-
-<div class="card">
-  <h3>Qué pasa al confirmar</h3>
-  <p class="muted" style="margin:.4rem 0 0">
-    Un click crea las tres cosas: la <b>visita</b> con la fecha acordada, su
-    <b>ítem</b> en la rutina que corresponde, y la <b>orden de trabajo</b> numerada
-    con la que el técnico llega directo al checklist.
-  </p>
-</div>
-
-{% if coordinadas %}
-<div class="seccion-tit">
-  <h3>Ya coordinado en {{ MESES[mes] }}</h3>
-  <span class="pill ok">{{ coordinadas|length }}</span>
-  <span class="linea"></span>
-</div>
-
-<div class="stack">
-  {% for o in coordinadas %}
-    <a class="item" href="{{ url_for('principal.orden', orden_id=o.id) }}">
-      <span class="chip ok">{{ ico('check') }}</span>
-      <span class="t">
-        <b><span class="mono">{{ o.numero }}</span> ·
-           {{ o.visita.instalacion.cliente.nombre }} · {{ o.visita.instalacion.nombre }}</b>
-        <span>
-          {{ o.visita.fecha.strftime('%d/%m/%Y') }} ·
-          {{ o.tecnico.nombre_completo if o.tecnico else 'sin asignar' }}
-          {%- for i in o.visita.items %} · {{ i.categoria.nombre }} ({{ i.rutina }}){% endfor %}
-        </span>
-      </span>
-      <span class="pill com">{{ o.estado }}</span>
-      {{ ico('chevron') }}
-    </a>
-  {% endfor %}
-</div>
-{% endif %}
 {% endblock %}

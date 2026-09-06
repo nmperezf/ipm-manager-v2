@@ -148,6 +148,39 @@ PRIORIDAD_MEDIA = "Media"
 PRIORIDAD_BAJA = "Baja"
 PRIORIDADES_OT = [PRIORIDAD_ALTA, PRIORIDAD_MEDIA, PRIORIDAD_BAJA]
 
+# Presupuestos: no es un presupuesto económico (sin montos ni ítems), es el
+# tracking de aprobación de una deficiencia que requiere cotizar un
+# correctivo. Cerrado solo lo pone el sistema, al finalizar la OT que generó.
+PRESUP_PENDIENTE = "Pendiente"
+PRESUP_COTIZADO = "Cotizado"
+PRESUP_APROBADO = "Aprobado"
+PRESUP_RECHAZADO = "Rechazado"
+PRESUP_CERRADO = "Cerrado"
+ESTADOS_PRESUPUESTO = [PRESUP_PENDIENTE, PRESUP_COTIZADO, PRESUP_APROBADO, PRESUP_RECHAZADO, PRESUP_CERRADO]
+TRANSICIONES_PRESUPUESTO = {
+    PRESUP_PENDIENTE: [PRESUP_COTIZADO],
+    PRESUP_COTIZADO: [PRESUP_APROBADO, PRESUP_RECHAZADO],
+}
+
+# Notificaciones internas: tipo → texto legible y clase de severidad (mapea
+# a los mismos colores que ya usan chip/pill: crit=ember, alerta=warn, ok=ok).
+TIPOS_NOTIFICACION = {
+    "presupuesto": "Cambio de estado en un presupuesto",
+    "stock_critico": "Repuesto en nivel crítico",
+    "ot_asignada": "Orden de trabajo asignada",
+    "observacion_pendiente": "Deficiencia pendiente de aprobación",
+    "observacion_aprobada": "Deficiencia aprobada",
+    "coordinacion": "Coordinación de visita",
+}
+SEVERIDAD_NOTIFICACION = {
+    "presupuesto": "info",
+    "stock_critico": "alerta",
+    "ot_asignada": "info",
+    "observacion_pendiente": "alerta",
+    "observacion_aprobada": "ok",
+    "coordinacion": "info",
+}
+
 
 def nivel_frecuencia(frecuencia):
     """Ordinal de una frecuencia. Una rutina incluye todo lo de nivel menor
@@ -1006,3 +1039,270 @@ class Observacion(db.Model):
 
     def __repr__(self):
         return f"<Observacion {self.clasificacion} {self.estado_revision}>"
+
+
+# ---------------------------------------------------------------------------
+# Presupuestos — tracking de aprobación de una deficiencia que requiere
+# cotizar un correctivo. Ver app/presupuestos.py para la lógica de creación;
+# acá vive el dato y la transición de estado (que sí crea la OT).
+# ---------------------------------------------------------------------------
+
+
+class Presupuesto(db.Model):
+    __tablename__ = "presupuestos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey("empresas.id"), nullable=False, index=True)
+    observacion_id = db.Column(
+        db.Integer, db.ForeignKey("observaciones.id"), nullable=False, unique=True, index=True
+    )
+    # Se completa recién al aprobar: antes de eso no hay correctivo que hacer.
+    ot_id = db.Column(db.Integer, db.ForeignKey("ordenes_trabajo.id"), nullable=True, index=True)
+    codigo = db.Column(db.String(30), unique=True, nullable=False)
+    estado = db.Column(db.String(20), default=PRESUP_PENDIENTE, nullable=False)
+    creado_por_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    empresa = db.relationship("Empresa", backref="presupuestos")
+    observacion = db.relationship(
+        "Observacion",
+        backref=db.backref(
+            "presupuesto", uselist=False, cascade="all, delete-orphan", single_parent=True
+        ),
+    )
+    ot = db.relationship("OrdenTrabajo", backref=db.backref("presupuesto_origen", uselist=False))
+    creado_por = db.relationship("Usuario")
+
+    @property
+    def dias_abierto(self):
+        return (datetime.utcnow() - self.fecha_creacion).days
+
+    def cambiar_estado(self, nuevo, usuario, nota=None):
+        """Valida la transición y, si aprueba, crea la OT correctiva.
+
+        No hace commit — viaja en la transacción del caller, igual que el
+        resto de los cambios de estado del sistema (ver OrdenTrabajo).
+        """
+        anterior = self.estado
+        # Cerrado solo lo pone el sistema, al finalizar la OT correctiva —
+        # no es una transición manual, así que no está en TRANSICIONES_PRESUPUESTO.
+        es_cierre_automatico = nuevo == PRESUP_CERRADO and anterior == PRESUP_APROBADO
+        if not es_cierre_automatico and nuevo not in TRANSICIONES_PRESUPUESTO.get(anterior, []):
+            raise ValueError(f"No se puede pasar de «{anterior}» a «{nuevo}».")
+
+        self.estado = nuevo
+        if nuevo == PRESUP_APROBADO and self.ot_id is None:
+            visita = Visita(
+                instalacion_id=self.observacion.instalacion_id,
+                fecha=date.today(),
+                notas=f"Correctivo por presupuesto {self.codigo}.",
+            )
+            db.session.add(visita)
+            db.session.flush()
+            ot = OrdenTrabajo(
+                visita_id=visita.id,
+                tipo=OT_CORRECTIVO,
+                prioridad=PRIORIDAD_MEDIA,
+                estado=OT_PENDIENTE,
+                descripcion=f"Ejecución presupuesto {self.codigo}: {self.observacion.descripcion}",
+            )
+            db.session.add(ot)
+            db.session.flush()
+            ot.asignar_numero(self.empresa_id)
+            self.ot_id = ot.id
+
+        db.session.add(PresupuestoAudit(
+            presupuesto_id=self.id,
+            estado_anterior=anterior,
+            estado_nuevo=nuevo,
+            usuario_id=usuario.id if usuario else None,
+            nota=nota,
+        ))
+
+    def __repr__(self):
+        return f"<Presupuesto {self.codigo} {self.estado}>"
+
+
+class PresupuestoAudit(db.Model):
+    """Historial inmutable de cambios de estado. Solo inserción: nunca se
+    edita ni se borra una fila cargada acá."""
+
+    __tablename__ = "presupuestos_audit"
+
+    id = db.Column(db.Integer, primary_key=True)
+    presupuesto_id = db.Column(db.Integer, db.ForeignKey("presupuestos.id"), nullable=False, index=True)
+    estado_anterior = db.Column(db.String(20))
+    estado_nuevo = db.Column(db.String(20), nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    nota = db.Column(db.Text)
+    fecha_cambio = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    presupuesto = db.relationship(
+        "Presupuesto",
+        backref=db.backref("auditoria", cascade="all, delete-orphan", order_by="PresupuestoAudit.fecha_cambio"),
+    )
+    usuario = db.relationship("Usuario")
+
+    def __repr__(self):
+        return f"<PresupuestoAudit {self.estado_anterior}→{self.estado_nuevo}>"
+
+
+# ---------------------------------------------------------------------------
+# Inventario de repuestos — catálogo por empresa y su consumo por OT.
+# ---------------------------------------------------------------------------
+
+
+class Repuesto(db.Model):
+    """Catálogo de repuestos de la empresa (como TipoEquipo: compartido
+    entre instalaciones, no por cliente)."""
+
+    __tablename__ = "repuestos"
+    __table_args__ = (db.UniqueConstraint("empresa_id", "nombre", name="uq_repuesto_empresa_nombre"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey("empresas.id"), nullable=False, index=True)
+    nombre = db.Column(db.String(150), nullable=False)
+    codigo = db.Column(db.String(60))
+    unidad = db.Column(db.String(30), default="unidad", nullable=False)
+    stock_actual = db.Column(db.Integer, default=0, nullable=False)
+    stock_minimo = db.Column(db.Integer, default=0, nullable=False)
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+
+    empresa = db.relationship("Empresa", backref="repuestos")
+
+    @property
+    def en_nivel_critico(self):
+        return self.stock_actual <= self.stock_minimo
+
+    def __repr__(self):
+        return f"<Repuesto {self.nombre}>"
+
+
+class ConsumoRepuesto(db.Model):
+    """Un uso de repuesto registrado desde una OT. Descuenta stock en el
+    momento de crearse (ver app/inventario.py)."""
+
+    __tablename__ = "consumos_repuesto"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ot_id = db.Column(db.Integer, db.ForeignKey("ordenes_trabajo.id"), nullable=False, index=True)
+    repuesto_id = db.Column(db.Integer, db.ForeignKey("repuestos.id"), nullable=False, index=True)
+    cantidad = db.Column(db.Integer, nullable=False)
+    fecha = db.Column(db.Date, default=date.today, nullable=False)
+
+    ot = db.relationship("OrdenTrabajo", backref=db.backref("consumos", cascade="all, delete-orphan"))
+    repuesto = db.relationship("Repuesto", backref="consumos")
+
+    def __repr__(self):
+        return f"<ConsumoRepuesto repuesto={self.repuesto_id} x{self.cantidad}>"
+
+
+# ---------------------------------------------------------------------------
+# Notificaciones internas — sin push, solo in-app (badge + página propia).
+# ---------------------------------------------------------------------------
+
+
+class Notificacion(db.Model):
+    __tablename__ = "notificaciones"
+
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey("empresas.id"), nullable=False, index=True)
+    destinatario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=False, index=True)
+    remitente_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    tipo = db.Column(db.String(30), nullable=False)  # ver TIPOS_NOTIFICACION
+    titulo = db.Column(db.String(250), nullable=False)
+    enlace = db.Column(db.String(300))
+    leido = db.Column(db.Boolean, default=False, nullable=False)
+    fecha_carga = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    destinatario = db.relationship("Usuario", foreign_keys=[destinatario_id], backref="notificaciones")
+    remitente = db.relationship("Usuario", foreign_keys=[remitente_id])
+
+    @property
+    def severidad(self):
+        return SEVERIDAD_NOTIFICACION.get(self.tipo, "info")
+
+    @property
+    def descripcion_tipo(self):
+        return TIPOS_NOTIFICACION.get(self.tipo, self.tipo)
+
+    def __repr__(self):
+        return f"<Notificacion {self.tipo} → {self.destinatario_id}>"
+
+
+# ---------------------------------------------------------------------------
+# Coordinación con auditoría — extiende planificacion.py (que calcula el
+# calendario sin persistir nada) con un registro que permite recoordinar
+# una fecha ya confirmada sin perder el historial.
+# ---------------------------------------------------------------------------
+
+
+class SolicitudCoordinacion(db.Model):
+    """Una fila por servicio de contrato y mes. Nace al generar las
+    solicitudes del mes; se completa al coordinar por primera vez, y se
+    puede recoordinar después sin perder la fecha anterior (ver
+    CoordinacionAudit)."""
+
+    __tablename__ = "solicitudes_coordinacion"
+    __table_args__ = (
+        db.UniqueConstraint("servicio_id", "anio", "mes", name="uq_solicitud_servicio_mes"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    servicio_id = db.Column(db.Integer, db.ForeignKey("servicios_contrato.id"), nullable=False, index=True)
+    anio = db.Column(db.Integer, nullable=False)
+    mes = db.Column(db.Integer, nullable=False)
+
+    coordinada = db.Column(db.Boolean, default=False, nullable=False)
+    fecha_coordinada = db.Column(db.Date)
+    notas = db.Column(db.Text)
+    coordinado_por_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    fecha_coordinacion = db.Column(db.DateTime)
+    orden_id = db.Column(db.Integer, db.ForeignKey("ordenes_trabajo.id"), nullable=True, index=True)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    servicio = db.relationship("ServicioContrato", backref="solicitudes")
+    coordinado_por = db.relationship("Usuario")
+    orden = db.relationship("OrdenTrabajo")
+
+    @property
+    def estado_derivado(self):
+        if not self.coordinada:
+            return "sin_coordinar"
+        if not self.orden or not self.orden.tecnico_id:
+            return "coordinada"
+        if self.orden.estado == OT_CERRADA:
+            return "ejecutada"
+        if self.orden.estado == OT_EN_CURSO:
+            return "en_ejecucion"
+        return "asignada"
+
+    def __repr__(self):
+        return f"<SolicitudCoordinacion servicio={self.servicio_id} {self.anio}-{self.mes:02d}>"
+
+
+class CoordinacionAudit(db.Model):
+    """Historial inmutable de fechas coordinadas/recoordinadas."""
+
+    __tablename__ = "coordinacion_audit"
+
+    id = db.Column(db.Integer, primary_key=True)
+    solicitud_id = db.Column(
+        db.Integer, db.ForeignKey("solicitudes_coordinacion.id"), nullable=False, index=True
+    )
+    fecha_anterior = db.Column(db.Date)  # nula la primera vez que se coordina
+    fecha_nueva = db.Column(db.Date, nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    nota = db.Column(db.Text)
+    fecha_cambio = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    solicitud = db.relationship(
+        "SolicitudCoordinacion",
+        backref=db.backref(
+            "auditoria", cascade="all, delete-orphan", order_by="CoordinacionAudit.fecha_cambio.desc()"
+        ),
+    )
+    usuario = db.relationship("Usuario")
+
+    def __repr__(self):
+        return f"<CoordinacionAudit {self.fecha_anterior}→{self.fecha_nueva}>"

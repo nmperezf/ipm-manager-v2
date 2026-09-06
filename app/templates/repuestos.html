@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Repuestos — IPM Manager{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Repuestos</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{% if solo_criticos %}Repuestos en nivel crítico{% else %}Repuestos{% endif %}</h2>
+    <span class="sub">
+      El stock sube solo por "Reponer" y baja solo por consumo registrado desde una orden de trabajo.
+    </span>
+  </div>
+  <span class="sp"></span>
+  {% if solo_criticos %}
+    <a class="btn ghost sm" href="{{ url_for('principal.repuestos') }}">Ver todos</a>
+  {% else %}
+    <a class="btn ghost sm" href="{{ url_for('principal.repuestos_criticos_lista') }}">Solo críticos</a>
+  {% endif %}
+  {% if current_user.puede_aprobar %}
+    <a class="btn sm" href="{{ url_for('principal.repuesto_form') }}">{{ ico('mas') }}Nuevo</a>
+  {% endif %}
+</div>
+
+{% if repuestos %}
+<div class="stack">
+  {% for r in repuestos %}
+    <div class="item {{ 'crit' if r.en_nivel_critico }}">
+      <span class="chip {{ 'crit' if r.en_nivel_critico else 'neu' }}">{{ ico('repuesto') }}</span>
+      <span class="t">
+        <b>{{ r.nombre }}</b>
+        <span>
+          {% if r.codigo %}<span class="mono">{{ r.codigo }}</span> · {% endif %}
+          stock {{ r.stock_actual }} {{ r.unidad }}(s) · mínimo {{ r.stock_minimo }}
+        </span>
+      </span>
+      {% if r.en_nivel_critico %}<span class="pill crit">Crítico</span>{% endif %}
+      <form method="post" action="{{ url_for('principal.repuesto_reponer', repuesto_id=r.id) }}" class="fila" style="gap:.3rem">
+        <input type="number" name="cantidad" min="1" value="1" style="width:5rem" required>
+        <button class="btn ghost sm" type="submit">Reponer</button>
+      </form>
+      {% if current_user.puede_aprobar %}
+        <a class="btn ghost sm" href="{{ url_for('principal.repuesto_form', repuesto_id=r.id) }}">Editar</a>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="vacio">
+  <span class="chip ok">{{ ico('check') }}</span>
+  <b>{% if solo_criticos %}Nada en nivel crítico{% else %}Sin repuestos cargados{% endif %}</b>
+  <p>{% if not solo_criticos %}Cargá el catálogo para poder registrar consumo desde una OT.{% endif %}</p>
+</div>
+{% endif %}
+{% endblock %}

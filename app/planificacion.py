@@ -11,9 +11,10 @@ una instalación antes de que exista ninguna visita.
 """
 
 from calendar import monthrange
-from datetime import date
+from datetime import date, datetime
 
 from app.models import (
+    FRECUENCIA_MENSUAL,
     NIVEL_FRECUENCIA,
     OT_PENDIENTE,
     OT_PREVENTIVO,
@@ -21,11 +22,13 @@ from app.models import (
     CampoFormulario,
     CategoriaEquipo,
     Cliente,
+    CoordinacionAudit,
     Contrato,
     Instalacion,
     ItemVisita,
     OrdenTrabajo,
     ServicioContrato,
+    SolicitudCoordinacion,
     TipoFormulario,
     Visita,
     db,
@@ -194,3 +197,68 @@ def categorias_disponibles(empresa_id):
         CategoriaEquipo.query.filter_by(empresa_id=empresa_id)
         .order_by(CategoriaEquipo.orden).all()
     )
+
+
+# ---------------------------------------------------------------------------
+# Solicitudes de coordinación — a diferencia de lo anterior, esto sí se
+# persiste: es lo que permite recoordinar una fecha ya confirmada sin perder
+# el historial (`pendientes_del_mes` es de un solo uso: en cuanto existe la
+# visita, deja de aparecer).
+# ---------------------------------------------------------------------------
+
+
+def generar_solicitudes_mes(empresa_id, anio, mes):
+    """Crea una SolicitudCoordinacion por cada servicio pendiente ese mes
+    que todavía no tenga una. Idempotente: reintentar no duplica."""
+    creadas = 0
+    for pendiente in pendientes_del_mes(empresa_id, anio, mes):
+        servicio = pendiente["servicio"]
+        existe = SolicitudCoordinacion.query.filter_by(
+            servicio_id=servicio.id, anio=anio, mes=mes
+        ).first()
+        if existe:
+            continue
+        db.session.add(SolicitudCoordinacion(servicio_id=servicio.id, anio=anio, mes=mes))
+        creadas += 1
+    db.session.commit()
+    return creadas
+
+
+def coordinar_solicitud(solicitud, fecha, notas, usuario, tecnico=None):
+    """Confirma o recoordina la fecha de una solicitud.
+
+    La primera vez crea Visita+ItemVisita+OT (reutilizando `coordinar()`).
+    Las siguientes solo mueven la fecha de la visita y de la OT ya
+    existentes. En ambos casos deja rastro inmutable en CoordinacionAudit.
+    """
+    servicio = solicitud.servicio
+    fecha_anterior = solicitud.fecha_coordinada
+
+    if solicitud.orden_id:
+        orden = solicitud.orden
+        orden.visita.fecha = fecha
+        orden.fecha_compromiso = fecha
+    else:
+        empresa_id = servicio.contrato.instalacion.cliente.empresa_id
+        rutina = rutina_del_mes(
+            servicio.mes_ancla, solicitud.anio, solicitud.mes,
+            frecuencias_de_categoria(servicio.categoria_id),
+        ) or FRECUENCIA_MENSUAL
+        orden = coordinar(servicio, fecha, rutina, tecnico, empresa_id)
+        solicitud.orden_id = orden.id
+
+    solicitud.coordinada = True
+    solicitud.fecha_coordinada = fecha
+    solicitud.notas = notas
+    solicitud.coordinado_por_id = usuario.id if usuario else None
+    solicitud.fecha_coordinacion = datetime.utcnow()
+
+    db.session.add(CoordinacionAudit(
+        solicitud_id=solicitud.id,
+        fecha_anterior=fecha_anterior,
+        fecha_nueva=fecha,
+        usuario_id=usuario.id if usuario else None,
+        nota=notas,
+    ))
+    db.session.commit()
+    return orden

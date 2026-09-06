@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% set obs = presupuesto.observacion %}
+{% block title %}{{ presupuesto.codigo }} — IPM Manager{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.presupuestos') }}">Presupuestos</a>
+  {{ ico('chevron') }}<b>{{ presupuesto.codigo }}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2><span class="mono">{{ presupuesto.codigo }}</span></h2>
+    <span class="sub">
+      {{ obs.instalacion.cliente.nombre }} · {{ obs.instalacion.nombre }} ·
+      {{ presupuesto.dias_abierto }} día(s) abierto
+    </span>
+  </div>
+  <span class="sp"></span>
+  <span class="pill {{ 'ok' if presupuesto.estado == PRESUP_CERRADO else 'com' }}">{{ presupuesto.estado }}</span>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Deficiencia origen</h3>
+  <div class="item {{ 'crit' if obs.clasificacion == CLASIF_CRITICA }}">
+    <span class="chip {{ 'crit' if obs.clasificacion == CLASIF_CRITICA else 'warn' }}">{{ ico('deficiencias') }}</span>
+    <span class="t">
+      <b>{{ obs.descripcion }}</b>
+      <span>{% if obs.equipo %}<span class="mono">{{ obs.equipo.codigo or obs.equipo.nombre }}</span>{% endif %}</span>
+    </span>
+    <span class="pill {{ 'crit' if obs.clasificacion == CLASIF_CRITICA else 'nocrit' }}">{{ obs.clasificacion }}</span>
+  </div>
+</div>
+
+{% if presupuesto.ot %}
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Orden de trabajo correctiva</h3>
+  <a class="item" href="{{ url_for('principal.orden', orden_id=presupuesto.ot.id) }}">
+    <span class="chip neu">{{ ico('orden') }}</span>
+    <span class="t">
+      <b><span class="mono">{{ presupuesto.ot.numero }}</span></b>
+      <span>{{ presupuesto.ot.estado }}</span>
+    </span>
+    {{ ico('chevron') }}
+  </a>
+</div>
+{% endif %}
+
+{% if current_user.puede_aprobar and presupuesto.estado not in (PRESUP_CERRADO, 'Rechazado') %}
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Cambiar estado</h3>
+  <form method="post" class="fila" style="flex-wrap:wrap">
+    <select name="estado" required>
+      <option value="">— elegir —</option>
+      {% if presupuesto.estado == 'Pendiente' %}<option value="Cotizado">Cotizado</option>{% endif %}
+      {% if presupuesto.estado == 'Cotizado' %}
+        <option value="Aprobado">Aprobado (crea la OT)</option>
+        <option value="Rechazado">Rechazado</option>
+      {% endif %}
+    </select>
+    <input type="text" name="nota" placeholder="Nota (opcional)" style="flex:1;min-width:12rem">
+    <button class="btn sm" type="submit">Guardar</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Historial</h3>
+  <div class="stack">
+    {% for a in presupuesto.auditoria|reverse %}
+      <div class="item">
+        <span class="chip neu">{{ ico('reloj') }}</span>
+        <span class="t">
+          <b>{{ a.estado_anterior or '—' }} → {{ a.estado_nuevo }}</b>
+          <span>
+            {{ a.fecha_cambio.strftime('%d/%m/%Y %H:%M') }}
+            {%- if a.usuario %} · {{ a.usuario.nombre_completo }}{% endif %}
+            {%- if a.nota %} · {{ a.nota }}{% endif %}
+          </span>
+        </span>
+      </div>
+    {% else %}
+      <p class="tiny">Sin cambios registrados todavía.</p>
+    {% endfor %}
+  </div>
+</div>
+
+{% if current_user.puede_aprobar %}
+<form method="post" action="{{ url_for('principal.presupuesto_eliminar', presupuesto_id=presupuesto.id) }}"
+      onsubmit="return confirm('¿Eliminar este presupuesto y su deficiencia asociada?')">
+  <button class="btn ghost sm" type="submit" style="color:var(--ember)">Eliminar</button>
+</form>
+{% endif %}
+{% endblock %}

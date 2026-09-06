@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Notificaciones — IPM Manager{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Notificaciones</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div><h2>Notificaciones</h2></div>
+  <span class="sp"></span>
+  {% if no_leidas %}
+    <form method="post" action="{{ url_for('principal.notificaciones_marcar_todas') }}">
+      <button class="btn ghost sm" type="submit">Marcar todas como leídas</button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="seccion-tit">
+  <h3>Sin leer</h3>
+  <span class="pill {{ 'nocrit' if no_leidas else 'ok' }}">{{ no_leidas|length }}</span>
+  <span class="linea"></span>
+</div>
+
+{% if no_leidas %}
+<div class="stack">
+  {% for n in no_leidas %}
+    <a class="item {{ 'crit' if n.severidad == 'alerta' }}"
+       href="{{ url_for('principal.notificacion_ir', notificacion_id=n.id) }}">
+      <span class="chip {{ 'crit' if n.severidad == 'alerta' else ('ok' if n.severidad == 'ok' else 'neu') }}">
+        {{ ico('campana') }}</span>
+      <span class="t">
+        <b>{{ n.titulo }}</b>
+        <span>{{ n.fecha_carga.strftime('%d/%m/%Y %H:%M') }}</span>
+      </span>
+    </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="vacio">
+  <span class="chip ok">{{ ico('check') }}</span>
+  <b>Todo leído</b>
+</div>
+{% endif %}
+
+{% if leidas %}
+<div class="seccion-tit">
+  <h3>Leídas recientes</h3>
+  <span class="linea"></span>
+</div>
+<div class="stack">
+  {% for n in leidas %}
+    <div class="item">
+      <span class="chip neu">{{ ico('campana') }}</span>
+      <span class="t">
+        <b>{{ n.titulo }}</b>
+        <span>{{ n.fecha_carga.strftime('%d/%m/%Y %H:%M') }}</span>
+      </span>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

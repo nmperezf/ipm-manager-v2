@@ -125,6 +125,45 @@
 </div>
 {% endif %}
 
+{% if orden.presupuesto_origen %}
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Presupuesto de origen</h3>
+  <a class="item" href="{{ url_for('principal.presupuesto', presupuesto_id=orden.presupuesto_origen.id) }}">
+    <span class="chip neu">{{ ico('presupuesto') }}</span>
+    <span class="t"><b><span class="mono">{{ orden.presupuesto_origen.codigo }}</span></b>
+      <span>{{ orden.presupuesto_origen.estado }}</span></span>
+    {{ ico('chevron') }}
+  </a>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Repuestos usados</h3>
+  <div class="stack">
+    {% for c in orden.consumos %}
+      <div class="item">
+        <span class="chip neu">{{ ico('repuesto') }}</span>
+        <span class="t"><b>{{ c.repuesto.nombre }}</b>
+          <span>{{ c.cantidad }} {{ c.repuesto.unidad }}(s) · {{ c.fecha.strftime('%d/%m/%Y') }}</span></span>
+      </div>
+    {% else %}
+      <p class="tiny">Sin repuestos registrados en esta orden.</p>
+    {% endfor %}
+  </div>
+  {% if orden.estado != OT_CERRADA and repuestos_disponibles %}
+  <form method="post" action="{{ url_for('principal.orden_repuesto_consumir', orden_id=orden.id) }}"
+        class="fila" style="margin-top:.6rem;flex-wrap:wrap">
+    <select name="repuesto_id" required style="flex:1;min-width:12rem">
+      {% for r in repuestos_disponibles %}
+        <option value="{{ r.id }}">{{ r.nombre }} (stock {{ r.stock_actual }})</option>
+      {% endfor %}
+    </select>
+    <input type="number" name="cantidad" min="1" value="1" style="width:6rem" required>
+    <button class="btn ghost sm" type="submit">Registrar consumo</button>
+  </form>
+  {% endif %}
+</div>
+
 {% if notas %}
 <div class="card">
   <h3 style="margin-bottom:.6rem">Notas</h3>

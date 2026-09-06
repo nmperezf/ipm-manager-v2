@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Presupuestos — IPM Manager{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Presupuestos</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>Presupuestos</h2>
+    <span class="sub">
+      Tracking de aprobación de deficiencias que requieren cotizar un correctivo.
+      Al aprobar se crea sola la orden de trabajo; al finalizarla, el presupuesto se cierra solo.
+    </span>
+  </div>
+</div>
+
+<div class="fila" style="margin-bottom:.8rem">
+  <a class="btn {{ 'ghost' if filtro }} sm" href="{{ url_for('principal.presupuestos') }}">Todos</a>
+  {% for e in ESTADOS_PRESUPUESTO %}
+    <a class="btn {{ '' if filtro == e else 'ghost' }} sm"
+       href="{{ url_for('principal.presupuestos', estado=e) }}">{{ e }}</a>
+  {% endfor %}
+</div>
+
+{% if por_estado %}
+<div class="stats">
+  {% for e in ESTADOS_PRESUPUESTO %}
+    <a class="stat" href="{{ url_for('principal.presupuestos', estado=e) }}">
+      <div class="k">{{ e }}</div>
+      <div class="v">{{ por_estado[e]|length }}</div>
+    </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if presupuestos %}
+<div class="stack">
+  {% for p in presupuestos %}
+    <a class="item" href="{{ url_for('principal.presupuesto', presupuesto_id=p.id) }}">
+      <span class="chip {{ 'ok' if p.estado == PRESUP_CERRADO else ('crit' if p.estado == 'Rechazado' else 'neu') }}">
+        {{ ico('presupuesto') }}</span>
+      <span class="t">
+        <b><span class="mono">{{ p.codigo }}</span> · {{ p.observacion.instalacion.cliente.nombre }}</b>
+        <span>{{ p.observacion.descripcion }} · {{ p.dias_abierto }} día(s) abierto</span>
+      </span>
+      <span class="pill com">{{ p.estado }}</span>
+      {{ ico('chevron') }}
+    </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="vacio">
+  <span class="chip ok">{{ ico('check') }}</span>
+  <b>No hay presupuestos con este filtro</b>
+  <p>Se crean desde una deficiencia, en el Banco de deficiencias.</p>
+</div>
+{% endif %}
+{% endblock %}

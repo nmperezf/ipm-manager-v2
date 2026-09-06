@@ -89,6 +89,14 @@
                   <button class="btn ghost sm" type="submit">Resolver</button>
                 </form>
               {% endif %}
+              {% if o.presupuesto %}
+                <a class="btn ghost sm" href="{{ url_for('principal.presupuesto', presupuesto_id=o.presupuesto.id) }}">
+                  {{ o.presupuesto.codigo }}</a>
+              {% elif o.clasificacion in (CLASIF_CRITICA, CLASIF_NO_CRITICA) %}
+                <form method="post" action="{{ url_for('principal.presupuesto_solicitar', observacion_id=o.id) }}">
+                  <button class="btn ghost sm" type="submit">Solicitar presupuesto</button>
+                </form>
+              {% endif %}
             </div>
           {% endif %}
         </td>

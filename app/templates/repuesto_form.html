@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{% if repuesto %}Editar repuesto{% else %}Nuevo repuesto{% endif %} — IPM Manager{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.repuestos') }}">Repuestos</a>
+  {{ ico('chevron') }}<b>{% if repuesto %}Editar{% else %}Nuevo{% endif %}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera"><h2>{% if repuesto %}Editar «{{ repuesto.nombre }}»{% else %}Nuevo repuesto{% endif %}</h2></div>
+
+<form method="post" class="card">
+  <label class="campo">
+    <span class="rotulo">Nombre</span>
+    <input type="text" name="nombre" required value="{{ repuesto.nombre if repuesto else '' }}">
+  </label>
+  <label class="campo">
+    <span class="rotulo">Código (opcional)</span>
+    <input type="text" name="codigo" value="{{ repuesto.codigo if repuesto else '' }}">
+  </label>
+  <label class="campo">
+    <span class="rotulo">Unidad</span>
+    <input type="text" name="unidad" value="{{ repuesto.unidad if repuesto else 'unidad' }}">
+  </label>
+  {% if not repuesto %}
+  <label class="campo">
+    <span class="rotulo">Stock inicial</span>
+    <input type="number" name="stock_actual" min="0" value="0">
+  </label>
+  {% endif %}
+  <label class="campo">
+    <span class="rotulo">Stock mínimo (nivel crítico)</span>
+    <input type="number" name="stock_minimo" min="0" value="{{ repuesto.stock_minimo if repuesto else 0 }}">
+  </label>
+  {% if repuesto %}
+  <label class="campo" style="flex-direction:row;align-items:center;gap:.5rem">
+    <input type="checkbox" name="activo" {{ 'checked' if repuesto.activo }} style="width:auto">
+    <span class="rotulo" style="margin:0">Activo</span>
+  </label>
+  {% endif %}
+  <button class="btn" type="submit">Guardar</button>
+</form>
+{% endblock %}

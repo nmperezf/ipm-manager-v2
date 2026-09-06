@@ -18,12 +18,15 @@ from app.checklist import armar_bloques, guardar_checklist, nombre_campo
 from app.ensayo_caudal import actualizar_observacion, evaluar_punto
 from app.fotos import FotoInvalida, borrar_archivo, guardar_archivo, ruta_relativa
 from app.graficos import graficos_de_equipo
+from app.inventario import StockInsuficiente, registrar_consumo, reponer_stock, repuestos_criticos
+from app.notificaciones import notificar_gestion, notificar_usuario
+from app.presupuestos import crear_presupuesto
 from app.planificacion import (
     MESES,
     calendario_anual,
     categorias_disponibles,
-    coordinar,
-    pendientes_del_mes,
+    coordinar_solicitud,
+    generar_solicitudes_mes,
 )
 from app.models import (
     CAMPO_ESTADO,
@@ -36,10 +39,13 @@ from app.models import (
     ESTADO_NA,
     ESTADO_NO_CONFORME,
     ATRIBUTOS_EQUIPO,
+    ESTADOS_PRESUPUESTO,
     FRECUENCIA_MENSUAL,
     FRECUENCIAS,
     GRAVEDAD_CRITICA,
     GRAVEDAD_NO_CRITICA,
+    PRESUP_APROBADO,
+    PRESUP_CERRADO,
     REVISION_APROBADA,
     REVISION_PENDIENTE,
     VISIBILIDAD_INTERNA,
@@ -53,6 +59,8 @@ from app.models import (
     CampoFormulario,
     CategoriaEquipo,
     Cliente,
+    ConsumoRepuesto,
+    CoordinacionAudit,
     Contrato,
     EnsayoCaudal,
     Equipo,
@@ -60,11 +68,15 @@ from app.models import (
     Instalacion,
     Formulario,
     ItemVisita,
+    Notificacion,
     Observacion,
     OrdenTrabajo,
+    Presupuesto,
     PuntoEnsayoCaudal,
+    Repuesto,
     Respuesta,
     ServicioContrato,
+    SolicitudCoordinacion,
     TipoEquipo,
     TipoFormulario,
     Usuario,
@@ -105,12 +117,18 @@ def inyectar_contexto():
         "OT_EN_CURSO": OT_EN_CURSO,
         "OT_EN_REVISION": OT_EN_REVISION,
         "OT_CERRADA": OT_CERRADA,
+        "ESTADOS_PRESUPUESTO": ESTADOS_PRESUPUESTO,
+        "PRESUP_CERRADO": PRESUP_CERRADO,
         "nombre_campo": nombre_campo,
         "pendientes_aprobacion": 0,
+        "notificaciones_no_leidas": 0,
     }
     if current_user.is_authenticated:
         contexto["pendientes_aprobacion"] = _observaciones_empresa().filter(
             Observacion.estado_revision == REVISION_PENDIENTE
+        ).count()
+        contexto["notificaciones_no_leidas"] = Notificacion.query.filter_by(
+            destinatario_id=current_user.id, leido=False
         ).count()
     return contexto
 
@@ -262,6 +280,9 @@ def inicio():
     ).limit(6).all()
     total_ordenes = q_ot.count()
 
+    repuestos_criticos_lista = repuestos_criticos(current_user.empresa_id, limite=6)
+    total_repuestos_criticos = len(repuestos_criticos(current_user.empresa_id))
+
     return render_template(
         "inicio.html",
         criticas=criticas[:6],
@@ -273,6 +294,8 @@ def inicio():
         instalaciones=instalaciones,
         mis_ordenes=mis_ordenes,
         total_ordenes=total_ordenes,
+        repuestos_criticos=repuestos_criticos_lista,
+        total_repuestos_criticos=total_repuestos_criticos,
     )
 
 
@@ -473,66 +496,100 @@ def contrato_baja(contrato_id):
 # ---------------------------------------------------------------------------
 
 
+def _solicitudes_empresa(anio, mes):
+    return (
+        SolicitudCoordinacion.query
+        .join(ServicioContrato, SolicitudCoordinacion.servicio_id == ServicioContrato.id)
+        .join(Contrato, ServicioContrato.contrato_id == Contrato.id)
+        .join(Instalacion, Contrato.instalacion_id == Instalacion.id)
+        .join(Cliente, Instalacion.cliente_id == Cliente.id)
+        .filter(Cliente.empresa_id == current_user.empresa_id)
+        .filter(SolicitudCoordinacion.anio == anio, SolicitudCoordinacion.mes == mes)
+    )
+
+
 @principal.route("/coordinacion")
 @login_required
 def coordinacion():
-    """Lo que los contratos mandan hacer este mes y todavía no se hizo.
+    """Lo que los contratos mandan hacer este mes.
 
-    No hay tabla de solicitudes: se calcula. Cambiar un contrato se refleja
-    en el acto y no queda nada viejo dando vueltas.
+    A diferencia de `pendientes_del_mes` (que se recalcula siempre y
+    desaparece en cuanto se coordina), acá se persiste una
+    SolicitudCoordinacion por servicio/mes — es lo que permite recoordinar
+    una fecha ya confirmada sin perder el historial (ver CoordinacionAudit).
     """
     _solo_gestion()
     hoy = date.today()
     anio = request.args.get("anio", type=int) or hoy.year
     mes = request.args.get("mes", type=int) or hoy.month
     mes = min(12, max(1, mes))
+    primero = date(anio, mes, 1)
+    ultimo = date(anio, mes, monthrange(anio, mes)[1])
 
-    pendientes = pendientes_del_mes(current_user.empresa_id, anio, mes)
+    solicitudes = _solicitudes_empresa(anio, mes).all()
+    solicitudes.sort(key=lambda s: (
+        s.estado_derivado != "sin_coordinar",
+        s.servicio.contrato.instalacion.cliente.nombre,
+    ))
     tecnicos = (
         Usuario.query.filter_by(empresa_id=current_user.empresa_id, activo=True)
         .filter(Usuario.rol.in_(("Técnico", "Jefe técnico")))
         .order_by(Usuario.nombre_completo).all()
     )
-    # Lo ya coordinado del mes, para no dejar la pantalla en blanco cuando
-    # se terminó de coordinar todo.
-    primero = date(anio, mes, 1)
-    ultimo = date(anio, mes, monthrange(anio, mes)[1])
-    coordinadas = (
-        _ordenes_empresa()
-        .filter(Visita.fecha >= primero, Visita.fecha <= ultimo)
-        .order_by(Visita.fecha).all()
-    )
 
     return render_template(
-        "coordinacion.html", pendientes=pendientes, coordinadas=coordinadas,
+        "coordinacion.html", solicitudes=solicitudes,
         tecnicos=tecnicos, anio=anio, mes=mes, MESES=MESES,
         hoy=hoy, sugerida=max(hoy, primero) if hoy <= ultimo else primero,
     )
 
 
-@principal.route("/coordinar/<int:servicio_id>", methods=["POST"])
+@principal.route("/coordinacion/generar", methods=["POST"])
 @login_required
-def coordinar_servicio(servicio_id):
+def coordinacion_generar():
     _solo_gestion()
-    servicio = db.session.get(ServicioContrato, servicio_id)
-    if servicio is None:
+    anio = request.form.get("anio", type=int) or date.today().year
+    mes = request.form.get("mes", type=int) or date.today().month
+    creadas = generar_solicitudes_mes(current_user.empresa_id, anio, mes)
+    flash(f"{creadas} solicitud(es) nueva(s) generada(s)." if creadas else
+          "No hay solicitudes nuevas para generar.", "ok")
+    return redirect(url_for("principal.coordinacion", anio=anio, mes=mes))
+
+
+@principal.route("/solicitud/<int:solicitud_id>/coordinar", methods=["POST"])
+@login_required
+def solicitud_coordinar(solicitud_id):
+    _solo_gestion()
+    solicitud = db.session.get(SolicitudCoordinacion, solicitud_id)
+    if solicitud is None:
         abort(404)
-    _verificar_empresa(servicio.contrato.instalacion.cliente.empresa_id)
+    _verificar_empresa(solicitud.servicio.contrato.instalacion.cliente.empresa_id)
 
     fecha = _fecha(request.form.get("fecha"))
     if fecha is None:
         flash("Hace falta una fecha para coordinar.", "error")
-        return redirect(request.referrer or url_for("principal.coordinacion"))
+        return redirect(url_for("principal.coordinacion", anio=solicitud.anio, mes=solicitud.mes))
 
-    rutina = request.form.get("rutina") or FRECUENCIA_MENSUAL
+    notas = (request.form.get("notas") or "").strip() or None
     tecnico = db.session.get(Usuario, request.form.get("tecnico_id", type=int) or 0)
     if tecnico and tecnico.empresa_id != current_user.empresa_id:
         tecnico = None
 
-    orden = coordinar(servicio, fecha, rutina, tecnico, current_user.empresa_id)
-    flash(f"{orden.numero} creada para el {fecha.strftime('%d/%m/%Y')}.", "ok")
-    return redirect(url_for("principal.coordinacion",
-                            anio=fecha.year, mes=fecha.month))
+    era_recoordinacion = bool(solicitud.orden_id)
+    orden = coordinar_solicitud(solicitud, fecha, notas, current_user, tecnico=tecnico)
+    if tecnico:
+        notificar_usuario(
+            tecnico, "ot_asignada", f"{orden.numero} asignada para el {fecha.strftime('%d/%m/%Y')}.",
+            current_user.empresa_id, enlace=url_for("principal.orden", orden_id=orden.id),
+            remitente=current_user,
+        )
+    flash(
+        f"{orden.numero} recoordinada para el {fecha.strftime('%d/%m/%Y')}."
+        if era_recoordinacion else
+        f"{orden.numero} creada para el {fecha.strftime('%d/%m/%Y')}.",
+        "ok",
+    )
+    return redirect(url_for("principal.coordinacion", anio=solicitud.anio, mes=solicitud.mes))
 
 
 # ---------------------------------------------------------------------------
@@ -579,7 +636,10 @@ def orden(orden_id):
 
     # El primer ítem sin cargar es a donde el técnico tiene que ir.
     siguiente = next((i for i in obj.visita.items if not i.formularios), None)
-    return render_template("orden.html", orden=obj, siguiente=siguiente)
+    repuestos_disponibles = _repuestos_empresa().order_by(Repuesto.nombre).all()
+    return render_template(
+        "orden.html", orden=obj, siguiente=siguiente, repuestos_disponibles=repuestos_disponibles,
+    )
 
 
 @principal.route("/orden/<int:orden_id>/estado", methods=["POST"])
@@ -597,6 +657,10 @@ def orden_estado(orden_id):
 
     obj.estado = nuevo
     obj.fecha_cierre = date.today() if nuevo == OT_CERRADA else None
+    if nuevo == OT_CERRADA and obj.presupuesto_origen and obj.presupuesto_origen.estado != PRESUP_CERRADO:
+        obj.presupuesto_origen.cambiar_estado(
+            PRESUP_CERRADO, current_user, "Cerrado automáticamente al finalizar la OT."
+        )
     db.session.commit()
     flash(f"{obj.numero} → {nuevo}.", "ok")
     return redirect(url_for("principal.orden", orden_id=obj.id))
@@ -1287,6 +1351,13 @@ def aprobar(observacion_id):
         abort(403)
 
     obj.aprobar(current_user)
+    if obj.creado_por_id:
+        notificar_usuario(
+            obj.creado_por, "observacion_aprobada", f"«{obj.descripcion[:80]}» fue aprobada.",
+            current_user.empresa_id,
+            enlace=url_for("principal.instalacion", instalacion_id=obj.instalacion_id),
+            remitente=current_user,
+        )
     db.session.commit()
     flash("Deficiencia aprobada — ya la ve el cliente.", "ok")
     return redirect(request.referrer or url_for("principal.deficiencias"))
@@ -1307,6 +1378,276 @@ def resolver(observacion_id):
     db.session.commit()
     flash("Deficiencia marcada como resuelta.", "ok")
     return redirect(request.referrer or url_for("principal.deficiencias"))
+
+
+@principal.route("/observacion/<int:observacion_id>/presupuesto", methods=["POST"])
+@login_required
+def presupuesto_solicitar(observacion_id):
+    _solo_gestion()
+    obj = db.session.get(Observacion, observacion_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.instalacion.cliente.empresa_id)
+    if obj.presupuesto is not None:
+        flash("Esta deficiencia ya tiene un presupuesto asociado.", "error")
+        return redirect(request.referrer or url_for("principal.deficiencias"))
+
+    presupuesto = crear_presupuesto(obj, current_user)
+    db.session.commit()
+    flash(f"{presupuesto.codigo} creado.", "ok")
+    return redirect(url_for("principal.presupuesto", presupuesto_id=presupuesto.id))
+
+
+# ---------------------------------------------------------------------------
+# Presupuestos
+# ---------------------------------------------------------------------------
+
+
+def _presupuestos_empresa():
+    return Presupuesto.query.filter_by(empresa_id=current_user.empresa_id)
+
+
+@principal.route("/presupuestos")
+@login_required
+def presupuestos():
+    _solo_gestion()
+    filtro = request.args.get("estado")
+    query = _presupuestos_empresa()
+    if filtro in ESTADOS_PRESUPUESTO:
+        lista = query.filter(Presupuesto.estado == filtro).order_by(Presupuesto.fecha_creacion.desc()).all()
+    else:
+        lista = query.order_by(Presupuesto.fecha_creacion.desc()).all()
+
+    por_estado = {e: [p for p in lista if p.estado == e] for e in ESTADOS_PRESUPUESTO} if not filtro else None
+    return render_template(
+        "presupuestos.html", presupuestos=lista, por_estado=por_estado, filtro=filtro,
+    )
+
+
+@principal.route("/presupuesto/<int:presupuesto_id>", methods=["GET", "POST"])
+@login_required
+def presupuesto(presupuesto_id):
+    _solo_gestion()
+    obj = db.session.get(Presupuesto, presupuesto_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.empresa_id)
+
+    if request.method == "POST":
+        nuevo = request.form.get("estado", "")
+        nota = (request.form.get("nota") or "").strip() or None
+        try:
+            obj.cambiar_estado(nuevo, current_user, nota)
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("principal.presupuesto", presupuesto_id=obj.id))
+        notificar_gestion(
+            current_user.empresa_id, "presupuesto", f"{obj.codigo} → {nuevo}.",
+            enlace=url_for("principal.presupuesto", presupuesto_id=obj.id), remitente=current_user,
+        )
+        db.session.commit()
+        flash(f"{obj.codigo} → {nuevo}.", "ok")
+        return redirect(url_for("principal.presupuesto", presupuesto_id=obj.id))
+
+    return render_template("presupuesto.html", presupuesto=obj)
+
+
+@principal.route("/presupuesto/<int:presupuesto_id>/eliminar", methods=["POST"])
+@login_required
+def presupuesto_eliminar(presupuesto_id):
+    _solo_gestion()
+    obj = db.session.get(Presupuesto, presupuesto_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.empresa_id)
+    db.session.delete(obj)
+    db.session.commit()
+    flash("Presupuesto eliminado.", "ok")
+    return redirect(url_for("principal.presupuestos"))
+
+
+# ---------------------------------------------------------------------------
+# Inventario de repuestos
+# ---------------------------------------------------------------------------
+
+
+def _repuestos_empresa():
+    return Repuesto.query.filter_by(empresa_id=current_user.empresa_id, activo=True)
+
+
+@principal.route("/repuestos")
+@login_required
+def repuestos():
+    lista = _repuestos_empresa().order_by(Repuesto.nombre).all()
+    return render_template("repuestos.html", repuestos=lista, solo_criticos=False)
+
+
+@principal.route("/repuestos/criticos")
+@login_required
+def repuestos_criticos_lista():
+    lista = repuestos_criticos(current_user.empresa_id)
+    return render_template("repuestos.html", repuestos=lista, solo_criticos=True)
+
+
+@principal.route("/repuesto/nuevo", methods=["GET", "POST"])
+@principal.route("/repuesto/<int:repuesto_id>/editar", methods=["GET", "POST"])
+@login_required
+def repuesto_form(repuesto_id=None):
+    _solo_gestion()
+    obj = db.session.get(Repuesto, repuesto_id) if repuesto_id else Repuesto(empresa_id=current_user.empresa_id)
+    if repuesto_id and obj is None:
+        abort(404)
+    if repuesto_id:
+        _verificar_empresa(obj.empresa_id)
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        if not nombre:
+            flash("El nombre es obligatorio.", "error")
+            return render_template("repuesto_form.html", repuesto=obj)
+        obj.nombre = nombre
+        obj.codigo = (request.form.get("codigo") or "").strip() or None
+        obj.unidad = (request.form.get("unidad") or "unidad").strip()
+        obj.stock_minimo = max(0, request.form.get("stock_minimo", type=int) or 0)
+        if repuesto_id is None:
+            obj.stock_actual = max(0, request.form.get("stock_actual", type=int) or 0)
+        obj.activo = bool(request.form.get("activo")) if repuesto_id else True
+        if repuesto_id is None:
+            db.session.add(obj)
+        db.session.commit()
+        flash(f"«{obj.nombre}» guardado.", "ok")
+        return redirect(url_for("principal.repuestos"))
+
+    return render_template("repuesto_form.html", repuesto=obj if repuesto_id else None)
+
+
+@principal.route("/repuesto/<int:repuesto_id>/reponer", methods=["POST"])
+@login_required
+def repuesto_reponer(repuesto_id):
+    obj = db.session.get(Repuesto, repuesto_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.empresa_id)
+    cantidad = request.form.get("cantidad", type=int) or 0
+    try:
+        reponer_stock(obj, cantidad)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(request.referrer or url_for("principal.repuestos"))
+    db.session.commit()
+    flash(f"Stock de «{obj.nombre}» actualizado a {obj.stock_actual}.", "ok")
+    return redirect(request.referrer or url_for("principal.repuestos"))
+
+
+@principal.route("/repuesto/<int:repuesto_id>/eliminar", methods=["POST"])
+@login_required
+def repuesto_eliminar(repuesto_id):
+    _solo_gestion()
+    obj = db.session.get(Repuesto, repuesto_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.empresa_id)
+    if ConsumoRepuesto.query.filter_by(repuesto_id=obj.id).first():
+        obj.activo = False
+        db.session.commit()
+        flash(f"«{obj.nombre}» tiene consumos registrados: se desactivó en vez de borrarse.", "ok")
+    else:
+        db.session.delete(obj)
+        db.session.commit()
+        flash(f"«{obj.nombre}» eliminado.", "ok")
+    return redirect(url_for("principal.repuestos"))
+
+
+@principal.route("/orden/<int:orden_id>/repuesto/consumir", methods=["POST"])
+@login_required
+def orden_repuesto_consumir(orden_id):
+    obj = db.session.get(OrdenTrabajo, orden_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.visita.instalacion.cliente.empresa_id)
+    repuesto = db.session.get(Repuesto, request.form.get("repuesto_id", type=int) or 0)
+    if repuesto is None or repuesto.empresa_id != current_user.empresa_id:
+        abort(404)
+    cantidad = request.form.get("cantidad", type=int) or 0
+
+    try:
+        registrar_consumo(obj, repuesto, cantidad)
+    except (ValueError, StockInsuficiente) as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("principal.orden", orden_id=obj.id))
+
+    if repuesto.en_nivel_critico:
+        notificar_gestion(
+            current_user.empresa_id, "stock_critico",
+            f"«{repuesto.nombre}» quedó en {repuesto.stock_actual} {repuesto.unidad}(s).",
+            enlace=url_for("principal.repuestos_criticos_lista"), remitente=current_user,
+        )
+    db.session.commit()
+    flash(f"{cantidad} {repuesto.unidad}(s) de «{repuesto.nombre}» descontado(s).", "ok")
+    return redirect(url_for("principal.orden", orden_id=obj.id))
+
+
+# ---------------------------------------------------------------------------
+# Notificaciones internas
+# ---------------------------------------------------------------------------
+
+
+@principal.route("/notificaciones")
+@login_required
+def notificaciones():
+    no_leidas = (
+        Notificacion.query.filter_by(destinatario_id=current_user.id, leido=False)
+        .order_by(Notificacion.fecha_carga.desc()).limit(150).all()
+    )
+    leidas = (
+        Notificacion.query.filter_by(destinatario_id=current_user.id, leido=True)
+        .order_by(Notificacion.fecha_carga.desc()).limit(20).all()
+    )
+    return render_template("notificaciones.html", no_leidas=no_leidas, leidas=leidas)
+
+
+@principal.route("/notificaciones/resumen")
+@login_required
+def notificaciones_resumen():
+    no_leidas = (
+        Notificacion.query.filter_by(destinatario_id=current_user.id, leido=False)
+        .order_by(Notificacion.fecha_carga.desc()).limit(20).all()
+    )
+    return render_template("_notificaciones_resumen.html", no_leidas=no_leidas)
+
+
+@principal.route("/notificacion/<int:notificacion_id>/ir")
+@login_required
+def notificacion_ir(notificacion_id):
+    obj = db.session.get(Notificacion, notificacion_id)
+    if obj is None or obj.destinatario_id != current_user.id:
+        abort(404)
+    obj.leido = True
+    db.session.commit()
+    return redirect(obj.enlace or url_for("principal.notificaciones"))
+
+
+@principal.route("/notificaciones/marcar-leidas", methods=["POST"])
+@login_required
+def notificaciones_marcar_leidas():
+    ids = request.form.getlist("id", type=int)
+    (
+        Notificacion.query.filter(
+            Notificacion.id.in_(ids), Notificacion.destinatario_id == current_user.id
+        ).update({"leido": True}, synchronize_session=False)
+    )
+    db.session.commit()
+    return redirect(request.referrer or url_for("principal.notificaciones"))
+
+
+@principal.route("/notificaciones/marcar-todas-leidas", methods=["POST"])
+@login_required
+def notificaciones_marcar_todas():
+    Notificacion.query.filter_by(destinatario_id=current_user.id, leido=False).update(
+        {"leido": True}, synchronize_session=False
+    )
+    db.session.commit()
+    return redirect(request.referrer or url_for("principal.notificaciones"))
 
 
 # ---------------------------------------------------------------------------

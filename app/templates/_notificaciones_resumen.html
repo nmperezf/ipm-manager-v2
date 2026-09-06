@@ -1,0 +1,13 @@
+{% import "base.html" as base %}
+{% for n in no_leidas %}
+  <a class="item" href="{{ url_for('principal.notificacion_ir', notificacion_id=n.id) }}">
+    <span class="chip {{ 'crit' if n.severidad == 'alerta' else ('ok' if n.severidad == 'ok' else 'neu') }}">
+      {{ base.ico('campana') }}</span>
+    <span class="t">
+      <b>{{ n.titulo }}</b>
+      <span>{{ n.fecha_carga.strftime('%d/%m/%Y %H:%M') }}</span>
+    </span>
+  </a>
+{% else %}
+  <p class="tiny" style="padding:.6rem">Sin notificaciones nuevas.</p>
+{% endfor %}

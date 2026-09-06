@@ -37,6 +37,8 @@
 {%- elif nombre == 'galeria' %}<rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-4.5 4 3.5 3-2.5 6 5"/>
 {%- elif nombre == 'calendario' %}<rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M8 3v4M16 3v4"/><circle cx="9" cy="14.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="14.5" r="1.2" fill="currentColor" stroke="none"/>
 {%- elif nombre == 'chevron' %}<path d="M9 5l7 7-7 7"/>
+{%- elif nombre == 'presupuesto' %}<path d="M7 3h10a1 1 0 011 1v16l-3-2-3 2-3-2-3 2V4a1 1 0 011-1z"/><path d="M9 8h6M9 12h6M9 16h3"/>
+{%- elif nombre == 'repuesto' %}<path d="M14.7 6.3a4 4 0 01-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 015.4-5.4l-2.6 2.6-2-2z"/>
 {%- endif %}
 </svg>
 {%- endmacro %}
@@ -79,6 +81,12 @@
 
     <a class="nav {{ 'on' if ep == 'principal.banco_fotos' }}"
        href="{{ url_for('principal.banco_fotos') }}">{{ ico('galeria') }}Banco de fotos</a>
+    {% if gestion %}
+    <a class="nav {{ 'on' if ep in ('principal.presupuestos', 'principal.presupuesto') }}"
+       href="{{ url_for('principal.presupuestos') }}">{{ ico('presupuesto') }}Presupuestos</a>
+    {% endif %}
+    <a class="nav {{ 'on' if ep in ('principal.repuestos', 'principal.repuestos_criticos_lista', 'principal.repuesto_form') }}"
+       href="{{ url_for('principal.repuestos') }}">{{ ico('repuesto') }}Repuestos</a>
 
     <div class="grupo">Clientes</div>
     <a class="nav {{ 'on' if ep in ('principal.clientes', 'principal.cliente') }}"
@@ -109,9 +117,9 @@
       {% endif %}
       <span class="sp"></span>
       {% if not current_user.es_cliente %}
-      <a class="icono-btn" href="{{ url_for('principal.deficiencias') }}" title="Deficiencias pendientes"
-         aria-label="Deficiencias pendientes">
-        {{ ico('campana') }}{% if pendientes_aprobacion %}<span class="punto"></span>{% endif %}
+      <a class="icono-btn" href="{{ url_for('principal.notificaciones') }}" title="Notificaciones"
+         aria-label="Notificaciones">
+        {{ ico('campana') }}{% if notificaciones_no_leidas %}<span class="punto"></span>{% endif %}
       </a>
       {% endif %}
       <a class="avatar" href="{{ url_for('principal.cuenta') }}" title="{{ current_user.nombre_completo }}">
