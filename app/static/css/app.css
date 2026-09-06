@@ -616,3 +616,30 @@ tbody tr:hover .froz{background:var(--surface-muted)}
   .cal-dia{min-height:3.5rem}
   .cal-visita{font-size:.62rem}
 }
+
+/* =========================================================================
+   Login — pantalla partida: foto real de una sala de bombas a la
+   izquierda (con degradé para que el texto se lea), formulario a la
+   derecha. Por debajo de 860px la foto se retira: en un celular no hay
+   ancho para las dos columnas y el formulario es lo único que importa.
+   ========================================================================= */
+.login-split{display:grid;grid-template-columns:1.1fr 1fr;min-height:100vh}
+.login-foto{position:relative;overflow:hidden;background:var(--brand-dark) center top/cover no-repeat;
+  display:flex;flex-direction:column;color:#fff;padding:var(--e6)}
+.login-foto::before{content:"";position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(10,12,14,.92) 0%,rgba(10,12,14,.5) 45%,rgba(10,12,14,.05) 75%)}
+.login-foto > *{position:relative;z-index:1}
+.login-marca{display:flex;align-items:center;gap:var(--e2);font-family:var(--display);
+  font-weight:700;font-size:var(--t-med)}
+.login-marca img{height:30px;width:auto}
+.login-frase{margin-top:auto;max-width:26rem}
+.login-frase h2{color:#fff;font-size:1.7rem;line-height:1.3}
+.login-frase p{color:#c7cdd3;margin-top:var(--e3);font-size:var(--t-base)}
+.login-form-panel{background:var(--surface);display:flex;align-items:center;justify-content:center;
+  padding:var(--e6) var(--e4)}
+.login-form{width:100%;max-width:320px}
+.login-form .sub{color:var(--ink-muted);display:block;margin:.3rem 0 var(--e5)}
+@media (max-width:860px){
+  .login-split{grid-template-columns:1fr}
+  .login-foto{display:none}
+}

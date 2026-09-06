@@ -2,32 +2,42 @@
 {% block title %}Ingresar — IPM Manager{% endblock %}
 
 {% block anonimo %}
-<div style="min-height:100vh;display:grid;place-items:center;padding:1rem">
-  <div class="card" style="max-width:360px;width:100%;box-shadow:var(--shadow)">
-    <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" style="height:56px;margin-bottom:.7rem">
-    <h2 style="font-size:1.25rem">IPM Manager</h2>
-    <p class="muted" style="margin:.3rem 0 1.1rem">Mantenimiento de sistemas contra incendio</p>
+<div class="login-split">
+  <div class="login-foto" style="background-image:url('{{ url_for('static', filename='img/login-bg.jpg') }}')">
+    <div class="login-marca">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="">
+      IPM Manager
+    </div>
+    <div class="login-frase">
+      <h2>IPM Manager</h2>
+      <p>Gestión de mantenimiento de SPCI en Uruguay.</p>
+    </div>
+  </div>
 
-    {% with mensajes = get_flashed_messages(with_categories=true) %}
-      {% for categoria, mensaje in mensajes %}
-        <div class="flash {{ categoria }}">{{ mensaje }}</div>
-      {% endfor %}
-    {% endwith %}
+  <div class="login-form-panel">
+    <div class="login-form">
+      <h2 style="font-size:1.3rem">Ingresar</h2>
+      <span class="sub">Mantenimiento de sistemas contra incendio</span>
 
-    <form method="post" class="stack">
-      <label class="rotulo" for="username">Usuario</label>
-      <input id="username" name="username" autocomplete="username" required
-            >
-      <label class="rotulo" for="password">Contraseña</label>
-      <input id="password" name="password" type="password" autocomplete="current-password" required
-            >
-      <button class="btn" type="submit" style="margin-top:.35rem">Ingresar</button>
-    </form>
+      {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% for categoria, mensaje in mensajes %}
+          <div class="flash {{ categoria }}">{{ mensaje }}</div>
+        {% endfor %}
+      {% endwith %}
 
-    <p class="tiny" style="margin-top:1rem">
-      Demo: <span class="mono">jefe / jefe</span> (aprueba solo) ·
-      <span class="mono">tecnico / tecnico</span> (queda pendiente)
-    </p>
+      <form method="post" class="stack">
+        <label class="rotulo" for="username">Usuario</label>
+        <input id="username" name="username" autocomplete="username" required>
+        <label class="rotulo" for="password">Contraseña</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button class="btn" type="submit" style="margin-top:.35rem">Ingresar</button>
+      </form>
+
+      <p class="tiny" style="margin-top:1rem">
+        Demo: <span class="mono">jefe / jefe</span> (aprueba solo) ·
+        <span class="mono">tecnico / tecnico</span> (queda pendiente)
+      </p>
+    </div>
   </div>
 </div>
 {% endblock %}
