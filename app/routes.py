@@ -8,16 +8,18 @@ from calendar import monthrange
 from datetime import date, datetime, timedelta
 
 from flask import (
-    Blueprint, abort, current_app, flash, jsonify, redirect, render_template,
-    request, url_for,
+    Blueprint, Response, abort, current_app, flash, jsonify, redirect,
+    render_template, request, url_for,
 )
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import or_
 
 from app.checklist import armar_bloques, guardar_checklist, nombre_campo
 from app.ensayo_caudal import actualizar_observacion, evaluar_punto
-from app.fotos import FotoInvalida, borrar_archivo, guardar_archivo, ruta_relativa
+from app.exportar import csv_response
+from app.fotos import FotoInvalida, borrar_archivo, guardar_archivo, guardar_firma, ruta_relativa
 from app.graficos import graficos_de_equipo
+from app.informes import generar_informe_visita
 from app.inventario import StockInsuficiente, registrar_consumo, reponer_stock, repuestos_criticos
 from app.notificaciones import notificar_gestion, notificar_usuario
 from app.presupuestos import crear_presupuesto
@@ -65,6 +67,7 @@ from app.models import (
     EnsayoCaudal,
     Equipo,
     Foto,
+    HabilitacionTecnico,
     Instalacion,
     Formulario,
     ItemVisita,
@@ -75,6 +78,7 @@ from app.models import (
     PuntoEnsayoCaudal,
     Repuesto,
     Respuesta,
+    ROLES,
     ServicioContrato,
     SolicitudCoordinacion,
     TipoEquipo,
@@ -142,6 +146,7 @@ RUTAS_CLIENTE = {
     "principal.logout",
     "principal.cuenta",
     "principal.portal",
+    "principal.visita_informe",
 }
 
 
@@ -283,6 +288,14 @@ def inicio():
     repuestos_criticos_lista = repuestos_criticos(current_user.empresa_id, limite=6)
     total_repuestos_criticos = len(repuestos_criticos(current_user.empresa_id))
 
+    tecnicos_empresa = Usuario.query.filter_by(empresa_id=current_user.empresa_id, activo=True).all()
+    habilitaciones_alerta = []
+    for u in tecnicos_empresa:
+        for h in u.habilitaciones_vencidas:
+            habilitaciones_alerta.append((u, h, True))
+        for h in u.habilitaciones_por_vencer:
+            habilitaciones_alerta.append((u, h, False))
+
     return render_template(
         "inicio.html",
         criticas=criticas[:6],
@@ -296,6 +309,7 @@ def inicio():
         total_ordenes=total_ordenes,
         repuestos_criticos=repuestos_criticos_lista,
         total_repuestos_criticos=total_repuestos_criticos,
+        habilitaciones_alerta=habilitaciones_alerta,
     )
 
 
@@ -624,6 +638,38 @@ def ordenes():
         OrdenTrabajo.fecha_compromiso.asc().nullslast(), OrdenTrabajo.id.desc()
     ).limit(80).all()
     return render_template("ordenes.html", ordenes=lista, filtro=filtro)
+
+
+@principal.route("/ordenes/exportar")
+@login_required
+def ordenes_exportar():
+    query = _ordenes_empresa()
+    if current_user.rol == "Técnico":
+        query = query.filter(OrdenTrabajo.tecnico_id == current_user.id)
+    filtro = request.args.get("estado")
+    if filtro == "abiertas":
+        query = query.filter(OrdenTrabajo.estado != OT_CERRADA)
+    elif filtro in ESTADOS_OT:
+        query = query.filter(OrdenTrabajo.estado == filtro)
+
+    ordenes_lista = query.order_by(OrdenTrabajo.fecha_apertura.desc()).all()
+    filas = [
+        [
+            o.numero, o.tipo, o.prioridad, o.estado,
+            o.visita.instalacion.cliente.nombre, o.visita.instalacion.nombre,
+            o.tecnico.nombre_completo if o.tecnico else "",
+            o.fecha_apertura.strftime("%d/%m/%Y"),
+            o.fecha_compromiso.strftime("%d/%m/%Y") if o.fecha_compromiso else "",
+            o.fecha_cierre.strftime("%d/%m/%Y") if o.fecha_cierre else "",
+        ]
+        for o in ordenes_lista
+    ]
+    return csv_response(
+        "ordenes.csv",
+        ["Número", "Tipo", "Prioridad", "Estado", "Cliente", "Instalación", "Técnico",
+         "Apertura", "Compromiso", "Cierre"],
+        filas,
+    )
 
 
 @principal.route("/orden/<int:orden_id>")
@@ -1008,6 +1054,30 @@ def visitas():
     return render_template("visitas.html", visitas=lista)
 
 
+@principal.route("/visitas/exportar")
+@login_required
+def visitas_exportar():
+    query = _visitas_empresa()
+    if current_user.rol == "Técnico":
+        query = query.filter(Visita.tecnico_id == current_user.id)
+    visitas_lista = query.order_by(Visita.fecha.desc()).all()
+
+    filas = [
+        [
+            v.id, v.fecha.strftime("%d/%m/%Y"), v.instalacion.cliente.nombre, v.instalacion.nombre,
+            v.tecnico.nombre_completo if v.tecnico else "",
+            ", ".join(f"{i.categoria.nombre} ({i.rutina})" for i in v.items),
+            "Sí" if v.firmada else "No",
+        ]
+        for v in visitas_lista
+    ]
+    return csv_response(
+        "visitas.csv",
+        ["N°", "Fecha", "Cliente", "Instalación", "Técnico", "Categorías", "Firmada"],
+        filas,
+    )
+
+
 @principal.route("/visita/<int:visita_id>")
 @login_required
 def visita(visita_id):
@@ -1020,6 +1090,62 @@ def visita(visita_id):
         Observacion.query.filter_by(visita_id=obj.id).order_by(Observacion.id).all()
     )
     return render_template("visita.html", visita=obj, observaciones=observaciones)
+
+
+@principal.route("/visita/<int:visita_id>/informe.pdf")
+@login_required
+def visita_informe(visita_id):
+    obj = db.session.get(Visita, visita_id)
+    if obj is None:
+        abort(404)
+    if current_user.es_cliente:
+        if current_user.cliente_id != obj.instalacion.cliente_id:
+            abort(403)
+    else:
+        _verificar_empresa(obj.instalacion.cliente.empresa_id)
+
+    pdf_bytes = generar_informe_visita(current_app, obj)
+    return Response(
+        pdf_bytes, mimetype="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="informe-visita-{obj.id}.pdf"'},
+    )
+
+
+@principal.route("/visita/<int:visita_id>/firmar", methods=["POST"])
+@login_required
+def visita_firmar(visita_id):
+    obj = db.session.get(Visita, visita_id)
+    if obj is None:
+        abort(404)
+    empresa_id = obj.instalacion.cliente.empresa_id
+    _verificar_empresa(empresa_id)
+
+    cambio = False
+    for campo, form_key in (("firma_tecnico_archivo", "firma_tecnico"), ("firma_cliente_archivo", "firma_cliente")):
+        data_url = request.form.get(form_key)
+        if not data_url:
+            continue
+        try:
+            setattr(obj, campo, guardar_firma(current_app, data_url, empresa_id))
+            cambio = True
+        except FotoInvalida as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("principal.visita", visita_id=obj.id))
+
+    nombre_cliente = (request.form.get("firma_cliente_nombre") or "").strip()
+    if nombre_cliente:
+        obj.firma_cliente_nombre = nombre_cliente
+        # El nombre solo no cuenta como firma: sin trazo dibujado no hay
+        # nada que mostrar en el informe.
+
+    if not cambio:
+        flash("No había ninguna firma nueva para guardar.", "error")
+        return redirect(url_for("principal.visita", visita_id=obj.id))
+
+    obj.fecha_firma = datetime.utcnow()
+    db.session.commit()
+    flash("Firma guardada.", "ok")
+    return redirect(url_for("principal.visita", visita_id=obj.id))
 
 
 # ---------------------------------------------------------------------------
@@ -1340,6 +1466,35 @@ def deficiencias(cliente_id=None):
     )
 
 
+@principal.route("/deficiencias/exportar")
+@principal.route("/deficiencias/<int:cliente_id>/exportar")
+@login_required
+def deficiencias_exportar(cliente_id=None):
+    query = _observaciones_empresa()
+    if cliente_id:
+        query = query.filter(Cliente.id == cliente_id)
+    filtro = request.args.get("estado")
+    if filtro == "pendientes":
+        query = query.filter(Observacion.estado_revision == REVISION_PENDIENTE)
+    elif filtro == "criticas":
+        query = query.filter(Observacion.clasificacion == CLASIF_CRITICA)
+
+    observaciones = query.order_by(Observacion.fecha_carga.desc()).all()
+    filas = [
+        [
+            o.clasificacion, o.descripcion, o.instalacion.cliente.nombre, o.instalacion.nombre,
+            o.equipo.etiqueta if o.equipo else "", o.fecha_carga.strftime("%d/%m/%Y"),
+            o.estado_revision, "Sí" if o.resuelto else "No",
+        ]
+        for o in observaciones
+    ]
+    return csv_response(
+        "deficiencias.csv",
+        ["Clase", "Descripción", "Cliente", "Instalación", "Equipo", "Fecha", "Estado revisión", "Resuelta"],
+        filas,
+    )
+
+
 @principal.route("/observacion/<int:observacion_id>/aprobar", methods=["POST"])
 @login_required
 def aprobar(observacion_id):
@@ -1651,6 +1806,209 @@ def notificaciones_marcar_todas():
 
 
 # ---------------------------------------------------------------------------
+# Usuarios y datos de la empresa
+# ---------------------------------------------------------------------------
+
+
+@principal.route("/usuarios")
+@login_required
+def usuarios():
+    _solo_gestion()
+    lista = (
+        Usuario.query.filter_by(empresa_id=current_user.empresa_id, cliente_id=None)
+        .order_by(Usuario.activo.desc(), Usuario.nombre_completo).all()
+    )
+    return render_template("usuarios.html", usuarios=lista)
+
+
+@principal.route("/usuario/nuevo", methods=["GET", "POST"])
+@principal.route("/usuario/<int:usuario_id>/editar", methods=["GET", "POST"])
+@login_required
+def usuario_form(usuario_id=None):
+    _solo_gestion()
+    obj = db.session.get(Usuario, usuario_id) if usuario_id else None
+    if usuario_id and obj is None:
+        abort(404)
+    if usuario_id:
+        _verificar_empresa(obj.empresa_id)
+
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        nombre_completo = (request.form.get("nombre_completo") or "").strip()
+        rol = request.form.get("rol")
+        if not username or not nombre_completo:
+            flash("Usuario y nombre completo son obligatorios.", "error")
+            return render_template("usuario_form.html", usuario=obj)
+        if rol not in ROLES or rol == "Cliente":
+            flash("Rol inválido.", "error")
+            return render_template("usuario_form.html", usuario=obj)
+
+        existente = Usuario.query.filter(
+            Usuario.username == username, Usuario.id != (obj.id if obj else -1)
+        ).first()
+        if existente:
+            flash(f"Ya existe un usuario con el username «{username}».", "error")
+            return render_template("usuario_form.html", usuario=obj)
+
+        password = request.form.get("password") or ""
+        if obj is None and len(password) < 4:
+            flash("La contraseña debe tener al menos 4 caracteres.", "error")
+            return render_template("usuario_form.html", usuario=obj)
+
+        if obj is None:
+            obj = Usuario(empresa_id=current_user.empresa_id)
+            obj.set_password(password)
+            db.session.add(obj)
+        elif password:
+            obj.set_password(password)
+
+        obj.username = username
+        obj.nombre_completo = nombre_completo
+        obj.rol = rol
+        obj.activo = bool(request.form.get("activo")) if usuario_id else True
+        db.session.commit()
+        flash(f"«{obj.nombre_completo}» guardado.", "ok")
+        return redirect(url_for("principal.usuarios"))
+
+    return render_template("usuario_form.html", usuario=obj)
+
+
+@principal.route("/usuario/<int:usuario_id>/baja", methods=["POST"])
+@login_required
+def usuario_baja(usuario_id):
+    _solo_gestion()
+    obj = db.session.get(Usuario, usuario_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.empresa_id)
+    if obj.id == current_user.id:
+        flash("No podés darte de baja a vos mismo.", "error")
+        return redirect(url_for("principal.usuarios"))
+    obj.activo = False
+    db.session.commit()
+    flash(f"«{obj.nombre_completo}» dado de baja.", "ok")
+    return redirect(url_for("principal.usuarios"))
+
+
+@principal.route("/usuario/<int:usuario_id>/habilitacion/nueva", methods=["POST"])
+@login_required
+def habilitacion_nueva(usuario_id):
+    _solo_gestion()
+    usuario_obj = db.session.get(Usuario, usuario_id)
+    if usuario_obj is None:
+        abort(404)
+    _verificar_empresa(usuario_obj.empresa_id)
+
+    nombre = (request.form.get("nombre") or "").strip()
+    if not nombre:
+        flash("El nombre de la habilitación es obligatorio.", "error")
+        return redirect(url_for("principal.usuario_form", usuario_id=usuario_id))
+
+    db.session.add(HabilitacionTecnico(
+        usuario_id=usuario_id, nombre=nombre,
+        vencimiento=_fecha(request.form.get("vencimiento")),
+        nota=(request.form.get("nota") or "").strip() or None,
+    ))
+    db.session.commit()
+    flash("Habilitación agregada.", "ok")
+    return redirect(url_for("principal.usuario_form", usuario_id=usuario_id))
+
+
+@principal.route("/habilitacion/<int:habilitacion_id>/eliminar", methods=["POST"])
+@login_required
+def habilitacion_eliminar(habilitacion_id):
+    _solo_gestion()
+    obj = db.session.get(HabilitacionTecnico, habilitacion_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.usuario.empresa_id)
+    usuario_id = obj.usuario_id
+    db.session.delete(obj)
+    db.session.commit()
+    flash("Habilitación eliminada.", "ok")
+    return redirect(url_for("principal.usuario_form", usuario_id=usuario_id))
+
+
+@principal.route("/empresa/editar", methods=["GET", "POST"])
+@login_required
+def empresa_editar():
+    _solo_gestion()
+    obj = current_user.empresa
+
+    if request.method == "POST":
+        nombre = (request.form.get("nombre") or "").strip()
+        if not nombre:
+            flash("El nombre de la empresa es obligatorio.", "error")
+            return render_template("empresa_form.html", empresa=obj)
+        obj.nombre = nombre
+        obj.rut = (request.form.get("rut") or "").strip() or None
+
+        archivo = request.files.get("logo")
+        if archivo and archivo.filename:
+            try:
+                nombre_archivo, _, _, _ = guardar_archivo(current_app, archivo, obj.id)
+                obj.logo = ruta_relativa(obj.id, nombre_archivo)
+            except FotoInvalida as exc:
+                flash(str(exc), "error")
+                return render_template("empresa_form.html", empresa=obj)
+
+        db.session.commit()
+        flash("Datos de la empresa actualizados.", "ok")
+        return redirect(url_for("principal.empresa_editar"))
+
+    return render_template("empresa_form.html", empresa=obj)
+
+
+# ---------------------------------------------------------------------------
+# Calendario de visitas
+# ---------------------------------------------------------------------------
+
+
+@principal.route("/calendario")
+@login_required
+def calendario():
+    hoy = date.today()
+    anio = request.args.get("anio", type=int) or hoy.year
+    mes = request.args.get("mes", type=int) or hoy.month
+    mes = min(12, max(1, mes))
+    tecnico_id = request.args.get("tecnico_id", type=int)
+
+    primero = date(anio, mes, 1)
+    ultimo = date(anio, mes, monthrange(anio, mes)[1])
+
+    query = _visitas_empresa().filter(Visita.fecha >= primero, Visita.fecha <= ultimo)
+    if current_user.rol == "Técnico":
+        query = query.filter(Visita.tecnico_id == current_user.id)
+    elif tecnico_id:
+        query = query.filter(Visita.tecnico_id == tecnico_id)
+    visitas_mes = query.order_by(Visita.fecha).all()
+
+    por_dia = {}
+    for v in visitas_mes:
+        por_dia.setdefault(v.fecha.day, []).append(v)
+
+    # Grilla de semanas: None donde el mes no tiene día (relleno antes/después).
+    primer_dow = primero.weekday()  # 0 = lunes
+    dias_mes = ultimo.day
+    celdas = [None] * primer_dow + list(range(1, dias_mes + 1))
+    while len(celdas) % 7:
+        celdas.append(None)
+    semanas = [celdas[i:i + 7] for i in range(0, len(celdas), 7)]
+
+    tecnicos = (
+        Usuario.query.filter_by(empresa_id=current_user.empresa_id, activo=True)
+        .filter(Usuario.rol.in_(("Técnico", "Jefe técnico")))
+        .order_by(Usuario.nombre_completo).all()
+        if not current_user.rol == "Técnico" else []
+    )
+
+    return render_template(
+        "calendario.html", semanas=semanas, por_dia=por_dia, anio=anio, mes=mes,
+        MESES=MESES, hoy=hoy, tecnicos=tecnicos, tecnico_id=tecnico_id,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Catálogo de la empresa
 # ---------------------------------------------------------------------------
 
@@ -1928,7 +2286,7 @@ def portal():
     cliente_obj = current_user.cliente
     if cliente_obj is None:
         return render_template("portal.html", cliente=None, instalaciones=[],
-                               abiertas=[], resueltas=[], visitas=[])
+                               abiertas=[], resueltas=[], visitas=[], presupuestos=[])
 
     instalaciones = (
         Instalacion.query.filter_by(cliente_id=cliente_obj.id)
@@ -1942,12 +2300,21 @@ def portal():
         .order_by(Visita.fecha.desc()).limit(10).all()
         if ids else []
     )
+    # Solo lectura: el cliente ve en qué anda su presupuesto, pero lo
+    # aprueba gestión (por ahora sin flujo de aprobación desde el portal).
+    presupuestos_cliente = (
+        Presupuesto.query.join(Observacion, Presupuesto.observacion_id == Observacion.id)
+        .filter(Observacion.instalacion_id.in_(ids))
+        .order_by(Presupuesto.fecha_creacion.desc()).all()
+        if ids else []
+    )
 
     return render_template(
         "portal.html", cliente=cliente_obj, instalaciones=instalaciones,
         abiertas=[o for o in visibles if not o.resuelto],
         resueltas=[o for o in visibles if o.resuelto],
         visitas=visitas_cliente,
+        presupuestos=presupuestos_cliente,
     )
 
 

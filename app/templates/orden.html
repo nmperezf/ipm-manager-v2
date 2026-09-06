@@ -28,6 +28,8 @@
   {% elif orden.estado == OT_EN_REVISION %}<span class="pill nocrit">{{ orden.estado }}</span>
   {% else %}<span class="pill com">{{ orden.estado }}</span>{% endif %}
   {% if orden.vencida %}<span class="pill crit">vencida</span>{% endif %}
+  <a class="btn ghost sm" href="{{ url_for('principal.visita_informe', visita_id=visita.id) }}" target="_blank">
+    Informe (PDF)</a>
 </div>
 
 {# Lo que el técnico vino a hacer. Si queda algo sin cargar, el botón lo

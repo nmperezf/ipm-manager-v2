@@ -23,6 +23,7 @@
   <a class="btn {{ '' if filtro == 'pendientes' else 'ghost' }} sm"
      href="{{ url_for('principal.deficiencias', cliente_id=cliente_id, estado='pendientes') }}">Sin aprobar</a>
   <span class="sp"></span>
+  <a class="btn ghost sm" href="{{ url_for('principal.deficiencias_exportar', cliente_id=cliente_id, estado=filtro) }}">Exportar CSV</a>
   <span class="tiny">{{ observaciones|length }} listada(s)</span>
 </div>
 

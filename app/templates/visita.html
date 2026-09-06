@@ -23,6 +23,9 @@
       {{ inst.cliente.nombre }} · {{ inst.nombre }}
     </span>
   </div>
+  <span class="sp"></span>
+  <a class="btn ghost sm" href="{{ url_for('principal.visita_informe', visita_id=visita.id) }}" target="_blank">
+    Descargar informe (PDF)</a>
 </div>
 
 {% for item in visita.items %}
@@ -99,4 +102,87 @@
     {% endfor %}
   </div>
 </div>
+
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Firmas de cierre</h3>
+    <span class="sp"></span>
+    {% if visita.fecha_firma %}
+      <span class="pill ok">Firmada el {{ visita.fecha_firma.strftime('%d/%m/%Y %H:%M') }}</span>
+    {% endif %}
+  </div>
+
+  <form method="post" action="{{ url_for('principal.visita_firmar', visita_id=visita.id) }}" id="form-firmas">
+    <div class="fila" style="align-items:flex-start;flex-wrap:wrap;gap:1rem">
+      <div style="flex:1;min-width:16rem">
+        <span class="rotulo">Firma del técnico</span>
+        <canvas class="ec-firma" data-firma="tecnico" width="320" height="140"></canvas>
+        <button type="button" class="btn ghost sm" data-limpiar-firma="tecnico">Borrar</button>
+      </div>
+      <div style="flex:1;min-width:16rem">
+        <label class="campo" style="margin-bottom:.3rem">
+          <span class="rotulo">Nombre de quien firma por el cliente</span>
+          <input type="text" name="firma_cliente_nombre" value="{{ visita.firma_cliente_nombre or '' }}">
+        </label>
+        <span class="rotulo">Firma del cliente</span>
+        <canvas class="ec-firma" data-firma="cliente" width="320" height="140"></canvas>
+        <button type="button" class="btn ghost sm" data-limpiar-firma="cliente">Borrar</button>
+      </div>
+    </div>
+    <input type="hidden" name="firma_tecnico" data-input-firma="tecnico">
+    <input type="hidden" name="firma_cliente" data-input-firma="cliente">
+    <button class="btn sm" type="submit" style="margin-top:.7rem">Guardar firmas</button>
+  </form>
+</div>
+
+<script>
+(function () {
+  document.querySelectorAll('canvas.ec-firma').forEach(function (canvas) {
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.strokeStyle = '#12191F';
+    var dibujando = false;
+    canvas.dataset.sucio = '0';
+
+    function posicion(ev) {
+      var r = canvas.getBoundingClientRect();
+      var p = ev.touches ? ev.touches[0] : ev;
+      return [(p.clientX - r.left) * canvas.width / r.width, (p.clientY - r.top) * canvas.height / r.height];
+    }
+    function iniciar(ev) {
+      dibujando = true; canvas.dataset.sucio = '1';
+      var p = posicion(ev); ctx.beginPath(); ctx.moveTo(p[0], p[1]); ev.preventDefault();
+    }
+    function mover(ev) {
+      if (!dibujando) return;
+      var p = posicion(ev); ctx.lineTo(p[0], p[1]); ctx.stroke(); ev.preventDefault();
+    }
+    function terminar() { dibujando = false; }
+
+    canvas.addEventListener('pointerdown', iniciar);
+    canvas.addEventListener('pointermove', mover);
+    window.addEventListener('pointerup', terminar);
+  });
+
+  document.querySelectorAll('[data-limpiar-firma]').forEach(function (boton) {
+    boton.addEventListener('click', function () {
+      var canvas = document.querySelector('canvas[data-firma="' + boton.dataset.limpiarFirma + '"]');
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      canvas.dataset.sucio = '0';
+    });
+  });
+
+  var form = document.getElementById('form-firmas');
+  if (form) {
+    form.addEventListener('submit', function () {
+      form.querySelectorAll('[data-input-firma]').forEach(function (input) {
+        var tipo = input.dataset.inputFirma;
+        var canvas = document.querySelector('canvas[data-firma="' + tipo + '"]');
+        input.value = canvas.dataset.sucio === '1' ? canvas.toDataURL('image/png') : '';
+      });
+    });
+  }
+})();
+</script>
 {% endblock %}

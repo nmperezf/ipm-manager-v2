@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Usuarios — IPM Manager{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Usuarios</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>Usuarios</h2>
+    <span class="sub">Administradores, jefes técnicos y técnicos de {{ current_user.empresa.nombre }}.</span>
+  </div>
+  <span class="sp"></span>
+  <a class="btn sm" href="{{ url_for('principal.usuario_form') }}">{{ ico('mas') }}Nuevo</a>
+</div>
+
+{% if usuarios %}
+<div class="stack">
+  {% for u in usuarios %}
+    <div class="item {{ '' if u.activo else 'crit' }}">
+      <span class="chip {{ 'ok' if u.activo else 'neu' }}">{{ ico('config') }}</span>
+      <span class="t">
+        <b>{{ u.nombre_completo }}</b>
+        <span>
+          <span class="mono">{{ u.username }}</span> · {{ u.rol }}
+          {%- if u.habilitaciones_vencidas %} · {{ u.habilitaciones_vencidas|length }} habilitación(es) vencida(s){% endif %}
+        </span>
+      </span>
+      {% if not u.activo %}<span class="pill crit">Baja</span>{% endif %}
+      <a class="btn ghost sm" href="{{ url_for('principal.usuario_form', usuario_id=u.id) }}">Editar</a>
+    </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="vacio">
+  <span class="chip neu">{{ ico('config') }}</span>
+  <b>Sin usuarios cargados</b>
+</div>
+{% endif %}
+{% endblock %}

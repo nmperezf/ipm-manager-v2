@@ -10,6 +10,8 @@ Pillow y volver a guardarla descarta cualquier cosa que no sea realmente
 una imagen, y de paso saca los metadatos EXIF (que incluyen ubicación GPS).
 """
 
+import base64
+import io
 import os
 import uuid
 
@@ -73,6 +75,27 @@ def guardar_archivo(app, archivo, empresa_id):
 def ruta_relativa(empresa_id, archivo):
     """Ruta para url_for('static', filename=...)."""
     return f"uploads/{empresa_id}/{archivo}"
+
+
+def guardar_firma(app, data_url, empresa_id):
+    """Decodifica una firma capturada en un &lt;canvas&gt; (data URL base64) y
+    la guarda como PNG, igual criterio anti-manipulación que las fotos:
+    se reabre con Pillow en vez de confiar en el header declarado. Devuelve
+    el nombre de archivo, o None si `data_url` viene vacío (firma opcional)."""
+    if not data_url:
+        return None
+    try:
+        cabecera, contenido = data_url.split(",", 1)
+        crudo = base64.b64decode(contenido)
+        imagen = Image.open(io.BytesIO(crudo))
+        imagen.load()
+    except Exception as error:  # noqa: BLE001 — cualquier fallo es "firma inválida"
+        raise FotoInvalida("La firma no se pudo procesar.") from error
+
+    nombre = f"{uuid.uuid4().hex}.png"
+    destino = os.path.join(_carpeta(app, empresa_id), nombre)
+    imagen.save(destino, "PNG", optimize=True)
+    return nombre
 
 
 def borrar_archivo(app, empresa_id, archivo):

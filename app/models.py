@@ -19,7 +19,7 @@ resueltos de raíz en vez de como parches sobre el modelo viejo:
    silencio.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
@@ -251,6 +251,23 @@ class Usuario(UserMixin, db.Model):
         visita la hizo alguien que puede aprobar, no tiene sentido que se
         apruebe a sí mismo."""
         return self.rol in ROLES_APRUEBAN
+
+    @property
+    def habilitaciones_vencidas(self):
+        hoy = date.today()
+        return [h for h in self.habilitaciones if h.vencimiento and h.vencimiento < hoy]
+
+    @property
+    def habilitaciones_por_vencer(self):
+        """Vencen dentro de 30 días — todavía vigentes, pero hay que
+        renovarlas antes de que el técnico quede sin ninguna habilitación
+        válida para el ensayo que la requiere."""
+        hoy = date.today()
+        limite = hoy + timedelta(days=30)
+        return [
+            h for h in self.habilitaciones
+            if h.vencimiento and hoy <= h.vencimiento <= limite
+        ]
 
     def __repr__(self):
         return f"<Usuario {self.username} ({self.rol})>"
@@ -598,8 +615,20 @@ class Visita(db.Model):
     # deficiencias — que llega acá como backref desde Observacion.visita.
     notas = db.Column(db.Text)
 
+    # Firma digital de cierre (ver app/informes.py: se embeben en el PDF del
+    # informe). Cualquiera de las dos puede faltar — el informe sale igual,
+    # mostrando "Sin firmar" en la que no esté.
+    firma_tecnico_archivo = db.Column(db.String(200))
+    firma_cliente_archivo = db.Column(db.String(200))
+    firma_cliente_nombre = db.Column(db.String(150))
+    fecha_firma = db.Column(db.DateTime)
+
     instalacion = db.relationship("Instalacion", backref="visitas")
     tecnico = db.relationship("Usuario")
+
+    @property
+    def firmada(self):
+        return bool(self.firma_tecnico_archivo or self.firma_cliente_archivo)
 
     def __repr__(self):
         return f"<Visita {self.id} {self.fecha}>"
@@ -1306,3 +1335,30 @@ class CoordinacionAudit(db.Model):
 
     def __repr__(self):
         return f"<CoordinacionAudit {self.fecha_anterior}→{self.fecha_nueva}>"
+
+
+# ---------------------------------------------------------------------------
+# Habilitaciones de técnico — registro + alerta, no bloquea la asignación.
+# Ciertos ensayos (la prueba de curva de caudal, por ejemplo) exigen
+# personal certificado; esto deja constancia de qué técnico tiene qué
+# habilitación vigente, sin forzar nada en el flujo de asignación.
+# ---------------------------------------------------------------------------
+
+
+class HabilitacionTecnico(db.Model):
+    __tablename__ = "habilitaciones_tecnico"
+
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=False, index=True)
+    nombre = db.Column(db.String(150), nullable=False)
+    vencimiento = db.Column(db.Date)  # nulo si no vence
+    nota = db.Column(db.Text)
+
+    usuario = db.relationship("Usuario", backref=db.backref("habilitaciones", cascade="all, delete-orphan"))
+
+    @property
+    def vencida(self):
+        return bool(self.vencimiento and self.vencimiento < date.today())
+
+    def __repr__(self):
+        return f"<HabilitacionTecnico {self.nombre} usuario={self.usuario_id}>"

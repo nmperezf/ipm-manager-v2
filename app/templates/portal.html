@@ -111,6 +111,8 @@
           <b>{{ v.instalacion.nombre }}</b>
           <span>{{ v.fecha.strftime('%d/%m/%Y') }}</span>
         </span>
+        <a class="btn ghost sm" href="{{ url_for('principal.visita_informe', visita_id=v.id) }}" target="_blank">
+          Informe (PDF)</a>
       </div>
     {% else %}
       <div class="vacio">
@@ -120,6 +122,28 @@
     {% endfor %}
   </div>
 </div>
+
+{% if presupuestos %}
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Presupuestos en curso</h3>
+    <span class="sp"></span>
+    <span class="tiny">{{ presupuestos|length }}</span>
+  </div>
+  <div class="stack">
+    {% for p in presupuestos %}
+      <div class="item">
+        <span class="chip neu">{{ ico('presupuesto') }}</span>
+        <span class="t">
+          <b><span class="mono">{{ p.codigo }}</span></b>
+          <span>{{ p.observacion.descripcion }}</span>
+        </span>
+        <span class="pill com">{{ p.estado }}</span>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 {% endif %}
 {% endblock %}

@@ -544,3 +544,24 @@ tbody tr:hover .froz{background:var(--surface-muted)}
   .ec-leyenda label{min-height:44px}
   .ec-quitar{min-width:40px;min-height:40px}
 }
+
+.ec-firma{width:100%;max-width:320px;height:140px;background:#fff;border:1.5px dashed var(--border-strong);
+  border-radius:var(--r-sm);touch-action:none;cursor:crosshair;display:block;margin:.3rem 0}
+
+/* Calendario mensual (ver calendario.html) */
+.cal-grilla{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);
+  border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
+.cal-encabezado{background:var(--surface-muted);padding:.3rem;text-align:center;
+  font-size:var(--t-micro);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.cal-dia{background:var(--surface);min-height:5.5rem;padding:.3rem;display:flex;flex-direction:column;gap:.2rem}
+.cal-dia.vacio{background:var(--ground)}
+.cal-dia.hoy{outline:2px solid var(--brand-light);outline-offset:-2px}
+.cal-dia .num{font-family:var(--mono);font-size:.7rem;color:var(--ink-faint)}
+.cal-visita{font-size:.68rem;padding:.1rem .3rem;border-radius:5px;background:var(--neutral-soft);
+  color:var(--neutral);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-visita.crit{background:var(--ember-soft);color:var(--ember)}
+.cal-visita.ok{background:var(--ok-soft);color:var(--ok)}
+@media (max-width:680px){
+  .cal-dia{min-height:3.5rem}
+  .cal-visita{font-size:.62rem}
+}

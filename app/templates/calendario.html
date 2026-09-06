@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Calendario — IPM Manager{% endblock %}
+
+{% set mes_ant = 12 if mes == 1 else mes - 1 %}
+{% set anio_ant = anio - 1 if mes == 1 else anio %}
+{% set mes_sig = 1 if mes == 12 else mes + 1 %}
+{% set anio_sig = anio + 1 if mes == 12 else anio %}
+{% set DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
+
+{% block migas %}
+<nav class="migas"><b>Calendario</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ MESES[mes] | capitalize }} {{ anio }}</h2>
+    <span class="sub">Visitas del mes, por día.</span>
+  </div>
+  <span class="sp"></span>
+  {% if tecnicos %}
+    <form method="get" style="display:inline">
+      <input type="hidden" name="anio" value="{{ anio }}">
+      <input type="hidden" name="mes" value="{{ mes }}">
+      <select name="tecnico_id" onchange="this.form.submit()">
+        <option value="">Todos los técnicos</option>
+        {% for t in tecnicos %}
+          <option value="{{ t.id }}" {{ 'selected' if tecnico_id == t.id }}>{{ t.nombre_completo or t.username }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  {% endif %}
+  <a class="btn ghost sm" href="{{ url_for('principal.calendario', anio=anio_ant, mes=mes_ant, tecnico_id=tecnico_id) }}">← anterior</a>
+  <a class="btn ghost sm" href="{{ url_for('principal.calendario') }}">Hoy</a>
+  <a class="btn ghost sm" href="{{ url_for('principal.calendario', anio=anio_sig, mes=mes_sig, tecnico_id=tecnico_id) }}">siguiente →</a>
+</div>
+
+<div class="cal-grilla">
+  {% for d in DIAS %}<div class="cal-encabezado">{{ d }}</div>{% endfor %}
+  {% for semana in semanas %}
+    {% for dia in semana %}
+      {% if dia is none %}
+        <div class="cal-dia vacio"></div>
+      {% else %}
+        {% set es_hoy = hoy.year == anio and hoy.month == mes and hoy.day == dia %}
+        <div class="cal-dia {{ 'hoy' if es_hoy }}">
+          <span class="num">{{ dia }}</span>
+          {% for v in por_dia.get(dia, []) %}
+            {% set ot = v.orden %}
+            <a class="cal-visita {{ 'ok' if ot and ot.estado == OT_CERRADA else ('crit' if ot and ot.vencida) }}"
+               href="{{ url_for('principal.visita', visita_id=v.id) }}"
+               title="{{ v.instalacion.cliente.nombre }} · {{ v.instalacion.nombre }}">
+              {{ v.instalacion.cliente.nombre }} · {{ v.tecnico.nombre_completo if v.tecnico else 'sin asignar' }}
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+</div>
+{% endblock %}

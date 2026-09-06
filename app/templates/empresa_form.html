@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Mi empresa — IPM Manager{% endblock %}
+
+{% block migas %}
+<nav class="migas"><b>Mi empresa</b></nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera"><h2>Datos de la empresa</h2></div>
+
+<form method="post" enctype="multipart/form-data" class="card">
+  <label class="campo">
+    <span class="rotulo">Nombre</span>
+    <input type="text" name="nombre" required value="{{ empresa.nombre }}">
+  </label>
+  <label class="campo">
+    <span class="rotulo">RUT</span>
+    <input type="text" name="rut" value="{{ empresa.rut or '' }}">
+  </label>
+  <label class="campo">
+    <span class="rotulo">Logo (aparece en el encabezado de los informes)</span>
+    {% if empresa.logo %}
+      <img src="{{ url_for('static', filename=empresa.logo) }}" alt="Logo actual" style="max-height:60px;display:block;margin-bottom:.4rem">
+    {% endif %}
+    <input type="file" name="logo" accept="image/*">
+  </label>
+  <button class="btn" type="submit">Guardar</button>
+</form>
+{% endblock %}

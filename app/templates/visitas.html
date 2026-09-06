@@ -14,6 +14,8 @@
       · {{ visitas|length }} listada(s)
     </span>
   </div>
+  <span class="sp"></span>
+  <a class="btn ghost sm" href="{{ url_for('principal.visitas_exportar') }}">Exportar CSV</a>
 </div>
 
 {% if visitas %}

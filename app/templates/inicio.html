@@ -38,6 +38,28 @@
   </a>
 </div>
 
+{% if habilitaciones_alerta %}
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Habilitaciones a revisar</h3>
+    <span class="sp"></span>
+    <a class="tiny" href="{{ url_for('principal.usuarios') }}">ver usuarios →</a>
+  </div>
+  <div class="stack">
+    {% for u, h, vencida in habilitaciones_alerta %}
+      <div class="item {{ 'crit' if vencida }}">
+        <span class="chip {{ 'crit' if vencida else 'warn' }}">{{ ico('config') }}</span>
+        <span class="t">
+          <b>{{ u.nombre_completo }} — {{ h.nombre }}</b>
+          <span>vence {{ h.vencimiento.strftime('%d/%m/%Y') }}</span>
+        </span>
+        <span class="pill {{ 'crit' if vencida else 'nocrit' }}">{{ 'Vencida' if vencida else 'Por vencer' }}</span>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% if repuestos_criticos %}
 <div class="card">
   <div class="fila" style="margin-bottom:.6rem">

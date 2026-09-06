@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{% if usuario %}Editar usuario{% else %}Nuevo usuario{% endif %} — IPM Manager{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.usuarios') }}">Usuarios</a>
+  {{ ico('chevron') }}<b>{% if usuario %}Editar{% else %}Nuevo{% endif %}</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera"><h2>{% if usuario %}Editar «{{ usuario.nombre_completo }}»{% else %}Nuevo usuario{% endif %}</h2></div>
+
+<form method="post" class="card">
+  <label class="campo">
+    <span class="rotulo">Nombre completo</span>
+    <input type="text" name="nombre_completo" required value="{{ usuario.nombre_completo if usuario else '' }}">
+  </label>
+  <label class="campo">
+    <span class="rotulo">Usuario (para iniciar sesión)</span>
+    <input type="text" name="username" required value="{{ usuario.username if usuario else '' }}">
+  </label>
+  <label class="campo">
+    <span class="rotulo">Rol</span>
+    <select name="rol">
+      {% for r in ROLES %}
+        {% if r != 'Cliente' %}
+          <option value="{{ r }}" {{ 'selected' if usuario and usuario.rol == r }}>{{ r }}</option>
+        {% endif %}
+      {% endfor %}
+    </select>
+  </label>
+  <label class="campo">
+    <span class="rotulo">{% if usuario %}Nueva contraseña (dejar vacío para no cambiarla){% else %}Contraseña{% endif %}</span>
+    <input type="password" name="password" {{ 'required' if not usuario }} autocomplete="new-password">
+  </label>
+  {% if usuario %}
+  <label class="campo" style="flex-direction:row;align-items:center;gap:.5rem">
+    <input type="checkbox" name="activo" {{ 'checked' if usuario.activo }} style="width:auto">
+    <span class="rotulo" style="margin:0">Activo</span>
+  </label>
+  {% endif %}
+  <button class="btn" type="submit">Guardar</button>
+</form>
+
+{% if usuario and usuario.id != current_user.id %}
+<form method="post" action="{{ url_for('principal.usuario_baja', usuario_id=usuario.id) }}"
+      onsubmit="return confirm('¿Dar de baja a {{ usuario.nombre_completo }}? No va a poder iniciar sesión.')">
+  <button class="btn ghost sm" type="submit" style="color:var(--ember)">Dar de baja</button>
+</form>
+{% endif %}
+
+{% if usuario and usuario.rol in ('Técnico', 'Jefe técnico') %}
+<div class="card" style="margin-top:1rem">
+  <h3 style="margin-bottom:.6rem">Habilitaciones / certificaciones</h3>
+  <div class="stack" style="margin-bottom:.7rem">
+    {% for h in usuario.habilitaciones %}
+      <div class="item {{ 'crit' if h.vencida }}">
+        <span class="chip {{ 'crit' if h.vencida else 'ok' }}">{{ ico('check') }}</span>
+        <span class="t">
+          <b>{{ h.nombre }}</b>
+          <span>
+            {% if h.vencimiento %}vence {{ h.vencimiento.strftime('%d/%m/%Y') }}{% else %}sin vencimiento{% endif %}
+            {%- if h.nota %} · {{ h.nota }}{% endif %}
+          </span>
+        </span>
+        {% if h.vencida %}<span class="pill crit">Vencida</span>{% endif %}
+        <form method="post" action="{{ url_for('principal.habilitacion_eliminar', habilitacion_id=h.id) }}">
+          <button class="btn ghost sm" type="submit">Quitar</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="tiny">Sin habilitaciones cargadas.</p>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="{{ url_for('principal.habilitacion_nueva', usuario_id=usuario.id) }}" class="fila" style="flex-wrap:wrap">
+    <input type="text" name="nombre" placeholder="Ej. Ensayo de curva de caudal NFPA 20" required style="flex:1;min-width:14rem">
+    <input type="date" name="vencimiento" title="Vencimiento (opcional)">
+    <input type="text" name="nota" placeholder="Nota (opcional)" style="min-width:10rem">
+    <button class="btn ghost sm" type="submit">Agregar</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
