@@ -296,6 +296,11 @@ def inicio():
         for h in u.habilitaciones_por_vencer:
             habilitaciones_alerta.append((u, h, False))
 
+    # Si las tres secciones de "nada que atender" están vacías a la vez,
+    # se funden en una sola franja liviana en vez de repetir tres tarjetas
+    # casi idénticas (revisión UX sept. 2026).
+    todo_al_dia = not mis_ordenes and not criticas and not visitas_recientes
+
     return render_template(
         "inicio.html",
         criticas=criticas[:6],
@@ -310,6 +315,7 @@ def inicio():
         repuestos_criticos=repuestos_criticos_lista,
         total_repuestos_criticos=total_repuestos_criticos,
         habilitaciones_alerta=habilitaciones_alerta,
+        todo_al_dia=todo_al_dia,
     )
 
 
@@ -2396,3 +2402,36 @@ def buscar():
 
     total = sum(len(v) for v in resultados.values())
     return render_template("buscar.html", q=q, resultados=resultados, total=total)
+
+
+@principal.route("/buscar/vivo")
+@login_required
+def buscar_vivo():
+    """Resultados en vivo para el desplegable del buscador — la versión
+    corta de `buscar()`, sin re-teclear las mismas queries (revisión UX
+    sept. 2026: antes había que apretar Enter y esperar una página nueva
+    para ver un solo resultado)."""
+    q = (request.args.get("q") or "").strip()
+    resultados = {"clientes": [], "instalaciones": [], "equipos": []}
+
+    if len(q) >= 2:
+        patron = f"%{q}%"
+        empresa = current_user.empresa_id
+        resultados["clientes"] = (
+            Cliente.query.filter(Cliente.empresa_id == empresa, Cliente.nombre.ilike(patron))
+            .order_by(Cliente.nombre).limit(4).all()
+        )
+        resultados["instalaciones"] = (
+            _instalaciones_empresa().filter(Instalacion.nombre.ilike(patron))
+            .order_by(Instalacion.nombre).limit(4).all()
+        )
+        resultados["equipos"] = (
+            Equipo.query.join(Instalacion).join(Cliente)
+            .filter(
+                Cliente.empresa_id == empresa,
+                or_(Equipo.nombre.ilike(patron), Equipo.codigo.ilike(patron)),
+            )
+            .order_by(Equipo.codigo).limit(4).all()
+        )
+
+    return render_template("_buscar_vivo.html", q=q, resultados=resultados)

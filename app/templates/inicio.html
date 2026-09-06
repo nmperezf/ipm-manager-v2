@@ -9,29 +9,31 @@
   </div>
 </div>
 
-{# Ember solo donde hay que actuar hoy. El resto queda en la escala de azules. #}
+{# Ember solo donde hay que actuar hoy. El resto queda en la escala de azules.
+   La que tiene algo que atender crece y se destaca; las que están en 0 se
+   atenúan — de un vistazo se sabe cuál leer primero (revisión UX sept. 2026). #}
 <div class="stats">
-  <a class="stat crit" href="{{ url_for('principal.deficiencias', estado='criticas') }}">
+  <a class="stat crit {{ 'foco' if total_criticas else 'dim' }}" href="{{ url_for('principal.deficiencias', estado='criticas') }}">
     <div class="k">Críticas abiertas</div>
     <div class="v">{{ total_criticas }}</div>
     <div class="d">dejan el sistema inoperante</div>
   </a>
-  <a class="stat warn" href="{{ url_for('principal.deficiencias', estado='pendientes') }}">
+  <a class="stat warn {{ 'dim' if not pendientes }}" href="{{ url_for('principal.deficiencias', estado='pendientes') }}">
     <div class="k">Sin aprobar</div>
     <div class="v">{{ pendientes }}</div>
     <div class="d">el cliente no las ve</div>
   </a>
-  <a class="stat" href="{{ url_for('principal.deficiencias') }}">
+  <a class="stat {{ 'dim' if not abiertas }}" href="{{ url_for('principal.deficiencias') }}">
     <div class="k">Abiertas</div>
     <div class="v">{{ abiertas }}</div>
     <div class="d">total sin resolver</div>
   </a>
-  <a class="stat ok" href="{{ url_for('principal.ordenes', estado='abiertas') }}">
+  <a class="stat ok {{ 'dim' if not total_ordenes }}" href="{{ url_for('principal.ordenes', estado='abiertas') }}">
     <div class="k">OT abiertas</div>
     <div class="v">{{ total_ordenes }}</div>
     <div class="d">{{ total_visitas }} visitas en 30 días</div>
   </a>
-  <a class="stat {{ 'warn' if total_repuestos_criticos }}" href="{{ url_for('principal.repuestos_criticos_lista') }}">
+  <a class="stat {{ 'warn' if total_repuestos_criticos else 'dim' }}" href="{{ url_for('principal.repuestos_criticos_lista') }}">
     <div class="k">Repuestos críticos</div>
     <div class="v">{{ total_repuestos_criticos }}</div>
     <div class="d">bajo el stock mínimo</div>
@@ -81,6 +83,21 @@
   </div>
 </div>
 {% endif %}
+
+{% if todo_al_dia %}
+{# Las tres secciones de abajo están vacías a la vez: una sola franja
+   liviana en vez de repetir la misma tarjeta de "todo bien" tres veces
+   seguidas (revisión UX sept. 2026). #}
+<div class="card destacada" style="border-left-color:var(--ok)">
+  <div class="fila">
+    <span class="chip ok">{{ ico('check') }}</span>
+    <span class="t">
+      <b>Todo al día</b>
+      <span>Sin órdenes abiertas, sin críticas pendientes, sin visitas en los últimos 30 días.</span>
+    </span>
+  </div>
+</div>
+{% else %}
 
 {# Lo primero que necesita ver un técnico: qué tiene pendiente y por dónde
    entrar. Cada OT lleva a su checklist, no a un listado intermedio. #}
@@ -180,4 +197,5 @@
     {% endfor %}
   </div>
 </div>
+{% endif %}
 {% endblock %}

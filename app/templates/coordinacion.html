@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Coordinación — IPM Manager{% endblock %}
+{% block title %}Coordinar visitas — IPM Manager{% endblock %}
 
 {% set mes_ant = 12 if mes == 1 else mes - 1 %}
 {% set anio_ant = anio - 1 if mes == 1 else anio %}
@@ -7,7 +7,7 @@
 {% set anio_sig = anio + 1 if mes == 12 else anio %}
 
 {% block migas %}
-<nav class="migas"><b>Coordinación</b></nav>
+<nav class="migas"><b>Coordinar visitas</b></nav>
 {% endblock %}
 
 {% block content %}
@@ -30,7 +30,7 @@
 <form method="post" action="{{ url_for('principal.coordinacion_generar') }}" class="fila" style="margin-bottom:.8rem">
   <input type="hidden" name="anio" value="{{ anio }}">
   <input type="hidden" name="mes" value="{{ mes }}">
-  <button class="btn ghost sm" type="submit">Generar solicitudes del mes</button>
+  <button class="btn sm" type="submit">Generar solicitudes del mes</button>
   <span class="tiny">Crea una solicitud por cada servicio de contrato pendiente. No duplica.</span>
 </form>
 

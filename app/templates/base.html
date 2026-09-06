@@ -38,6 +38,7 @@
 {%- elif nombre == 'calendario' %}<rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 10h16M8 3v4M16 3v4"/><circle cx="9" cy="14.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="14.5" r="1.2" fill="currentColor" stroke="none"/>
 {%- elif nombre == 'chevron' %}<path d="M9 5l7 7-7 7"/>
 {%- elif nombre == 'presupuesto' %}<path d="M7 3h10a1 1 0 011 1v16l-3-2-3 2-3-2-3 2V4a1 1 0 011-1z"/><path d="M9 8h6M9 12h6M9 16h3"/>
+{%- elif nombre == 'lista' %}<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/><circle cx="6.3" cy="9" r=".9" fill="currentColor" stroke="none"/><circle cx="6.3" cy="13" r=".9" fill="currentColor" stroke="none"/><circle cx="6.3" cy="17" r=".9" fill="currentColor" stroke="none"/>
 {%- elif nombre == 'repuesto' %}<path d="M14.7 6.3a4 4 0 01-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 015.4-5.4l-2.6 2.6-2-2z"/>
 {%- endif %}
 </svg>
@@ -69,10 +70,10 @@
     <div class="grupo">Operación</div>
     {% if gestion %}
     <a class="nav {{ 'on' if ep == 'principal.coordinacion' }}"
-       href="{{ url_for('principal.coordinacion') }}">{{ ico('calendario') }}Coordinación</a>
+       href="{{ url_for('principal.coordinacion') }}">{{ ico('lista') }}Coordinar visitas</a>
     {% endif %}
     <a class="nav {{ 'on' if ep == 'principal.calendario' }}"
-       href="{{ url_for('principal.calendario') }}">{{ ico('calendario') }}Calendario</a>
+       href="{{ url_for('principal.calendario') }}">{{ ico('calendario') }}Agenda</a>
     <a class="nav {{ 'on' if ep in ('principal.ordenes', 'principal.orden', 'principal.checklist') }}"
        href="{{ url_for('principal.ordenes') }}">{{ ico('orden') }}Órdenes de trabajo</a>
     <a class="nav {{ 'on' if ep in ('principal.visitas', 'principal.visita') }}"
@@ -115,17 +116,21 @@
   <div class="col">
     <div class="topbar">
       {% if not current_user.es_cliente %}
-      <form class="buscador" method="get" action="{{ url_for('principal.buscar') }}" role="search">
+      <form class="buscador" method="get" action="{{ url_for('principal.buscar') }}" role="search" id="form-buscar" autocomplete="off">
         {{ ico('buscar') }}
         <input type="search" name="q" value="{{ request.args.get('q', '') }}"
-               placeholder="Buscar cliente, instalación, equipo, visita…" aria-label="Buscar">
+               placeholder="Buscar cliente, instalación, equipo, visita…" aria-label="Buscar" id="input-buscar">
+        <div id="buscar-vivo" class="buscar-vivo" hidden></div>
       </form>
       {% endif %}
       <span class="sp"></span>
       {% if not current_user.es_cliente %}
       <a class="icono-btn" href="{{ url_for('principal.notificaciones') }}" title="Notificaciones"
-         aria-label="Notificaciones">
-        {{ ico('campana') }}{% if notificaciones_no_leidas %}<span class="punto"></span>{% endif %}
+         aria-label="Notificaciones{% if notificaciones_no_leidas %} ({{ notificaciones_no_leidas }} sin leer){% endif %}">
+        {{ ico('campana') }}
+        {%- if notificaciones_no_leidas %}
+          <span class="contador">{{ notificaciones_no_leidas if notificaciones_no_leidas <= 9 else '9+' }}</span>
+        {%- endif %}
       </a>
       {% endif %}
       <a class="avatar" href="{{ url_for('principal.cuenta') }}" title="{{ current_user.nombre_completo }}">
@@ -155,13 +160,21 @@
   <a href="{{ url_for('principal.ordenes') }}"
      class="{{ 'on' if ep in ('principal.ordenes', 'principal.orden', 'principal.checklist') }}">
     {{ ico('orden') }}Mis OT</a>
+  {% if current_user.rol == 'Técnico' %}
+  {# Un técnico en campo usa la agenda mucho más que el listado completo
+     de clientes — revisión UX sept. 2026: la barra de 5 no había vuelto
+     a mirarse desde que existían Repuestos/Presupuestos/Calendario. #}
+  <a href="{{ url_for('principal.calendario') }}" class="{{ 'on' if ep == 'principal.calendario' }}">
+    {{ ico('calendario') }}Agenda</a>
+  {% else %}
   <a href="{{ url_for('principal.clientes') }}"
      class="{{ 'on' if ep in ('principal.clientes', 'principal.cliente', 'principal.instalacion') }}">
     {{ ico('clientes') }}Clientes</a>
+  {% endif %}
   <a href="{{ url_for('principal.deficiencias') }}" class="{{ 'on' if ep == 'principal.deficiencias' }}">
     {{ ico('deficiencias') }}Deficiencias{% if pendientes_aprobacion %}<span class="punto"></span>{% endif %}</a>
-  <a href="{{ url_for('principal.cuenta') }}" class="{{ 'on' if ep == 'principal.cuenta' }}">
-    {{ ico('config') }}Cuenta</a>
+  <a href="{{ url_for('principal.notificaciones') }}" class="{{ 'on' if ep == 'principal.notificaciones' }}">
+    {{ ico('campana') }}Avisos{% if notificaciones_no_leidas %}<span class="punto"></span>{% endif %}</a>
 </nav>
 {% endif %}
 
@@ -183,6 +196,42 @@ document.addEventListener('change', function (ev) {
   var comentario = punto.querySelector('textarea[data-comentario]');
   if (comentario) comentario.required = noConforme;
 });
+
+// Búsqueda en vivo: antes Enter recargaba la página entera para mostrar
+// un resultado. Ahora un desplegable se llena a partir del 2º carácter;
+// Enter sigue yendo a la página completa de resultados, sin romper nada.
+(function () {
+  var input = document.getElementById('input-buscar');
+  var caja = document.getElementById('buscar-vivo');
+  if (!input || !caja) return;
+
+  var vivoUrl = input.form.action.replace(/\/buscar$/, '/buscar/vivo');
+  var espera = null;
+
+  function cerrar() { caja.hidden = true; }
+
+  function buscar() {
+    var q = input.value.trim();
+    if (q.length < 2) { cerrar(); return; }
+    fetch(vivoUrl + '?q=' + encodeURIComponent(q))
+      .then(function (r) { return r.text(); })
+      .then(function (html) { caja.innerHTML = html; caja.hidden = false; });
+  }
+
+  input.addEventListener('input', function () {
+    clearTimeout(espera);
+    espera = setTimeout(buscar, 220);
+  });
+  input.addEventListener('focus', function () {
+    if (input.value.trim().length >= 2) buscar();
+  });
+  document.addEventListener('click', function (ev) {
+    if (!input.form.contains(ev.target)) cerrar();
+  });
+  input.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') cerrar();
+  });
+})();
 </script>
 </body>
 </html>

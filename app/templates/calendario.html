@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Calendario — IPM Manager{% endblock %}
+{% block title %}Agenda — IPM Manager{% endblock %}
 
 {% set mes_ant = 12 if mes == 1 else mes - 1 %}
 {% set anio_ant = anio - 1 if mes == 1 else anio %}
@@ -8,7 +8,7 @@
 {% set DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
 
 {% block migas %}
-<nav class="migas"><b>Calendario</b></nav>
+<nav class="migas"><b>Agenda</b></nav>
 {% endblock %}
 
 {% block content %}

@@ -1,4 +1,4 @@
-{% import "base.html" as base %}
+{% import "base.html" as base with context %}
 {% for n in no_leidas %}
   <a class="item" href="{{ url_for('principal.notificacion_ir', notificacion_id=n.id) }}">
     <span class="chip {{ 'crit' if n.severidad == 'alerta' else ('ok' if n.severidad == 'ok' else 'neu') }}">

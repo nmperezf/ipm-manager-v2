@@ -44,7 +44,13 @@
 
 {% if not current_user.es_cliente %}
 <div class="card">
-  <h3 style="margin-bottom:.6rem">Empresa</h3>
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Empresa</h3>
+    <span class="sp"></span>
+    {% if current_user.puede_aprobar %}
+      <a class="btn ghost sm" href="{{ url_for('principal.empresa_editar') }}">Editar</a>
+    {% endif %}
+  </div>
   <div class="tabla-wrap">
     <table>
       <tbody>
@@ -63,13 +69,21 @@
 </div>
 {% endif %}
 
+{% if current_user.puede_aprobar %}
+<div class="card">
+  <h3 style="margin-bottom:.4rem">Cambiar mi contraseña</h3>
+  <p class="tiny" style="margin-bottom:.6rem">Se cambia desde tu propia ficha de usuario.</p>
+  <a class="btn ghost sm" href="{{ url_for('principal.usuario_form', usuario_id=current_user.id) }}">Ir a mi ficha</a>
+</div>
+{% else %}
 <div class="card">
   <h3>Todavía no implementado</h3>
   <p class="muted" style="margin:.4rem 0 0">
-    Cambio de contraseña{{ '' if current_user.es_cliente else ', edición de datos de empresa y alta de usuarios' }}.
-    Se listan acá para que quede claro que faltan, en vez de mostrar botones que no hacen nada.
+    Cambio de contraseña de tu propia cuenta — pedíselo a un administrador o jefe técnico mientras
+    tanto, ellos sí pueden cambiártela desde Usuarios.
   </p>
 </div>
+{% endif %}
 
 <p style="margin-top:1rem">
   <a class="btn ghost" href="{{ url_for('principal.logout') }}">{{ ico('salir') }}Cerrar sesión</a>

@@ -50,7 +50,10 @@
      paletas: fondo/tarjeta/borde bien separados, texto casi negro). */
   --ground:#E4EAF0; --surface:#FFF; --surface-muted:#DCE4EC;
   --border:#C7D2DC; --border-strong:#9FB0C0;
-  --ink:#12191F; --ink-muted:#48586A; --ink-faint:#65778A;
+  /* Oscurecidos un paso (revisión UX sept. 2026): --ink-faint estaba
+     ~3.1:1 sobre --ground, por debajo del mínimo de 4.5:1 para texto
+     chico — se leía mal con sol directo en una sala de bombas. */
+  --ink:#12191F; --ink-muted:#3E4C5C; --ink-faint:#52667A;
 
   --sombra:0 1px 2px rgba(18,40,63,.05);
   --sombra-alta:0 1px 2px rgba(18,40,63,.06), 0 12px 28px -18px rgba(18,40,63,.3);
@@ -135,6 +138,19 @@ main:focus-visible{outline:none}
 .riel .pie{margin-top:auto;padding-top:var(--e4);border-top:1px solid rgba(255,255,255,.1);
   font-size:var(--t-mini);color:#6E8CA8}
 
+/* Riel a solo íconos entre 901 y 1180px (una tablet en horizontal cae
+   justo ahí): a los 246px de siempre le comía un cuarto de la pantalla
+   del checklist, que es la que un técnico mira toda la visita (revisión
+   UX sept. 2026). El texto se apaga con font-size:0 en vez de sacarlo
+   del DOM — el ícono (ancho/alto fijos en px) no se ve afectado. */
+@media (min-width:901px) and (max-width:1180px){
+  :root{--riel:60px}
+  .riel{padding:var(--e4) var(--e2)}
+  .riel .marca{font-size:0;justify-content:center;padding:var(--e2) 0 var(--e5)}
+  .riel .grupo,.riel .pie,.riel a.nav .tag{display:none}
+  .riel a.nav{font-size:0;justify-content:center;padding:var(--e3) 0}
+}
+
 .col{display:flex;flex-direction:column;min-width:0}
 
 .topbar{display:flex;align-items:center;gap:var(--e3);padding:var(--e2) var(--e4);
@@ -145,6 +161,10 @@ main:focus-visible{outline:none}
 .buscador input{width:100%;padding:var(--e2) var(--e3) var(--e2) 2.1rem;border:1px solid var(--border);
   background:var(--surface-muted);border-radius:var(--r-sm);font:inherit;font-size:var(--t-base);color:var(--ink)}
 .buscador input:focus{background:var(--surface);border-color:var(--brand-light);outline:none}
+.buscar-vivo{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sombra-alta);
+  max-height:22rem;overflow-y:auto;z-index:50;padding:.3rem}
+.buscar-vivo .item{padding:var(--e2) var(--e3);border-radius:var(--r-sm)}
 
 .icono-btn{position:relative;background:none;border:0;color:var(--ink-muted);
   width:36px;height:36px;border-radius:var(--r-sm);cursor:pointer;display:grid;place-items:center;
@@ -152,6 +172,12 @@ main:focus-visible{outline:none}
 .icono-btn:hover{background:var(--surface-muted);color:var(--ink)}
 .icono-btn .punto{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;
   background:var(--ember);border:1.5px solid var(--surface)}
+/* Cuánto, no solo si hay algo — mismo criterio que el "tag" numérico de
+   Deficiencias en el riel (revisión UX sept. 2026: la campana era el
+   único indicador de este tipo que no decía cuánto). */
+.icono-btn .contador{position:absolute;top:2px;right:2px;min-width:15px;height:15px;padding:0 3px;
+  border-radius:99px;background:var(--ember);color:#fff;border:1.5px solid var(--surface);
+  font-family:var(--mono);font-size:.6rem;font-weight:700;line-height:12px;text-align:center}
 .avatar{width:30px;height:30px;border-radius:50%;background:var(--brand);color:#fff;
   display:grid;place-items:center;font-size:var(--t-micro);font-weight:700;font-family:var(--mono);
   text-decoration:none;flex:none}
@@ -220,6 +246,12 @@ a.stat:hover{border-color:var(--border-strong);box-shadow:var(--sombra-alta)}
 .stat.crit .v{color:var(--ember)}
 .stat.warn .v{color:var(--warn)}
 .stat.ok .v{color:var(--ok)}
+/* La que tiene algo que atender pesa más; las que están en 0 se retiran
+   sin perder legibilidad (revisión UX sept. 2026: las 5 pesaban igual,
+   había que leerlas todas para saber si urgía algo). */
+.stat.foco{box-shadow:0 0 0 2px var(--ember-soft),var(--sombra-alta);transform:scale(1.02)}
+.stat.dim{opacity:.55}
+.stat.dim:hover{opacity:1}
 
 /* --- ítem de lista --- */
 .item{display:flex;align-items:center;gap:var(--e3);background:var(--surface);
@@ -306,11 +338,13 @@ th{font-family:var(--mono);font-size:.63rem;letter-spacing:.08em;text-transform:
   color:var(--ink-faint);background:var(--surface-muted);white-space:nowrap;
   position:sticky;top:0;z-index:2}
 tbody tr:last-child td{border-bottom:0}
+tbody tr:nth-child(even) td{background:rgba(18,25,31,.02)}
 tbody tr td{transition:background-color .12s ease}
 tbody tr:hover td{background:var(--surface-muted)}
 .froz{position:sticky;left:0;background:var(--surface);font-weight:600;
   box-shadow:1px 0 0 var(--border);z-index:1}
 th.froz{background:var(--surface-muted);z-index:3}
+tbody tr:nth-child(even) .froz{background:#F9FAFB}
 tbody tr:hover .froz{background:var(--surface-muted)}
 
 /* En pantallas angostas la tabla se apila como fichas: en tablet vertical
@@ -390,8 +424,15 @@ tbody tr:hover .froz{background:var(--surface-muted)}
 .tri input:checked + span.na{background:var(--ink);border-color:var(--ink);color:#fff}
 .tri input:focus-visible + span{outline:2px solid var(--brand-light);outline-offset:1px}
 
-.detalle{display:none;border-top:1px dashed var(--border-strong);padding-top:var(--e2);gap:var(--e2)}
-.punto.no-conforme .detalle{display:grid}
+/* Antes era display:none → grid, un salto instantáneo que corría todo
+   el checklist de golpe justo cuando el dedo seguía cerca de la pantalla
+   (revisión UX sept. 2026). max-height animado da la misma apertura con
+   una transición de 220ms en vez de un salto seco. */
+.detalle{display:grid;gap:0;max-height:0;overflow:hidden;opacity:0;
+  border-top:1px dashed transparent;padding-top:0;
+  transition:max-height .22s ease,opacity .18s ease,padding-top .22s ease}
+.punto.no-conforme .detalle{gap:var(--e2);max-height:32rem;opacity:1;
+  border-top-color:var(--border-strong);padding-top:var(--e2)}
 .detalle .lbl-nc{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;
   text-transform:uppercase;color:var(--ink-faint)}
 .grav{display:flex;gap:var(--e1)}

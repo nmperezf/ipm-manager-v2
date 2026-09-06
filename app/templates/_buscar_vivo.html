@@ -1,0 +1,29 @@
+{% import "base.html" as base with context %}
+{% set total = resultados.clientes|length + resultados.instalaciones|length + resultados.equipos|length %}
+{% if q|length < 2 %}
+  <p class="tiny" style="padding:.6rem">Escribí al menos 2 caracteres.</p>
+{% elif not total %}
+  <p class="tiny" style="padding:.6rem">Sin resultados para «{{ q }}».</p>
+{% else %}
+  {% for c in resultados.clientes %}
+    <a class="item" href="{{ url_for('principal.cliente', cliente_id=c.id) }}">
+      <span class="chip neu">{{ base.ico('clientes') }}</span>
+      <span class="t"><b>{{ c.nombre }}</b><span>Cliente</span></span>
+    </a>
+  {% endfor %}
+  {% for i in resultados.instalaciones %}
+    <a class="item" href="{{ url_for('principal.instalacion', instalacion_id=i.id) }}">
+      <span class="chip neu">{{ base.ico('equipos') }}</span>
+      <span class="t"><b>{{ i.nombre }}</b><span>Instalación · {{ i.cliente.nombre }}</span></span>
+    </a>
+  {% endfor %}
+  {% for e in resultados.equipos %}
+    <a class="item" href="{{ url_for('principal.equipo_detalle', equipo_id=e.id) }}">
+      <span class="chip neu">{{ base.ico('equipos') }}</span>
+      <span class="t"><b>{{ e.etiqueta }}</b><span>Equipo · {{ e.instalacion.nombre }}</span></span>
+    </a>
+  {% endfor %}
+  <a class="item" style="justify-content:center" href="{{ url_for('principal.buscar', q=q) }}">
+    <span class="tiny">Ver todos los resultados →</span>
+  </a>
+{% endif %}
