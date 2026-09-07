@@ -146,7 +146,8 @@
       <div class="item">
         <span class="chip neu">{{ ico('repuesto') }}</span>
         <span class="t"><b>{{ c.repuesto.nombre }}</b>
-          <span>{{ c.cantidad }} {{ c.repuesto.unidad }}(s) · {{ c.fecha.strftime('%d/%m/%Y') }}</span></span>
+          <span>{{ c.cantidad }} {{ c.repuesto.unidad }}(s) · {{ c.fecha.strftime('%d/%m/%Y') }}
+            {%- if c.equipo %} · {{ c.equipo.etiqueta }}{% endif %}</span></span>
       </div>
     {% else %}
       <p class="tiny">Sin repuestos registrados en esta orden.</p>
@@ -161,6 +162,14 @@
       {% endfor %}
     </select>
     <input type="number" name="cantidad" min="1" value="1" style="width:6rem" required>
+    {% if orden.visita.instalacion.equipos %}
+      <select name="equipo_id" style="flex:1;min-width:12rem">
+        <option value="">— sin equipo puntual —</option>
+        {% for e in orden.visita.instalacion.equipos if e.activo %}
+          <option value="{{ e.id }}">{{ e.etiqueta }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
     <button class="btn ghost sm" type="submit">Registrar consumo</button>
   </form>
   {% endif %}

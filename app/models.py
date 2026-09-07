@@ -379,6 +379,8 @@ class Equipo(db.Model):
     nombre = db.Column(db.String(150), nullable=False)
     ubicacion = db.Column(db.String(250))
     activo = db.Column(db.Boolean, default=True, nullable=False)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    creado_por_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
 
     # Datos de placa. Son el rango esperado "por equipo": la presión de
     # descarga correcta depende del modelo instalado, así que no puede ir
@@ -395,6 +397,7 @@ class Equipo(db.Model):
     instalacion = db.relationship("Instalacion", backref=db.backref("equipos", cascade="all, delete-orphan"))
     tipo_equipo = db.relationship("TipoEquipo")
     padre = db.relationship("Equipo", remote_side=[id], backref="hijos")
+    creado_por = db.relationship("Usuario")
 
     @property
     def etiqueta(self):
@@ -1216,11 +1219,16 @@ class ConsumoRepuesto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ot_id = db.Column(db.Integer, db.ForeignKey("ordenes_trabajo.id"), nullable=False, index=True)
     repuesto_id = db.Column(db.Integer, db.ForeignKey("repuestos.id"), nullable=False, index=True)
+    # Opcional: una OT puede tocar varios equipos (una rutina completa de
+    # la sala), así que sin esto no hay forma de saber a cuál corresponde
+    # cada repuesto para el historial de un equipo puntual.
+    equipo_id = db.Column(db.Integer, db.ForeignKey("equipos.id"), nullable=True, index=True)
     cantidad = db.Column(db.Integer, nullable=False)
     fecha = db.Column(db.Date, default=date.today, nullable=False)
 
     ot = db.relationship("OrdenTrabajo", backref=db.backref("consumos", cascade="all, delete-orphan"))
     repuesto = db.relationship("Repuesto", backref="consumos")
+    equipo = db.relationship("Equipo", backref="consumos_repuesto")
 
     def __repr__(self):
         return f"<ConsumoRepuesto repuesto={self.repuesto_id} x{self.cantidad}>"

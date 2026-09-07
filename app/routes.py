@@ -18,7 +18,7 @@ from app.checklist import armar_bloques, guardar_checklist, nombre_campo
 from app.ensayo_caudal import actualizar_observacion, evaluar_punto
 from app.exportar import csv_response
 from app.fotos import FotoInvalida, borrar_archivo, guardar_archivo, guardar_firma, ruta_relativa
-from app.graficos import graficos_de_equipo
+from app.graficos import curva_caudal_equipo, graficos_de_equipo
 from app.informes import generar_informe_visita
 from app.inventario import StockInsuficiente, registrar_consumo, reponer_stock, repuestos_criticos
 from app.notificaciones import notificar_gestion, notificar_usuario
@@ -814,6 +814,7 @@ def cliente_nuevo():
                 db.session.add(Equipo(
                     instalacion_id=creada.id, tipo_equipo_id=tipo_id,
                     codigo=(codigo or "").strip() or None, nombre=nombre_equipo,
+                    creado_por_id=current_user.id,
                 ))
                 cuantos += 1
 
@@ -972,6 +973,7 @@ def equipo_nuevo(instalacion_id):
             presion_maxima=_numero(request.form.get("presion_maxima")),
             presion_sobrecarga=_numero(request.form.get("presion_sobrecarga")),
             rpm_nominal=int(_numero(request.form.get("rpm_nominal")) or 0) or None,
+            creado_por_id=current_user.id,
         )
         db.session.add(creado)
         db.session.commit()
@@ -1053,6 +1055,70 @@ def equipo_detalle(equipo_id):
     return render_template(
         "equipo.html", equipo=obj, graficos=graficos_de_equipo(obj),
         fotos=fotos, abiertas=abiertas,
+    )
+
+
+@principal.route("/equipo/<int:equipo_id>/historial")
+@login_required
+def equipo_historial(equipo_id):
+    """Libro de máquina: une visitas, deficiencias, presupuestos, fotos y
+    repuestos consumidos de este equipo en una sola línea de tiempo
+    trazable, más sus mediciones numéricas (evolución de valores)."""
+    obj = db.session.get(Equipo, equipo_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.instalacion.cliente.empresa_id)
+
+    visitas = (
+        Visita.query.join(ItemVisita).join(Formulario)
+        .filter(Formulario.equipo_id == obj.id)
+        .order_by(Visita.fecha.desc()).distinct().all()
+    )
+    observaciones = (
+        Observacion.query.filter_by(equipo_id=obj.id)
+        .order_by(Observacion.fecha_carga.desc()).all()
+    )
+    fotos = (
+        Foto.query.filter_by(equipo_id=obj.id)
+        .order_by(Foto.fecha.desc()).all()
+    )
+    consumos = (
+        ConsumoRepuesto.query.filter_by(equipo_id=obj.id)
+        .order_by(ConsumoRepuesto.fecha.desc()).all()
+    )
+    presupuestos = [o.presupuesto for o in observaciones if o.presupuesto]
+    vigentes = [o for o in observaciones if not o.resuelto]
+
+    eventos = []
+    for v in visitas:
+        formularios_equipo = [f for i in v.items for f in i.formularios if f.equipo_id == obj.id]
+        eventos.append({
+            "fecha": v.fecha, "tipo": "visita", "orden": 3, "obj": v,
+            "formularios": formularios_equipo,
+        })
+    for o in observaciones:
+        eventos.append({
+            "fecha": o.fecha_carga, "tipo": "deficiencia", "orden": 2,
+            "vigente": not o.resuelto, "obj": o,
+        })
+    for p in presupuestos:
+        eventos.append({
+            "fecha": p.fecha_creacion.date(), "tipo": "presupuesto", "orden": 1, "obj": p,
+        })
+    for f in fotos:
+        eventos.append({"fecha": f.fecha.date(), "tipo": "foto", "orden": 0, "obj": f})
+    for c in consumos:
+        eventos.append({"fecha": c.fecha, "tipo": "repuesto", "orden": 1, "obj": c})
+    eventos.append({
+        "fecha": obj.fecha_creacion.date(), "tipo": "alta", "orden": -1, "obj": obj,
+    })
+    eventos.sort(key=lambda e: (e["fecha"], e["orden"]), reverse=True)
+
+    return render_template(
+        "equipo_historial.html", equipo=obj, eventos=eventos,
+        graficos=graficos_de_equipo(obj), curva_caudal=curva_caudal_equipo(obj),
+        vigentes=vigentes,
+        total_visitas=len(visitas), total_presupuestos=len(presupuestos),
     )
 
 
@@ -1763,8 +1829,15 @@ def orden_repuesto_consumir(orden_id):
         abort(404)
     cantidad = request.form.get("cantidad", type=int) or 0
 
+    equipo = None
+    equipo_id = request.form.get("equipo_id", type=int)
+    if equipo_id:
+        equipo = db.session.get(Equipo, equipo_id)
+        if equipo is None or equipo.instalacion_id != obj.visita.instalacion_id:
+            equipo = None
+
     try:
-        registrar_consumo(obj, repuesto, cantidad)
+        registrar_consumo(obj, repuesto, cantidad, equipo=equipo)
     except (ValueError, StockInsuficiente) as exc:
         flash(str(exc), "error")
         return redirect(url_for("principal.orden", orden_id=obj.id))

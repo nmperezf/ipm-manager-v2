@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% set inst = equipo.instalacion %}
+{% block title %}Historial de {{ equipo.etiqueta }} — IPM Manager{% endblock %}
+
+{% block migas %}
+<nav class="migas">
+  <a href="{{ url_for('principal.clientes') }}">Clientes</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.cliente', cliente_id=inst.cliente_id) }}">{{ inst.cliente.nombre }}</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">{{ inst.nombre }}</a>
+  {{ ico('chevron') }}
+  <a href="{{ url_for('principal.equipo_detalle', equipo_id=equipo.id) }}">{{ equipo.etiqueta }}</a>
+  {{ ico('chevron') }}<b>Historial</b>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="cabecera">
+  <div>
+    <h2>{{ equipo.etiqueta }}</h2>
+    <span class="sub">
+      {{ inst.cliente.nombre }} · {{ inst.nombre }} · {{ equipo.tipo_equipo.nombre }}
+      {%- if not equipo.activo %} · dado de baja{% endif %}
+    </span>
+  </div>
+  <span class="sp"></span>
+  <a class="btn ghost sm" href="{{ url_for('principal.equipo_detalle', equipo_id=equipo.id) }}">Ver ficha del equipo</a>
+</div>
+
+<div class="hist-stats">
+  <div class="stat">
+    <div class="tiny">Última visita</div>
+    {% set ultima = eventos|selectattr('tipo', 'equalto', 'visita')|first %}
+    <div style="font-family:var(--display);font-weight:700">
+      {{ ultima.fecha.strftime('%d/%m/%Y') if ultima else '—' }}</div>
+  </div>
+  <div class="stat">
+    <div class="tiny">Deficiencias vigentes</div>
+    <div style="font-family:var(--display);font-weight:700">{{ vigentes|length }}</div>
+  </div>
+  <div class="stat">
+    <div class="tiny">Presupuestos</div>
+    <div style="font-family:var(--display);font-weight:700">{{ total_presupuestos }}</div>
+  </div>
+  <div class="stat">
+    <div class="tiny">Visitas registradas</div>
+    <div style="font-family:var(--display);font-weight:700">{{ total_visitas }}</div>
+  </div>
+</div>
+
+<div class="hist-layout">
+  <div>
+    {% if vigentes %}
+    <div class="card panel-vigentes">
+      <h3 style="margin-bottom:.3rem">Vigente ahora <span class="pill crit">{{ vigentes|length }}</span></h3>
+      {% for o in vigentes %}
+        <div class="vig-item">
+          <span class="pill {{ 'crit' if o.es_critica else 'nocrit' }}">
+            {{ 'Crítica' if o.es_critica else 'No crítica' }}</span>
+          <span class="vig-tit">{{ o.descripcion }}</span>
+          <span class="tiny">
+            cargada {{ o.fecha_carga.strftime('%d/%m/%Y') }}
+            {%- if o.estado_revision == REVISION_APROBADA %} · aprobada{% else %} · sin aprobar{% endif %}
+            {%- if o.presupuesto %} · presupuesto {{ o.presupuesto.estado|lower }}{% endif %}
+          </span>
+          <a href="{{ url_for('principal.deficiencias', cliente_id=inst.cliente_id) }}">Ver</a>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="hist-filtros">
+      <button class="chip-f on" data-tipo="todo">Todo <span class="n">{{ eventos|length }}</span></button>
+      <button class="chip-f" data-tipo="vigente">Vigentes <span class="n">{{ vigentes|length }}</span></button>
+      <button class="chip-f" data-tipo="visita">Visitas <span class="n">{{ total_visitas }}</span></button>
+      <button class="chip-f" data-tipo="deficiencia">Deficiencias
+        <span class="n">{{ eventos|selectattr('tipo', 'equalto', 'deficiencia')|list|length }}</span></button>
+      <button class="chip-f" data-tipo="presupuesto">Presupuestos <span class="n">{{ total_presupuestos }}</span></button>
+      <button class="chip-f" data-tipo="repuesto">Repuestos
+        <span class="n">{{ eventos|selectattr('tipo', 'equalto', 'repuesto')|list|length }}</span></button>
+      <button class="chip-f" data-tipo="foto">Fotos
+        <span class="n">{{ eventos|selectattr('tipo', 'equalto', 'foto')|list|length }}</span></button>
+      {% if graficos or curva_caudal %}
+        <button class="chip-f" data-tipo="mediciones">Mediciones
+          <span class="n">{{ graficos|length + (1 if curva_caudal else 0) }}</span></button>
+      {% endif %}
+    </div>
+
+    {% if graficos or curva_caudal %}
+    <div id="vista-mediciones" hidden>
+      {% if curva_caudal %}
+        <div class="card card-medicion {{ 'critica' if curva_caudal.critica }}">
+          <div class="med-head">
+            <b>Curva de caudal</b>
+            <span class="sp"></span>
+            <span class="tiny">{{ curva_caudal.anios|length }} ensayo(s) anual(es)</span>
+          </div>
+          {% if curva_caudal.aviso %}
+            <p class="tiny" style="background:var(--ember-soft);color:var(--ember);font-weight:600;
+              padding:.5rem .7rem;border-radius:var(--r-sm);margin:.4rem 0">{{ curva_caudal.aviso }}</p>
+          {% endif %}
+          <div class="fila" style="gap:1rem;flex-wrap:wrap;font-size:.82rem;margin:.5rem 0 .2rem">
+            {% if curva_caudal.diseno %}
+              <span class="tiny" style="display:flex;align-items:center;gap:.4rem">
+                <i style="width:16px;height:0;border-top:2px dashed var(--ink-faint);display:inline-block"></i>
+                Curva de diseño (placa)</span>
+            {% endif %}
+            {% for a in curva_caudal.anios %}
+              <span class="tiny" style="display:flex;align-items:center;gap:.4rem">
+                <i style="width:16px;height:3px;border-radius:2px;display:inline-block;background:{{ a.color }}"></i>
+                {{ a.anio }}{% if a.destacada %} (último){% endif %}</span>
+            {% endfor %}
+          </div>
+          <svg class="gr" viewBox="0 0 {{ curva_caudal.ancho }} {{ curva_caudal.alto }}" role="img"
+               aria-label="Curva de caudal comparada entre {{ curva_caudal.anios[0].anio }} y {{ curva_caudal.anios[-1].anio }}">
+            {% if curva_caudal.diseno %}
+              <path d="{{ curva_caudal.diseno }}" fill="none" stroke="var(--ink-faint)"
+                    stroke-width="1.5" stroke-dasharray="5 4"/>
+            {% endif %}
+            {% for a in curva_caudal.anios %}
+              <path d="{{ a.linea }}" fill="none" stroke="{{ a.color }}"
+                    stroke-width="{{ '3' if a.destacada else '2.5' }}" stroke-linecap="round"/>
+              {% for p in a.puntos %}
+                <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ '4.5' if a.destacada else '3.5' }}" fill="{{ a.color }}"/>
+              {% endfor %}
+            {% endfor %}
+            <text x="4" y="20" class="gr-eje">{{ curva_caudal.eje_y.max }} psi</text>
+            <text x="4" y="{{ curva_caudal.alto - 10 }}" class="gr-eje">{{ curva_caudal.eje_y.min }} psi</text>
+          </svg>
+          <div class="fila tiny" style="justify-content:space-between">
+            <span class="mono">{{ curva_caudal.primero.strftime('%d/%m/%y') }}</span>
+            <span>{{ curva_caudal.anios|length }} curva(s) graficada(s)</span>
+            <span class="mono">{{ curva_caudal.ultimo.strftime('%d/%m/%y') }}</span>
+          </div>
+        </div>
+      {% endif %}
+      {% for g in graficos %}
+        <div class="card card-medicion {{ 'critica' if g.hay_alerta }}">
+          <div class="med-head">
+            <b>{{ g.campo.label }}</b>
+            {% if g.campo.unidad %}<span class="tiny mono">{{ g.campo.unidad }}</span>{% endif %}
+            <span class="sp"></span>
+            {% if g.campo.tiene_rango %}
+              <span class="tiny mono">esperado {{ g.campo.texto_rango() }}</span>
+            {% endif %}
+            <span class="pill {{ 'crit' if g.ultimo.alerta else 'ok' }}">
+              último: {{ g.ultimo.valor }}{% if g.campo.unidad %} {{ g.campo.unidad }}{% endif %}
+            </span>
+          </div>
+          <svg class="gr" viewBox="0 0 {{ g.ancho }} {{ g.alto }}" role="img"
+               aria-label="Evolución de {{ g.campo.label }}: {{ g.puntos|length }} mediciones, último valor {{ g.ultimo.valor }}">
+            {% for r in g.referencias %}
+              <line x1="{{ g.pad_x }}" y1="{{ r.y }}" x2="{{ g.ancho - g.pad_x }}" y2="{{ r.y }}" class="gr-umbral"/>
+              <text x="{{ g.ancho - g.pad_x + 3 }}" y="{{ r.y + 3 }}" class="gr-umbral-tx">{{ r.etiqueta }}</text>
+            {% endfor %}
+            <polygon points="{{ g.area }}" class="gr-area"/>
+            <polyline points="{{ g.linea }}" class="gr-linea"/>
+            {% for p in g.puntos %}
+              <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ 4 if loop.last else 3 }}"
+                      class="gr-punto {{ 'alerta' if p.alerta }}">
+                <title>{{ p.fecha.strftime('%d/%m/%Y') }} — {{ p.valor }}{% if g.campo.unidad %} {{ g.campo.unidad }}{% endif %}</title>
+              </circle>
+            {% endfor %}
+            <text x="4" y="{{ g.eje.y_max + 4 }}" class="gr-eje">{{ g.eje.max }}</text>
+            <text x="4" y="{{ g.eje.y_min }}" class="gr-eje">{{ g.eje.min }}</text>
+          </svg>
+          <div class="fila tiny" style="justify-content:space-between">
+            <span class="mono">{{ g.primero.fecha.strftime('%d/%m/%y') }}</span>
+            <span>{{ g.puntos|length }} mediciones</span>
+            <span class="mono">{{ g.ultimo.fecha.strftime('%d/%m/%y') }}</span>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div id="vista-timeline" class="timeline">
+      {% set ns = namespace(fecha_anterior=None) %}
+      {% for e in eventos %}
+        {% if e.fecha != ns.fecha_anterior %}
+          <div class="tl-fecha">{{ e.fecha.strftime('%d/%m/%Y') }}</div>
+          {% set ns.fecha_anterior = e.fecha %}
+        {% endif %}
+
+        {% if e.tipo == 'visita' %}
+          {% set v = e.obj %}
+          <div class="tl-item visita" data-tipo="visita">
+            <div class="tl-punto">{{ ico('visitas') }}</div>
+            <div class="tl-card">
+              <div class="tl-head"><b>Visita #{{ v.id }}</b><span class="sp"></span>
+                <span class="pill {{ 'ok' if v.firmada else 'com' }}">{{ 'Firmada' if v.firmada else 'Sin firmar' }}</span></div>
+              <p class="tl-desc">
+                {% for f in e.formularios %}{{ f.tipo_formulario.nombre }}{{ ', ' if not loop.last }}{% endfor %}
+              </p>
+              <div class="tl-traza">
+                <span><b>Técnico</b> {{ v.tecnico.nombre_completo if v.tecnico else 'sin asignar' }}</span>
+                {%- if v.firma_cliente_nombre %}<span class="sep">·</span>
+                  <span><b>Firmada por</b> {{ v.firma_cliente_nombre }} (cliente)</span>{% endif %}
+              </div>
+              <div class="tl-links">
+                <a href="{{ url_for('principal.visita', visita_id=v.id) }}">Ver visita</a>
+                <a href="{{ url_for('principal.visita_informe', visita_id=v.id) }}">Descargar informe PDF</a>
+              </div>
+            </div>
+          </div>
+
+        {% elif e.tipo == 'deficiencia' %}
+          {% set o = e.obj %}
+          <div class="tl-item deficiencia {{ 'vigente' if e.vigente }} {{ 'critica' if o.es_critica }}" data-tipo="deficiencia" data-vigente="{{ '1' if e.vigente else '0' }}">
+            <div class="tl-punto">{{ ico('check') if not e.vigente else ico('deficiencias') }}</div>
+            <div class="tl-card">
+              <div class="tl-head"><b>{{ o.descripcion }}</b><span class="sp"></span>
+                <span class="pill {{ 'crit' if o.es_critica else 'nocrit' }}">{{ 'Crítica' if o.es_critica else 'No crítica' }}</span>
+                {% if o.resuelto %}<span class="pill ok">Resuelta</span>
+                {% elif o.estado_revision == REVISION_APROBADA %}<span class="pill ok">Aprobada</span>
+                {% else %}<span class="pill com">Pendiente</span>{% endif %}
+              </div>
+              <div class="tl-traza">
+                <span><b>Cargada por</b> {{ o.creado_por.nombre_completo if o.creado_por else 'técnico' }}</span>
+                <span class="sep">·</span><span>{{ o.fecha_carga.strftime('%d/%m/%Y') }}</span>
+                {%- if o.aprobada_por %}<span class="sep">·</span>
+                  <span><b>Aprobada por</b> {{ o.aprobada_por.nombre_completo }}{% if o.fecha_aprobacion %} el {{ o.fecha_aprobacion.strftime('%d/%m/%Y') }}{% endif %}</span>{% endif %}
+                {%- if o.resuelto and o.fecha_resolucion %}<span class="sep">·</span>
+                  <span><b>Resuelta</b> {{ o.fecha_resolucion.strftime('%d/%m/%Y') }}</span>{% endif %}
+                {%- if not o.visible_para_cliente %}<span class="sep">·</span><span>el cliente no la ve todavía</span>{% endif %}
+              </div>
+              <div class="tl-links">
+                <a href="{{ url_for('principal.deficiencias', cliente_id=inst.cliente_id) }}">Ver deficiencia</a>
+                {% if o.presupuesto %}
+                  <a href="{{ url_for('principal.presupuesto', presupuesto_id=o.presupuesto.id) }}">Ver presupuesto</a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+        {% elif e.tipo == 'presupuesto' %}
+          {% set p = e.obj %}
+          <div class="tl-item presupuesto" data-tipo="presupuesto">
+            <div class="tl-punto">{{ ico('presupuesto') }}</div>
+            <div class="tl-card">
+              <div class="tl-head"><b>{{ p.codigo }}</b><span class="sp"></span><span class="pill com">{{ p.estado }}</span></div>
+              <p class="tl-desc">{{ p.observacion.descripcion }}</p>
+              <div class="tl-traza">
+                <span><b>Solicitado por</b> {{ p.creado_por.nombre_completo if p.creado_por else '—' }}</span>
+                <span class="sep">·</span><span>{{ p.fecha_creacion.strftime('%d/%m/%Y') }}</span>
+              </div>
+              <div class="tl-links"><a href="{{ url_for('principal.presupuesto', presupuesto_id=p.id) }}">Ver presupuesto</a></div>
+            </div>
+          </div>
+
+        {% elif e.tipo == 'repuesto' %}
+          {% set c = e.obj %}
+          <div class="tl-item repuesto" data-tipo="repuesto">
+            <div class="tl-punto">{{ ico('repuesto') }}</div>
+            <div class="tl-card">
+              <div class="tl-head"><b>{{ c.repuesto.nombre }}</b><span class="sp"></span>
+                <span class="pill com">{{ c.cantidad }} {{ c.repuesto.unidad }}(s)</span></div>
+              <p class="tl-desc">Repuesto consumido — registrado en {{ c.ot.numero }}.</p>
+              <div class="tl-traza"><span>{{ c.fecha.strftime('%d/%m/%Y') }}</span></div>
+              <div class="tl-links"><a href="{{ url_for('principal.orden', orden_id=c.ot_id) }}">Ver {{ c.ot.numero }}</a></div>
+            </div>
+          </div>
+
+        {% elif e.tipo == 'foto' %}
+          {% set f = e.obj %}
+          <div class="tl-item foto" data-tipo="foto">
+            <div class="tl-punto">{{ ico('camara') }}</div>
+            <div class="tl-card">
+              <div class="tl-head"><b>Foto agregada</b></div>
+              {% if f.descripcion %}<p class="tl-desc">"{{ f.descripcion }}"</p>{% endif %}
+              <div class="tl-fotos">
+                <a href="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}" target="_blank">
+                  <img src="{{ url_for('static', filename=ruta_foto(current_user.empresa_id, f.archivo)) }}" alt="">
+                </a>
+              </div>
+              <div class="tl-traza" style="margin-top:.5rem">
+                <span><b>Subida por</b> {{ f.tomada_por.nombre_completo if f.tomada_por else '—' }}</span>
+                <span class="sep">·</span><span>{{ f.fecha.strftime('%d/%m/%Y') }}</span>
+              </div>
+            </div>
+          </div>
+
+        {% elif e.tipo == 'alta' %}
+          <div class="tl-item alta" data-tipo="alta">
+            <div class="tl-punto">{{ ico('equipos') }}</div>
+            <div class="tl-card">
+              <div class="tl-head"><b>Equipo creado en el sistema</b></div>
+              <p class="tl-desc">{{ equipo.etiqueta }} — {{ equipo.tipo_equipo.nombre }}</p>
+              <div class="tl-traza">
+                <span><b>Cargado por</b> {{ equipo.creado_por.nombre_completo if equipo.creado_por else '—' }}</span>
+                <span class="sep">·</span><span>{{ equipo.fecha_creacion.strftime('%d/%m/%Y') }}</span>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:.9rem">Datos de placa</h3>
+    <div class="tabla-wrap sin-scrollbar">
+      <table>
+        <tbody>
+          {% for etiqueta, valor, unidad in [
+              ('Marca', equipo.marca, ''), ('Modelo', equipo.modelo, ''),
+              ('N.º de serie', equipo.serie, ''),
+              ('Caudal nominal', equipo.caudal_nominal, 'GPM'),
+              ('Presión a 100 %', equipo.presion_diseno, 'psi'),
+              ('Presión en churn', equipo.presion_maxima, 'psi'),
+              ('Presión a 150 %', equipo.presion_sobrecarga, 'psi'),
+              ('RPM nominales', equipo.rpm_nominal, 'RPM')] %}
+            {% if valor %}
+              <tr><th>{{ etiqueta }}</th><td class="mono">{{ valor }}{% if unidad %} {{ unidad }}{% endif %}</td></tr>
+            {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var chips = document.querySelectorAll('.chip-f');
+  var items = document.querySelectorAll('.tl-item');
+  var fechas = document.querySelectorAll('.tl-fecha');
+  var vistaTimeline = document.getElementById('vista-timeline');
+  var vistaMediciones = document.getElementById('vista-mediciones');
+
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      chips.forEach(function (c) { c.classList.remove('on'); });
+      chip.classList.add('on');
+      var tipo = chip.dataset.tipo;
+
+      if (tipo === 'mediciones') {
+        vistaTimeline.hidden = true;
+        if (vistaMediciones) vistaMediciones.hidden = false;
+        return;
+      }
+      vistaTimeline.hidden = false;
+      if (vistaMediciones) vistaMediciones.hidden = true;
+
+      items.forEach(function (item) {
+        var coincide = tipo === 'todo'
+          || (tipo === 'vigente' && item.dataset.vigente === '1')
+          || item.dataset.tipo === tipo;
+        item.hidden = !coincide;
+      });
+
+      fechas.forEach(function (fecha) {
+        var nodo = fecha.nextElementSibling;
+        var hayVisible = false;
+        while (nodo && !nodo.classList.contains('tl-fecha')) {
+          if (!nodo.hidden) hayVisible = true;
+          nodo = nodo.nextElementSibling;
+        }
+        fecha.hidden = !hayVisible;
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

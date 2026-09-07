@@ -61,19 +61,18 @@
   /* --- escala de espaciado --- */
   --e1:.25rem; --e2:.4rem; --e3:.6rem; --e4:.9rem; --e5:1.35rem; --e6:2rem;
 
-  /* --- escala tipográfica ---
-     El cuerpo sube a 16px: es el mínimo aceptado para texto de lectura,
-     no un capricho — por debajo de eso alguien con baja visión ya está
-     forzando el zoom del navegador en cada pantalla. El resto de la
-     escala sube con el mismo criterio, conservando la jerarquía. */
-  --t-micro:.74rem;   /* etiquetas mono, metadatos */
-  --t-mini:.85rem;    /* texto secundario */
-  --t-base:1rem;      /* cuerpo */
-  --t-med:1.15rem;    /* títulos de tarjeta */
-  --t-alto:1.45rem;   /* título de página */
-  --t-cifra:1.9rem;   /* números de panorama */
+  /* --- escala tipográfica (revisión "editorial", B1) ---
+     Más contraste entre el título de página y el cuerpo — el título
+     sube, el resto de la escala baja un escalón — y los subtítulos de
+     tarjeta/sección se apoyan más en peso y tracking que en tamaño. */
+  --t-micro:.72rem;   /* etiquetas mono, metadatos */
+  --t-mini:.81rem;    /* texto secundario */
+  --t-base:.95rem;    /* cuerpo */
+  --t-med:1rem;       /* títulos de tarjeta */
+  --t-alto:1.55rem;   /* título de página */
+  --t-cifra:1.85rem;  /* números de panorama */
 
-  --r:10px; --r-sm:7px; --r-px:99px;
+  --r:8px; --r-sm:6px; --r-px:99px;
   --riel:246px;
   --display:'Space Grotesk',system-ui,sans-serif;
   --body:'Inter',system-ui,-apple-system,sans-serif;
@@ -196,10 +195,13 @@ main:focus-visible{outline:none}
 .cabecera h2{font-size:var(--t-alto)}
 .cabecera .sub{color:var(--ink-muted);font-size:var(--t-base);max-width:70ch}
 
-/* Título de sección: separa bloques sin gastar una tarjeta en cada uno. */
+/* Título de sección: separa bloques sin gastar una tarjeta en cada uno.
+   Etiqueta mono en mayúsculas en vez de subtítulo grande — se apoya en
+   peso y tracking, no en tamaño (revisión "editorial", B1). */
 .seccion-tit{display:flex;align-items:center;gap:var(--e3);margin:var(--e6) 0 var(--e3)}
 .seccion-tit:first-child{margin-top:0}
-.seccion-tit h3{font-size:var(--t-med)}
+.seccion-tit h3{font-family:var(--mono);font-size:.7rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.09em;color:var(--ink-faint)}
 .seccion-tit .linea{flex:1;height:1px;background:var(--border)}
 
 /* =========================================================================
@@ -222,12 +224,15 @@ main:focus-visible{outline:none}
    Piezas
    ========================================================================= */
 
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-  padding:var(--e4);margin-bottom:var(--e4);box-shadow:var(--sombra)}
+/* Acento lateral fino en vez de marco completo — más silencioso, y el
+   color del acento ya distingue destacada/crítica sin subir el grosor
+   del borde (revisión "editorial", B1). */
+.card{background:var(--surface);border:0;border-left:2px solid var(--border-strong);
+  border-radius:var(--r-sm);padding:var(--e4);margin-bottom:var(--e4);box-shadow:var(--sombra)}
 .card h3{font-size:var(--t-med)}
 /* Variantes para lo que exige acción: se despegan del resto. */
-.card.destacada{border-left:3px solid var(--brand-light);box-shadow:var(--sombra-alta)}
-.card.critica{border-left:3px solid var(--ember);box-shadow:var(--sombra-alta)}
+.card.destacada{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta)}
+.card.critica{border-left-color:var(--ember);box-shadow:var(--sombra-alta)}
 
 .stack{display:flex;flex-direction:column;gap:var(--e3)}
 .fila{display:flex;align-items:center;gap:var(--e3);flex-wrap:wrap}
@@ -235,16 +240,19 @@ main:focus-visible{outline:none}
 /* --- panorama --- */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
   gap:var(--e3);margin-bottom:var(--e5)}
-.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+.stat{background:var(--surface);border:0;border-left:2px solid var(--brand);border-radius:var(--r-sm);
   padding:var(--e4);text-decoration:none;color:inherit;display:block;box-shadow:var(--sombra)}
-a.stat:hover{border-color:var(--border-strong);box-shadow:var(--sombra-alta)}
+a.stat:hover{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta)}
 .stat .k{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;
   color:var(--ink-faint)}
 .stat .v{font-family:var(--display);font-size:var(--t-cifra);font-variant-numeric:tabular-nums;
   line-height:1.15;margin-top:var(--e1)}
 .stat .d{font-size:var(--t-mini);color:var(--ink-muted)}
+.stat.crit{border-left-color:var(--ember)}
 .stat.crit .v{color:var(--ember)}
+.stat.warn{border-left-color:var(--warn)}
 .stat.warn .v{color:var(--warn)}
+.stat.ok{border-left-color:var(--ok)}
 .stat.ok .v{color:var(--ok)}
 /* La que tiene algo que atender pesa más; las que están en 0 se retiran
    sin perder legibilidad (revisión UX sept. 2026: las 5 pesaban igual,
@@ -255,11 +263,11 @@ a.stat:hover{border-color:var(--border-strong);box-shadow:var(--sombra-alta)}
 
 /* --- ítem de lista --- */
 .item{display:flex;align-items:center;gap:var(--e3);background:var(--surface);
-  border:1px solid var(--border);border-radius:var(--r);padding:var(--e3);
-  text-decoration:none;color:inherit}
-a.item:hover{border-color:var(--border-strong);box-shadow:var(--sombra)}
-.item.crit{border-left:3px solid var(--ember)}
-.item.warn{border-left:3px solid var(--warn)}
+  border:0;border-left:2px solid var(--border-strong);border-radius:var(--r-sm);padding:var(--e3);
+  text-decoration:none;color:inherit;box-shadow:var(--sombra)}
+a.item:hover{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta)}
+.item.crit{border-left-color:var(--ember)}
+.item.warn{border-left-color:var(--warn)}
 .item .t{flex:1;min-width:0}
 .item .t b{display:block;font-size:var(--t-base)}
 /* Hijo directo, no descendiente: si fuera ".item .t span" también se
@@ -267,7 +275,7 @@ a.item:hover{border-color:var(--border-strong);box-shadow:var(--sombra)}
    contador, por ejemplo), y ese quedaba forzado a su propia línea. */
 .item .t > span{display:block;font-size:var(--t-mini);color:var(--ink-muted)}
 
-.chip{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;flex:none}
+.chip{width:28px;height:28px;border-radius:var(--r-sm);display:grid;place-items:center;flex:none}
 .chip.crit{background:var(--ember-soft);color:var(--ember)}
 .chip.warn{background:var(--warn-soft);color:var(--warn)}
 .chip.ok{background:var(--ok-soft);color:var(--ok)}
@@ -382,7 +390,9 @@ tbody tr:hover .froz{background:var(--surface-muted)}
   /* Barra de filtros/estado (pills bajo el header): tira horizontal con
      scroll en vez de envolver en varias líneas desparejas. */
   .fila-filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
-    padding-bottom:2px}
+    padding:0 1.5rem 2px 0;
+    mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent 100%);
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent 100%)}
   .fila-filtros::-webkit-scrollbar{display:none}
   .fila-filtros .btn{flex:none}
   .fila-filtros .sp{display:none}
@@ -694,3 +704,96 @@ tbody tr:hover .froz{background:var(--surface-muted)}
   .login-form{background:var(--surface);border-radius:16px;padding:var(--e5);
     box-shadow:0 12px 40px -14px rgba(10,12,14,.5)}
 }
+
+/* =========================================================================
+   Historial de equipo — libro de máquina (timeline + mediciones)
+   ========================================================================= */
+/* minmax(0,1fr), no 1fr a secas: si no, la columna nunca baja de su
+   ancho mínimo de contenido y toda la página se corre de costado. */
+.hist-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:var(--e4);align-items:start}
+.hist-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--e3);margin-bottom:var(--e4)}
+@media (max-width:900px){
+  .hist-layout{grid-template-columns:minmax(0,1fr)}
+  .hist-stats{grid-template-columns:1fr 1fr}
+}
+
+.panel-vigentes{border-left:3px solid var(--ember);margin-bottom:var(--e4)}
+.vig-item{display:flex;align-items:center;gap:var(--e2);flex-wrap:wrap;padding:var(--e2) 0;
+  border-top:1px solid var(--border)}
+.vig-item:first-of-type{border-top:0}
+.vig-tit{font-weight:600;font-size:.92rem;min-width:0}
+.vig-item .tiny{min-width:0}
+.vig-item a{margin-left:auto;font-size:.82rem;font-weight:600;flex:none}
+
+.chip-f{flex:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--ink-muted);
+  padding:.42rem .85rem;border-radius:var(--r-px);font-size:.85rem;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:.4rem;font-family:inherit}
+.chip-f .n{background:var(--surface-muted);color:var(--ink-faint);border-radius:var(--r-px);
+  padding:0 .4rem;font-size:.72rem}
+.chip-f.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.chip-f.on .n{background:rgba(255,255,255,.25);color:#fff}
+/* En escritorio hay ancho de sobra: que envuelva a una segunda línea en
+   vez de esconder contenido atrás de un scroll que ahí no hace falta. */
+.hist-filtros{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:var(--e4)}
+@media (max-width:900px){
+  /* En mobile/tablet sí hace falta — una tira con scroll en una sola
+     línea, no un envoltorio desparejo. Sin la barra, el último chip
+     cortado a mitad de camino se leía como roto en vez de "hay más,
+     deslizá": el desvanecido a la derecha marca que sigue habiendo
+     contenido sin la barra fea que se veía antes. */
+  .hist-filtros{flex-wrap:nowrap;overflow-x:auto;padding:0 1.5rem 2px 0;
+    scrollbar-width:none;
+    mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent 100%);
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent 100%)}
+  .hist-filtros::-webkit-scrollbar{display:none}
+}
+
+/* Utilidad genérica: oculta la barra de un contenedor con scroll sin
+   sacarle la capacidad de scrollear (útil en paneles chicos donde la
+   barra se ve más como ruido que como pista). */
+.sin-scrollbar{scrollbar-width:none}
+.sin-scrollbar::-webkit-scrollbar{display:none}
+
+.timeline{position:relative;padding-left:2.1rem}
+.timeline::before{content:"";position:absolute;left:.6rem;top:.4rem;bottom:.4rem;width:2px;
+  background:var(--border)}
+.tl-fecha{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--ink-faint);margin:var(--e5) 0 var(--e2)}
+.tl-fecha:first-child{margin-top:0}
+.tl-item{position:relative;margin-bottom:var(--e3)}
+.tl-punto{position:absolute;left:-2.1rem;top:.9rem;width:1.1rem;height:1.1rem;border-radius:50%;
+  background:var(--surface);border:2.5px solid var(--border-strong);display:grid;place-items:center}
+.tl-punto svg{width:11px;height:11px}
+.tl-item.visita .tl-punto{border-color:var(--brand)}
+.tl-item.visita .tl-punto svg{color:var(--brand)}
+.tl-item.deficiencia.vigente.critica .tl-punto{border-color:var(--ember);background:var(--ember-soft)}
+.tl-item.deficiencia.vigente.critica .tl-punto svg{color:var(--ember)}
+.tl-item.deficiencia.vigente:not(.critica) .tl-punto{border-color:var(--warn);background:var(--warn-soft)}
+.tl-item.deficiencia.vigente:not(.critica) .tl-punto svg{color:var(--warn)}
+.tl-item.deficiencia:not(.vigente) .tl-punto{border-color:var(--ok);background:var(--ok-soft)}
+.tl-item.deficiencia:not(.vigente) .tl-punto svg{color:var(--ok)}
+.tl-item.presupuesto .tl-punto{border-color:var(--neutral)}
+.tl-item.presupuesto .tl-punto svg{color:var(--neutral)}
+.tl-item.repuesto .tl-punto{border-color:var(--brand)}
+.tl-item.repuesto .tl-punto svg{color:var(--brand)}
+.tl-item.foto .tl-punto{border-color:var(--border-strong)}
+.tl-item.alta .tl-punto{border-color:var(--border-strong)}
+.tl-item[hidden],.tl-fecha[hidden]{display:none}
+
+.tl-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:var(--e3) var(--e4);box-shadow:var(--sombra)}
+.tl-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem}
+.tl-head b{font-size:.98rem;min-width:0}
+.tl-desc{font-size:.9rem;color:var(--ink-muted);margin:.2rem 0 .5rem}
+.tl-traza{display:flex;flex-wrap:wrap;gap:.3rem 1rem;font-size:.78rem;color:var(--ink-faint)}
+.tl-traza span{min-width:0}
+.tl-traza b{color:var(--ink-muted);font-weight:600}
+.tl-traza .sep{opacity:.5}
+.tl-fotos{display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap}
+.tl-fotos img{width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid var(--border)}
+.tl-links{margin-top:.5rem;display:flex;gap:.8rem;font-size:.82rem;font-weight:600}
+
+.card-medicion{margin-bottom:var(--e3)}
+.card-medicion.critica{border-left:3px solid var(--ember)}
+.med-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem}
+.med-head b{font-family:var(--display);font-size:var(--t-med)}

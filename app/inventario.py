@@ -12,7 +12,7 @@ class StockInsuficiente(Exception):
     pass
 
 
-def registrar_consumo(ot, repuesto, cantidad):
+def registrar_consumo(ot, repuesto, cantidad, equipo=None):
     """Descuenta stock y deja la fila de consumo. No hace commit."""
     if cantidad <= 0:
         raise ValueError("La cantidad debe ser mayor a cero.")
@@ -21,7 +21,10 @@ def registrar_consumo(ot, repuesto, cantidad):
             f"Quedan {repuesto.stock_actual} {repuesto.unidad}(s) de «{repuesto.nombre}»."
         )
     repuesto.stock_actual -= cantidad
-    consumo = ConsumoRepuesto(ot_id=ot.id, repuesto_id=repuesto.id, cantidad=cantidad)
+    consumo = ConsumoRepuesto(
+        ot_id=ot.id, repuesto_id=repuesto.id, cantidad=cantidad,
+        equipo_id=equipo.id if equipo else None,
+    )
     db.session.add(consumo)
     return consumo
 

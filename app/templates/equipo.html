@@ -26,6 +26,7 @@
   </div>
   <span class="sp"></span>
   {% if not equipo.activo %}<span class="pill com">dado de baja</span>{% endif %}
+  <a class="btn ghost sm" href="{{ url_for('principal.equipo_historial', equipo_id=equipo.id) }}">Ver historial completo</a>
   {% if current_user.puede_aprobar %}
     <a class="btn ghost sm" href="{{ url_for('principal.equipo_editar', equipo_id=equipo.id) }}">Editar</a>
   {% endif %}
