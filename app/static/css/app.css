@@ -361,6 +361,31 @@ tbody tr:hover .froz{background:var(--surface-muted)}
   table.apilable td.froz{position:static;box-shadow:none;font-size:var(--t-med);
     font-family:var(--display)}
   table.apilable tbody tr:hover td{background:none}
+  /* Un grupo de botones de acción (Aprobar/Resolver/...) en una ficha
+     angosta no entra en una fila sin quedar irregular — se apilan a
+     ancho completo, todos del mismo tamaño. */
+  table.apilable td .fila{flex-direction:column;align-items:stretch;width:100%}
+  table.apilable td .fila form{width:100%}
+  table.apilable td .fila .btn{width:100%}
+}
+
+/* =========================================================================
+   Criterio mobile para cabeceras de listado y barras de filtro
+   ========================================================================= */
+@media (max-width:760px){
+  /* La acción del header (Exportar CSV, Nuevo cliente...) pasa a su
+     propia fila a ancho completo en vez de quedar apretada a la derecha
+     o saltar de línea de forma impredecible. */
+  .cabecera{flex-direction:column;align-items:stretch}
+  .cabecera .sp{display:none}
+  .cabecera > a.btn,.cabecera > button.btn{width:100%}
+  /* Barra de filtros/estado (pills bajo el header): tira horizontal con
+     scroll en vez de envolver en varias líneas desparejas. */
+  .fila-filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+    padding-bottom:2px}
+  .fila-filtros::-webkit-scrollbar{display:none}
+  .fila-filtros .btn{flex:none}
+  .fila-filtros .sp{display:none}
   .tabla-wrap.apilada{border:0;background:none;box-shadow:none;overflow:visible}
 }
 

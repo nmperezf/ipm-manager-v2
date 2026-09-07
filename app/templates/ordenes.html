@@ -18,7 +18,7 @@
   <a class="btn ghost sm" href="{{ url_for('principal.ordenes_exportar', estado=filtro) }}">Exportar CSV</a>
 </div>
 
-<div class="fila" style="margin-bottom:.8rem">
+<div class="fila fila-filtros" style="margin-bottom:.8rem">
   <a class="btn {{ 'ghost' if filtro }} sm" href="{{ url_for('principal.ordenes') }}">Todas</a>
   <a class="btn {{ '' if filtro == 'abiertas' else 'ghost' }} sm"
      href="{{ url_for('principal.ordenes', estado='abiertas') }}">Abiertas</a>

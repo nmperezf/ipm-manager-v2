@@ -12,27 +12,30 @@
     <span class="sub">
       El cliente solo ve las aprobadas. Las carga un técnico y las aprueba un jefe técnico —
       salvo que la visita la haya hecho un jefe, en cuyo caso quedan aprobadas al guardar.
+      · {{ observaciones|length }} listada(s)
     </span>
   </div>
+  <span class="sp"></span>
+  <a class="btn ghost sm" href="{{ url_for('principal.deficiencias_exportar', cliente_id=cliente_id, estado=filtro) }}">Exportar CSV</a>
 </div>
 
-<div class="fila" style="margin-bottom:.7rem">
+<div class="fila fila-filtros" style="margin-bottom:.7rem">
   <a class="btn {{ 'ghost' if filtro }} sm" href="{{ url_for('principal.deficiencias', cliente_id=cliente_id) }}">Todas</a>
   <a class="btn {{ '' if filtro == 'criticas' else 'ghost' }} sm"
      href="{{ url_for('principal.deficiencias', cliente_id=cliente_id, estado='criticas') }}">Críticas</a>
   <a class="btn {{ '' if filtro == 'pendientes' else 'ghost' }} sm"
      href="{{ url_for('principal.deficiencias', cliente_id=cliente_id, estado='pendientes') }}">Sin aprobar</a>
-  <span class="sp"></span>
-  <a class="btn ghost sm" href="{{ url_for('principal.deficiencias_exportar', cliente_id=cliente_id, estado=filtro) }}">Exportar CSV</a>
-  <span class="tiny">{{ observaciones|length }} listada(s)</span>
 </div>
 
 <div class="fila" style="margin-bottom:.8rem">
-  <a class="btn ghost sm" href="{{ url_for('principal.deficiencias', estado=filtro) }}">Todos los clientes</a>
-  {% for c in clientes %}
-    <a class="btn {{ '' if cliente_id == c.id else 'ghost' }} sm"
-       href="{{ url_for('principal.deficiencias', cliente_id=c.id, estado=filtro) }}">{{ c.nombre }}</a>
-  {% endfor %}
+  <select class="input" style="max-width:20rem" onchange="if(this.value) location.href=this.value">
+    <option value="{{ url_for('principal.deficiencias', estado=filtro) }}" {{ 'selected' if not cliente_id }}>
+      Todos los clientes</option>
+    {% for c in clientes %}
+      <option value="{{ url_for('principal.deficiencias', cliente_id=c.id, estado=filtro) }}"
+        {{ 'selected' if cliente_id == c.id }}>{{ c.nombre }}</option>
+    {% endfor %}
+  </select>
 </div>
 
 {% if observaciones %}

@@ -16,7 +16,7 @@
   </div>
 </div>
 
-<div class="fila" style="margin-bottom:.8rem">
+<div class="fila fila-filtros" style="margin-bottom:.8rem">
   <a class="btn {{ 'ghost' if filtro }} sm" href="{{ url_for('principal.presupuestos') }}">Todos</a>
   {% for e in ESTADOS_PRESUPUESTO %}
     <a class="btn {{ '' if filtro == e else 'ghost' }} sm"
