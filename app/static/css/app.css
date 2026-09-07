@@ -623,11 +623,16 @@ tbody tr:hover .froz{background:var(--surface-muted)}
    derecha. Por debajo de 860px la foto se retira: en un celular no hay
    ancho para las dos columnas y el formulario es lo único que importa.
    ========================================================================= */
-.login-split{display:grid;grid-template-columns:1.1fr 1fr;min-height:100vh}
-.login-foto{position:relative;overflow:hidden;background:var(--brand-dark) center top/cover no-repeat;
+.login-split{display:grid;grid-template-columns:1.1fr 1fr;min-height:100vh;position:relative}
+.login-foto{position:relative;overflow:hidden;background:var(--brand-dark) center center/cover no-repeat;
   display:flex;flex-direction:column;color:#fff;padding:var(--e6)}
 .login-foto::before{content:"";position:absolute;inset:0;
   background:linear-gradient(to top,rgba(10,12,14,.92) 0%,rgba(10,12,14,.5) 45%,rgba(10,12,14,.05) 75%)}
+/* El corte entre foto y formulario queda como una línea dura si las dos
+   columnas simplemente chocan — este fundido difumina el borde derecho
+   de la foto hacia el mismo blanco del panel del formulario. */
+.login-foto::after{content:"";position:absolute;inset:0 0 0 auto;width:8%;z-index:2;
+  background:linear-gradient(to right,rgba(255,255,255,0) 0%,var(--surface) 100%)}
 .login-foto > *{position:relative;z-index:1}
 .login-marca{display:flex;align-items:center;gap:var(--e2);font-family:var(--display);
   font-weight:700;font-size:var(--t-med)}
@@ -639,7 +644,28 @@ tbody tr:hover .froz{background:var(--surface-muted)}
   padding:var(--e6) var(--e4)}
 .login-form{width:100%;max-width:320px}
 .login-form .sub{color:var(--ink-muted);display:block;margin:.3rem 0 var(--e5)}
+/* Campos en píldora con ícono de contexto — mockup aprobado "opción B". */
+.login-campo{position:relative;margin-bottom:var(--e3)}
+.login-campo svg{position:absolute;left:1rem;top:50%;transform:translateY(-50%);
+  width:16px;height:16px;color:var(--ink-faint);pointer-events:none}
+.login-campo input{width:100%;border:1.5px solid var(--border);background:var(--surface);
+  border-radius:var(--r-px);padding:.75rem 1.1rem .75rem 2.6rem;font:inherit;font-size:var(--t-base);
+  color:var(--ink);min-height:38px;transition:border-color .15s,box-shadow .15s}
+.login-campo input:focus{outline:none;border-color:var(--brand-light);
+  box-shadow:0 0 0 4px rgba(46,109,164,.14)}
+.login-campo:focus-within svg{color:var(--brand)}
+.login-form-suave .btn{border-radius:var(--r-px)}
 @media (max-width:860px){
   .login-split{grid-template-columns:1fr}
-  .login-foto{display:none}
+  /* En vez de sacar la foto y dejar blanco liso, se pasa a fondo de
+     pantalla completa: la foto queda detrás (position:absolute, fuera
+     del flujo) y la tarjeta del formulario flota encima, sin la columna
+     lateral que no entra en un celular. */
+  .login-foto{position:absolute;inset:0;z-index:0;padding:var(--e5)}
+  .login-foto::after{display:none}
+  .login-frase{display:none}
+  .login-form-panel{position:relative;z-index:1;min-height:100vh;background:transparent;
+    align-items:center;padding:var(--e5)}
+  .login-form{background:var(--surface);border-radius:16px;padding:var(--e5);
+    box-shadow:0 12px 40px -14px rgba(10,12,14,.5)}
 }

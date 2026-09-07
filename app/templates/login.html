@@ -16,8 +16,7 @@
 
   <div class="login-form-panel">
     <div class="login-form">
-      <h2 style="font-size:1.3rem">Ingresar</h2>
-      <span class="sub">Mantenimiento de sistemas contra incendio</span>
+      <h2 style="font-size:1.3rem;margin-bottom:var(--e5)">Ingresar</h2>
 
       {% with mensajes = get_flashed_messages(with_categories=true) %}
         {% for categoria, mensaje in mensajes %}
@@ -25,11 +24,17 @@
         {% endfor %}
       {% endwith %}
 
-      <form method="post" class="stack">
+      <form method="post" class="stack login-form-suave">
         <label class="rotulo" for="username">Usuario</label>
-        <input id="username" name="username" autocomplete="username" required>
+        <div class="login-campo">
+          {{ ico('usuario') }}
+          <input id="username" name="username" autocomplete="username" required>
+        </div>
         <label class="rotulo" for="password">Contraseña</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <div class="login-campo">
+          {{ ico('candado') }}
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
         <button class="btn" type="submit" style="margin-top:.35rem">Ingresar</button>
       </form>
     </div>
