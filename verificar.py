@@ -18,6 +18,7 @@ from app import crear_app
 from app.catalogo_seed import CATEGORIA, CATEGORIA_ECA, sembrar_demo
 from app.checklist import armar_bloques, guardar_checklist, nombre_campo
 from app.ensayo_caudal import actualizar_observacion, corregir, evaluar_punto, rpm_ok
+from app.informes import generar_informe_visita
 from app.models import (
     CAMPO_SELECCION,
     CLASIF_CRITICA,
@@ -671,6 +672,28 @@ def main():
         guardar_puntos14(datos14_ok)
         obs14_final = Observacion.query.filter_by(visita_id=visita14.id).all()
         check("Arreglar el 150 % cierra esa deficiencia sola", len(obs14_final) == 1)
+
+        print("\n15 - Informe de visita en PDF")
+        # El bug real: multi_cell con ancho 0 deja el cursor en el borde
+        # derecho de la pagina, y la SEGUNDA respuesta explota fpdf2 con
+        # "Not enough horizontal space to render a single character".
+        # Con una sola respuesta cargada nunca se ve.
+        item15 = item_para("Torre Ejecutiva", tecnico)
+        bloques15 = armar_bloques(item15)
+        secciones15 = [s for b in bloques15 for s in b.secciones if not s.es_curva][:2]
+        check("Hay al menos 2 secciones para forzar 2 respuestas", len(secciones15) >= 2)
+        form15 = MultiDict()
+        for seccion15 in secciones15:
+            tipo15, equipo15 = seccion15.tipo_formulario, seccion15.equipo
+            campo15 = seccion15.campos[0]
+            form15[nombre_campo(tipo15, equipo15, campo15, "estado")] = ESTADO_CONFORME
+        resultado15 = guardar_checklist(item15, form15, tecnico)
+        check("Checklist de 2+ secciones guardado sin errores", resultado15.ok, str(resultado15.errores))
+        try:
+            pdf_bytes15 = generar_informe_visita(app, item15.visita)
+            check("Genera el PDF con 2+ respuestas sin explotar", len(pdf_bytes15) > 0, f"{len(pdf_bytes15)} bytes")
+        except Exception as error:
+            check("Genera el PDF con 2+ respuestas sin explotar", False, str(error))
 
     print()
     if fallos:

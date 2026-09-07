@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% set inst = item.visita.instalacion %}
-{% set total = bloques | map(attribute='secciones') | map('length') | sum %}
 {% block title %}{{ item.categoria.nombre }} — {{ inst.nombre }}{% endblock %}
 
 {% block migas %}
@@ -52,7 +51,7 @@
   <div class="progreso">
     <div class="fila">
       <b style="font-size:var(--t-base)">
-        <span id="pg-hechos" class="mono">0</span> de <span class="mono">{{ total }}</span> puntos</b>
+        <span id="pg-hechos" class="mono">0</span> de <span class="mono" id="pg-total">0</span> puntos</b>
       <span class="sp"></span>
       <span class="tiny" id="pg-nc"></span>
       <button class="btn ghost sm" type="button" id="ir-pendiente">Ir al pendiente</button>
@@ -267,7 +266,9 @@
   var puntos = Array.prototype.slice.call(form.querySelectorAll('.punto'));
   var barra = document.getElementById('pg-barra');
   var hechos = document.getElementById('pg-hechos');
+  var total = document.getElementById('pg-total');
   var avisoNc = document.getElementById('pg-nc');
+  total.textContent = puntos.length;
 
   // Un punto cuenta como resuelto cuando tiene estado marcado, o cuando
   // lleva valor y no pide estado (los de solo registro).

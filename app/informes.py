@@ -9,6 +9,7 @@ sistema) para no complicar el build en Railway.
 import os
 
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 
 from app.models import ESTADO_NO_CONFORME
 
@@ -45,6 +46,12 @@ class _InformePDF(FPDF):
         elif len(args) >= 3:
             args = list(args)
             args[2] = _latin1(args[2])
+        # Sin esto, un ancho 0 (usar todo el resto de la página) deja el
+        # cursor en el borde derecho: la siguiente multi_cell calcula un
+        # ancho ~0 a partir de ahí y fpdf2 explota con "Not enough
+        # horizontal space to render a single character".
+        kwargs.setdefault("new_x", XPos.LMARGIN)
+        kwargs.setdefault("new_y", YPos.NEXT)
         return super().multi_cell(*args, **kwargs)
 
 
