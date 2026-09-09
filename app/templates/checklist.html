@@ -44,7 +44,7 @@
   </div>
 {% else %}
 
-<form method="post" novalidate id="form-checklist">
+<form method="post" novalidate id="form-checklist" data-item-id="{{ item.id }}">
 
   {# Progreso pegado arriba: en una rutina anual son casi 100 puntos y sin
      esto no hay forma de saber cuánto falta. #}
@@ -170,6 +170,7 @@
                   <div class="grav">
                     <label>
                       <input type="radio" name="{{ n_grav }}" value="{{ GRAVEDAD_CRITICA }}"
+                             data-gravedad-critica
                              {{ 'checked' if r and r.gravedad == GRAVEDAD_CRITICA }}>
                       <span class="crit">Crítica</span>
                     </label>
@@ -179,6 +180,10 @@
                       <span class="nocrit">No crítica</span>
                     </label>
                   </div>
+                  <span class="tiny aviso-critica" style="color:var(--ember)" hidden>
+                    Al guardar, queda como deficiencia crítica en el banco.
+                    {%- if not current_user.puede_aprobar %} La revisa un jefe técnico antes de que el cliente la vea.{% endif %}
+                  </span>
                   {% if r and r.disparo_automatico %}
                     <span class="tiny">Marcado solo por estar fuera del rango esperado.</span>
                   {% endif %}
@@ -297,6 +302,71 @@
   form.addEventListener('change', actualizar);
   form.addEventListener('input', actualizar);
   actualizar();
+
+  // Aviso de consecuencia: mostrar solo junto al punto que se acaba de
+  // marcar como crítico, no un cartel genérico arriba del formulario.
+  form.addEventListener('change', function (ev) {
+    if (!ev.target.matches('[data-gravedad-critica]')) return;
+    var aviso = ev.target.closest('.detalle').querySelector('.aviso-critica');
+    if (aviso) aviso.hidden = !ev.target.checked;
+  });
+
+  // Autoguardado local: si se cierra la pestaña a mitad de una rutina de
+  // 100 puntos, al volver se recupera lo tipeado que todavía no llegó al
+  // servidor. Solo rellena campos que están vacíos — un valor que ya vino
+  // del servidor (guardado en una visita anterior) nunca se pisa con esto.
+  var botonGuardar = form.querySelector('.barra-guardar button[type=submit]');
+  if (botonGuardar) botonGuardar.disabled = true;
+
+  var claveBorrador = 'ipm-checklist-' + form.dataset.itemId;
+  try {
+    var guardado = JSON.parse(localStorage.getItem(claveBorrador) || 'null');
+    if (guardado) {
+      var huboRestauro = false;
+      Array.prototype.forEach.call(form.elements, function (el) {
+        if (!el.name) return;
+        if (el.type === 'radio' || el.type === 'checkbox') {
+          if (el.checked) return; // ya vino marcado del servidor
+          if (guardado[el.name] && guardado[el.name].indexOf(el.value) !== -1) {
+            el.checked = true; huboRestauro = true;
+          }
+        } else if (!el.value && guardado[el.name] !== undefined && guardado[el.name][0]) {
+          el.value = guardado[el.name][0]; huboRestauro = true;
+        }
+      });
+      if (huboRestauro) {
+        actualizar();
+        form.querySelectorAll('[data-gravedad-critica]:checked').forEach(function (r) {
+          var aviso = r.closest('.detalle').querySelector('.aviso-critica');
+          if (aviso) aviso.hidden = false;
+        });
+        if (botonGuardar) botonGuardar.disabled = false;
+      }
+    }
+  } catch (e) {}
+
+  var guardarBorrador = null;
+  function programarGuardadoBorrador() {
+    clearTimeout(guardarBorrador);
+    guardarBorrador = setTimeout(function () {
+      var datos = {};
+      new FormData(form).forEach(function (v, k) {
+        (datos[k] = datos[k] || []).push(v);
+      });
+      try { localStorage.setItem(claveBorrador, JSON.stringify(datos)); } catch (e) {}
+    }, 400);
+  }
+  form.addEventListener('input', programarGuardadoBorrador);
+  form.addEventListener('change', programarGuardadoBorrador);
+
+  // Guardar deshabilitado hasta que haya un cambio real (o un borrador
+  // restaurado más arriba), para que no se pueda reenviar el mismo
+  // checklist sin querer con doble click.
+  form.addEventListener('input', function () { if (botonGuardar) botonGuardar.disabled = false; });
+  form.addEventListener('change', function () { if (botonGuardar) botonGuardar.disabled = false; });
+  form.addEventListener('submit', function () {
+    if (botonGuardar) { botonGuardar.disabled = true; botonGuardar.textContent = 'Guardando…'; }
+  });
 
   // Saltar al primer punto sin resolver, abriendo su bloque si hace falta.
   document.getElementById('ir-pendiente').addEventListener('click', function () {

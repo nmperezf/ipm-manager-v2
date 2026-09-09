@@ -74,6 +74,10 @@
 
   --r:8px; --r-sm:6px; --r-px:99px;
   --riel:246px;
+
+  /* --- movimiento --- */
+  --t-fast:120ms; --t-base-mv:180ms; --t-slow:280ms;
+  --e-out:cubic-bezier(.2,.8,.3,1); --e-in-out:cubic-bezier(.65,0,.35,1);
   --display:'Space Grotesk',system-ui,sans-serif;
   --body:'Inter',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
@@ -149,6 +153,21 @@ main:focus-visible{outline:none}
   .riel .grupo,.riel .pie,.riel a.nav .tag{display:none}
   .riel a.nav{font-size:0;justify-content:center;padding:var(--e3) 0}
 }
+/* Mismo truco de "solo íconos" que la franja de tablet, pero a pedido:
+   un botón en el pie del riel lo activa/desactiva a cualquier ancho, y
+   queda guardado por viewer en localStorage — ver base.html. */
+.riel.colapsada{width:60px;padding:var(--e4) var(--e2)}
+.riel.colapsada .marca{font-size:0;justify-content:center;padding:var(--e2) 0 var(--e5)}
+.riel.colapsada .grupo,.riel.colapsada .pie,.riel.colapsada a.nav .tag{display:none}
+.riel.colapsada a.nav{font-size:0;justify-content:center;padding:var(--e3) 0}
+.riel-toggle{display:flex;align-items:center;justify-content:center;gap:var(--e2);
+  width:100%;padding:var(--e3);border:0;border-top:1px solid rgba(255,255,255,.1);
+  background:none;color:#7C848D;cursor:pointer;font:inherit;font-size:var(--t-mini);
+  transition:color var(--t-fast) var(--e-out)}
+.riel-toggle:hover{color:#fff}
+.riel-toggle svg{transition:transform var(--t-fast) var(--e-out)}
+.riel.colapsada .riel-toggle svg{transform:rotate(180deg)}
+.riel.colapsada .riel-toggle span{display:none}
 
 .col{display:flex;flex-direction:column;min-width:0}
 
@@ -164,6 +183,13 @@ main:focus-visible{outline:none}
   border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sombra-alta);
   max-height:22rem;overflow-y:auto;z-index:50;padding:.3rem}
 .buscar-vivo .item{padding:var(--e2) var(--e3);border-radius:var(--r-sm)}
+
+/* Esqueleto de carga: solo tiene sentido donde de verdad se espera una
+   respuesta async (el buscador en vivo) — el resto de la app renderiza
+   server-side, no hay "cargando" que mostrar. */
+.sk{background:linear-gradient(90deg,var(--surface-muted) 25%,var(--surface) 37%,var(--surface-muted) 63%);
+  background-size:400% 100%;animation:sk-shimmer 1.3s ease infinite;border-radius:4px;display:block}
+@keyframes sk-shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
 
 .icono-btn{position:relative;background:none;border:0;color:var(--ink-muted);
   width:36px;height:36px;border-radius:var(--r-sm);cursor:pointer;display:grid;place-items:center;
@@ -228,7 +254,8 @@ main:focus-visible{outline:none}
    color del acento ya distingue destacada/crítica sin subir el grosor
    del borde (revisión "editorial", B1). */
 .card{background:var(--surface);border:0;border-left:2px solid var(--border-strong);
-  border-radius:var(--r-sm);padding:var(--e4);margin-bottom:var(--e4);box-shadow:var(--sombra)}
+  border-radius:var(--r-sm);padding:var(--e4);margin-bottom:var(--e4);box-shadow:var(--sombra);
+  transition:border-color var(--t-fast) var(--e-out),box-shadow var(--t-fast) var(--e-out)}
 .card h3{font-size:var(--t-med)}
 /* Variantes para lo que exige acción: se despegan del resto. */
 .card.destacada{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta)}
@@ -241,8 +268,10 @@ main:focus-visible{outline:none}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
   gap:var(--e3);margin-bottom:var(--e5)}
 .stat{background:var(--surface);border:0;border-left:2px solid var(--brand);border-radius:var(--r-sm);
-  padding:var(--e4);text-decoration:none;color:inherit;display:block;box-shadow:var(--sombra)}
-a.stat:hover{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta)}
+  padding:var(--e4);text-decoration:none;color:inherit;display:block;box-shadow:var(--sombra);
+  transition:border-color var(--t-fast) var(--e-out),box-shadow var(--t-fast) var(--e-out),
+    transform var(--t-fast) var(--e-out)}
+a.stat:hover{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta);transform:translateY(-1px)}
 .stat .k{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;
   color:var(--ink-faint)}
 .stat .v{font-family:var(--display);font-size:var(--t-cifra);font-variant-numeric:tabular-nums;
@@ -264,8 +293,10 @@ a.stat:hover{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta)}
 /* --- ítem de lista --- */
 .item{display:flex;align-items:center;gap:var(--e3);background:var(--surface);
   border:0;border-left:2px solid var(--border-strong);border-radius:var(--r-sm);padding:var(--e3);
-  text-decoration:none;color:inherit;box-shadow:var(--sombra)}
-a.item:hover{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta)}
+  text-decoration:none;color:inherit;box-shadow:var(--sombra);
+  transition:border-color var(--t-fast) var(--e-out),box-shadow var(--t-fast) var(--e-out),
+    transform var(--t-fast) var(--e-out)}
+a.item:hover{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta);transform:translateY(-1px)}
 .item.crit{border-left-color:var(--ember)}
 .item.warn{border-left-color:var(--warn)}
 .item .t{flex:1;min-width:0}
@@ -293,8 +324,10 @@ a.item:hover{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta)}
   background:var(--brand);color:#fff;border:0;border-radius:var(--r-sm);
   padding:var(--e2) var(--e4);font:inherit;font-size:var(--t-base);font-weight:600;
   cursor:pointer;text-decoration:none;min-height:36px;
-  transition:background-color .15s ease,border-color .15s ease,color .15s ease}
+  transition:background-color var(--t-fast) var(--e-out),border-color var(--t-fast) var(--e-out),
+    color var(--t-fast) var(--e-out),transform var(--t-fast) var(--e-out)}
 .btn:hover{background:var(--brand-light)}
+.btn:active{transform:scale(.97)}
 .btn.ember{background:var(--ember)}
 .btn.ghost{background:none;border:1px solid var(--border-strong);color:var(--ink)}
 .btn.ghost:hover{background:var(--surface-muted)}
@@ -325,7 +358,7 @@ a.item:hover{border-left-color:var(--brand-light);box-shadow:var(--sombra-alta)}
   width:100%;border:1px solid var(--border);background:var(--surface);border-radius:var(--r-sm);
   padding:var(--e2) var(--e3);font:inherit;font-size:var(--t-base);color:var(--ink);min-height:38px}
 .input:focus,.campo input:focus,.campo select:focus,.campo textarea:focus{
-  border-color:var(--brand-light);outline:none;box-shadow:0 0 0 3px rgba(194,118,12,.15)}
+  border-color:var(--brand-light);outline:none;box-shadow:0 0 0 3px rgba(46,109,164,.15)}
 .campo textarea{min-height:auto;resize:vertical}
 .input.num,.campo input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
 
@@ -551,7 +584,8 @@ tbody tr:hover .froz{background:var(--surface-muted)}
 @media (pointer:coarse){
   :root{--t-base:1.05rem; --t-mini:.92rem; --t-micro:.8rem}
   .btn{min-height:46px;padding:var(--e3) var(--e5)}
-  .btn.sm{min-height:40px;padding:var(--e2) var(--e4)}
+  .btn.sm{min-height:44px;padding:var(--e2) var(--e4)}
+  .chip-f{min-height:44px;padding:.42rem var(--e4)}
   .input,.campo input,.campo select,.campo textarea,
   .punto input,.punto select,.punto textarea{min-height:46px}
   .tri span,.grav span{min-height:48px;font-size:var(--t-base)}
@@ -727,7 +761,9 @@ tbody tr:hover .froz{background:var(--surface-muted)}
 
 .chip-f{flex:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--ink-muted);
   padding:.42rem .85rem;border-radius:var(--r-px);font-size:.85rem;font-weight:600;cursor:pointer;
-  display:flex;align-items:center;gap:.4rem;font-family:inherit}
+  display:flex;align-items:center;gap:.4rem;font-family:inherit;
+  transition:background-color var(--t-fast) var(--e-out),border-color var(--t-fast) var(--e-out),
+    color var(--t-fast) var(--e-out)}
 .chip-f .n{background:var(--surface-muted);color:var(--ink-faint);border-radius:var(--r-px);
   padding:0 .4rem;font-size:.72rem}
 .chip-f.on{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -797,3 +833,31 @@ tbody tr:hover .froz{background:var(--surface-muted)}
 .card-medicion.critica{border-left:3px solid var(--ember)}
 .med-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem}
 .med-head b{font-family:var(--display);font-size:var(--t-med)}
+
+/* =========================================================================
+   Impresión
+   Respaldo barato al informe PDF (app/informes.py): oculta el riel/topbar
+   y deja el contenido a ancho completo. No reemplaza al PDF diseñado,
+   sirve para imprimir una orden directo desde el navegador si hace falta.
+   ========================================================================= */
+@media print{
+  .riel,.topbar,.skip-link,.btn,.chip-f,.riel-toggle,.buscar-vivo,form button,
+  .migas a[href]::after{display:none!important}
+  .contenido{margin:0!important;padding:0!important;max-width:none!important}
+  body{background:#fff!important}
+  .card,.item,.tl-card{box-shadow:none!important;border:1px solid #999!important}
+  a{color:inherit!important;text-decoration:none!important}
+}
+
+/* =========================================================================
+   Toast con deshacer
+   Único uso hoy: piloto de acción optimista en deficiencias.html.
+   Si se replica a más acciones, esto pasa a ser el componente compartido.
+   ========================================================================= */
+.toast{position:fixed;left:50%;bottom:var(--e5);transform:translateX(-50%);
+  display:flex;align-items:center;gap:var(--e4);background:var(--ink);color:#fff;
+  padding:var(--e3) var(--e4);border-radius:var(--r);box-shadow:var(--sombra);
+  z-index:80;font-size:var(--t-mini)}
+.toast[hidden]{display:none}
+.toast button{background:none;border:0;color:#fff;font:inherit;font-weight:700;
+  cursor:pointer;text-decoration:underline;padding:0}

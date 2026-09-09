@@ -46,7 +46,7 @@
     </thead>
     <tbody>
     {% for o in observaciones %}
-      <tr>
+      <tr data-fila-observacion="{{ o.id }}">
         <td data-th="Clase">
           {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
           {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
@@ -89,7 +89,8 @@
                 </form>
               {% endif %}
               {% if not o.resuelto %}
-                <form method="post" action="{{ url_for('principal.resolver', observacion_id=o.id) }}">
+                <form method="post" action="{{ url_for('principal.resolver', observacion_id=o.id) }}"
+                      data-resolver-optimista>
                   <button class="btn ghost sm" type="submit">Resolver</button>
                 </form>
               {% endif %}
@@ -109,11 +110,90 @@
     </tbody>
   </table>
 </div>
+{% elif filtro or cliente_id %}
+<div class="vacio">
+  <span class="chip ok">{{ ico('check') }}</span>
+  <b>Ninguna deficiencia con este filtro</b>
+  <p>Puede que haya deficiencias en otro estado o cliente.</p>
+  <a class="btn ghost" href="{{ url_for('principal.deficiencias') }}">Ver todas</a>
+</div>
 {% else %}
 <div class="vacio">
   <span class="chip ok">{{ ico('check') }}</span>
-  <b>Nada acá</b>
-  <p>No hay deficiencias que cumplan con el filtro elegido.</p>
+  <b>Sin deficiencias registradas</b>
+  <p>Aparecen acá apenas un técnico carga un hallazgo en un checklist.</p>
 </div>
 {% endif %}
+
+<div id="toast-resolver" class="toast" hidden role="status" aria-live="polite">
+  <span></span>
+  <button type="button" data-deshacer>Deshacer</button>
+</div>
+
+<script>
+{# Piloto de acción optimista (única pantalla, ver plan de implementación):
+   al resolver, la fila se apaga en el momento y el pedido real recién sale
+   si nadie tocó "Deshacer" en 5s — así el deshacer no necesita una ruta de
+   "revertir" en el servidor, alcanza con no haber mandado nada todavía. #}
+(function () {
+  var toast = document.getElementById('toast-resolver');
+  var toastTexto = toast.querySelector('span');
+  var toastDeshacer = toast.querySelector('[data-deshacer]');
+  var pendiente = null; // {fila, url, temporizador}
+
+  function cancelarToast() {
+    toast.hidden = true;
+    pendiente = null;
+  }
+
+  function mostrarToast(mensaje) {
+    toastTexto.textContent = mensaje;
+    toast.hidden = false;
+  }
+
+  document.addEventListener('submit', function (ev) {
+    var form = ev.target;
+    if (!form.matches('[data-resolver-optimista]')) return;
+    ev.preventDefault();
+
+    if (pendiente) { // resolver otra mientras la anterior espera: confirmarla ya
+      clearTimeout(pendiente.temporizador);
+      enviar(pendiente);
+    }
+
+    var fila = form.closest('tr');
+    fila.style.transition = 'opacity var(--t-fast) var(--e-out)';
+    fila.style.opacity = '.35';
+    fila.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+
+    var item = { fila: fila, url: form.action };
+    item.temporizador = setTimeout(function () { toast.hidden = true; enviar(item); }, 5000);
+    pendiente = item;
+    mostrarToast('Marcada como resuelta.');
+  });
+
+  function enviar(item) {
+    if (pendiente === item) pendiente = null;
+    fetch(item.url, { method: 'POST', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (datos) {
+        if (!datos.ok) throw new Error(datos.error || 'No se pudo resolver.');
+        item.fila.remove();
+      })
+      .catch(function (err) {
+        item.fila.style.opacity = '';
+        item.fila.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+        alert(err.message || 'No se pudo resolver. Probá de nuevo.');
+      });
+  }
+
+  toastDeshacer.addEventListener('click', function () {
+    if (!pendiente) { cancelarToast(); return; }
+    clearTimeout(pendiente.temporizador);
+    pendiente.fila.style.opacity = '';
+    pendiente.fila.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+    cancelarToast();
+  });
+})();
+</script>
 {% endblock %}

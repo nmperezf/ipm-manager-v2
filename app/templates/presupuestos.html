@@ -50,10 +50,17 @@
     </a>
   {% endfor %}
 </div>
-{% else %}
+{% elif filtro %}
 <div class="vacio">
   <span class="chip ok">{{ ico('check') }}</span>
   <b>No hay presupuestos con este filtro</b>
+  <p>Puede que haya presupuestos en otro estado.</p>
+  <a class="btn ghost" href="{{ url_for('principal.presupuestos') }}">Ver todos</a>
+</div>
+{% else %}
+<div class="vacio">
+  <span class="chip ok">{{ ico('check') }}</span>
+  <b>Todavía no hay presupuestos</b>
   <p>Se crean desde una deficiencia, en el Banco de deficiencias.</p>
 </div>
 {% endif %}

@@ -62,6 +62,29 @@
 </div>
 {% endif %}
 
+{% if coordinacion_pendiente %}
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Coordinación pendiente este mes</h3>
+    <span class="sp"></span>
+    <a class="tiny" href="{{ url_for('principal.coordinacion') }}">ver todas →</a>
+  </div>
+  <div class="stack">
+    {% for s in coordinacion_pendiente %}
+      {% set inst = s.servicio.contrato.instalacion %}
+      <a class="item warn" href="{{ url_for('principal.coordinacion') }}">
+        <span class="chip warn">{{ ico('lista') }}</span>
+        <span class="t">
+          <b>{{ inst.cliente.nombre }} · {{ inst.nombre }}</b>
+          <span>{{ s.servicio.categoria.nombre }}</span>
+        </span>
+        <span class="pill nocrit">Sin coordinar</span>
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% if repuestos_criticos %}
 <div class="card">
   <div class="fila" style="margin-bottom:.6rem">

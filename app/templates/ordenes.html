@@ -66,6 +66,13 @@
     </tbody>
   </table>
 </div>
+{% elif filtro %}
+<div class="vacio">
+  <span class="chip ok">{{ ico('check') }}</span>
+  <b>Ninguna orden con este filtro</b>
+  <p>Puede que haya órdenes en otro estado.</p>
+  <a class="btn ghost" href="{{ url_for('principal.ordenes') }}">Ver todas</a>
+</div>
 {% else %}
 <div class="vacio">
   <span class="chip neu">{{ ico('visitas') }}</span>

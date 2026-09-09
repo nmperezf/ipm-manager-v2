@@ -110,6 +110,11 @@
        href="{{ url_for('principal.cuenta') }}">{{ ico('config') }}Mi cuenta</a>
 
     <div class="pie">{{ current_user.empresa.nombre }}</div>
+    <button type="button" class="riel-toggle" id="riel-toggle" aria-label="Colapsar menú">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      <span>Colapsar</span>
+    </button>
     {% endif %}
   </nav>
 
@@ -210,12 +215,27 @@ document.addEventListener('change', function (ev) {
 
   function cerrar() { caja.hidden = true; }
 
+  function esqueletoFila() {
+    return '<div class="item" style="pointer-events:none">' +
+      '<span class="chip neu sk" style="border-radius:50%"></span>' +
+      '<span class="t"><span class="sk" style="height:13px;width:60%;margin-bottom:6px"></span>' +
+      '<span class="sk" style="height:10px;width:38%"></span></span></div>';
+  }
+
   function buscar() {
     var q = input.value.trim();
     if (q.length < 2) { cerrar(); return; }
+    // Muestra el esqueleto ya — el fragment puede tardar un instante y una
+    // caja vacía no dice si está buscando o si no hay nada.
+    caja.innerHTML = esqueletoFila() + esqueletoFila();
+    caja.hidden = false;
+    var pedido = q;
     fetch(vivoUrl + '?q=' + encodeURIComponent(q))
       .then(function (r) { return r.text(); })
-      .then(function (html) { caja.innerHTML = html; caja.hidden = false; });
+      .then(function (html) {
+        if (input.value.trim() !== pedido) return; // llegó tarde, ya no aplica
+        caja.innerHTML = html; caja.hidden = false;
+      });
   }
 
   input.addEventListener('input', function () {
@@ -230,6 +250,29 @@ document.addEventListener('change', function (ev) {
   });
   input.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape') cerrar();
+  });
+})();
+
+// Colapsar el riel a solo íconos es una preferencia de esta pantalla, no
+// del usuario en el servidor — por eso vive en localStorage, no en un
+// campo de Usuario. Se restaura antes de que el usuario note el cambio.
+(function () {
+  var riel = document.querySelector('.riel');
+  var toggle = document.getElementById('riel-toggle');
+  if (!riel || !toggle) return;
+  var CLAVE = 'ipm-riel-colapsada';
+
+  if (localStorage.getItem(CLAVE) === '1') riel.classList.add('colapsada');
+
+  // Sin título, un ícono solo (sin el texto al lado) no dice a dónde va —
+  // se copia el texto visible del link como tooltip nativo del navegador.
+  riel.querySelectorAll('a.nav').forEach(function (a) {
+    if (!a.title) a.title = a.textContent.trim();
+  });
+
+  toggle.addEventListener('click', function () {
+    var colapsada = riel.classList.toggle('colapsada');
+    localStorage.setItem(CLAVE, colapsada ? '1' : '0');
   });
 })();
 </script>

@@ -296,6 +296,20 @@ def inicio():
         for h in u.habilitaciones_por_vencer:
             habilitaciones_alerta.append((u, h, False))
 
+    # Lo único con fecha de "vencimiento" real que tiene sentido mostrar acá
+    # es qué contrato todavía no se coordinó este mes — los contratos son
+    # mensuales, no de día preciso, así que no hay un countdown más fino
+    # que ofrecer sin inventar un dato que el modelo no tiene.
+    hoy_ = date.today()
+    coordinacion_pendiente = []
+    if current_user.puede_aprobar:
+        coordinacion_pendiente = (
+            _solicitudes_empresa(hoy_.year, hoy_.month)
+            .filter(SolicitudCoordinacion.coordinada.is_(False))
+            .order_by(SolicitudCoordinacion.id)
+            .limit(5).all()
+        )
+
     # Si las tres secciones de "nada que atender" están vacías a la vez,
     # se funden en una sola franja liviana en vez de repetir tres tarjetas
     # casi idénticas (revisión UX sept. 2026).
@@ -315,6 +329,7 @@ def inicio():
         repuestos_criticos=repuestos_criticos_lista,
         total_repuestos_criticos=total_repuestos_criticos,
         habilitaciones_alerta=habilitaciones_alerta,
+        coordinacion_pendiente=coordinacion_pendiente,
         todo_al_dia=todo_al_dia,
     )
 
@@ -1625,16 +1640,27 @@ def aprobar(observacion_id):
 @principal.route("/observacion/<int:observacion_id>/resolver", methods=["POST"])
 @login_required
 def resolver(observacion_id):
+    # Variante JSON: la usa el piloto de acción optimista en deficiencias.html
+    # (fila se saca de la lista antes de esperar la respuesta). El POST
+    # clásico con redirect+flash sigue intacto para quien no tiene JS.
+    quiere_json = request.accept_mimetypes.best == "application/json"
+
     obj = db.session.get(Observacion, observacion_id)
     if obj is None:
+        if quiere_json:
+            return jsonify(ok=False, error="Esa deficiencia ya no existe."), 404
         abort(404)
     _verificar_empresa(obj.instalacion.cliente.empresa_id)
     if not current_user.puede_aprobar:
+        if quiere_json:
+            return jsonify(ok=False, error="No autorizado."), 403
         abort(403)
 
     obj.resuelto = True
     obj.fecha_resolucion = date.today()
     db.session.commit()
+    if quiere_json:
+        return jsonify(ok=True)
     flash("Deficiencia marcada como resuelta.", "ok")
     return redirect(request.referrer or url_for("principal.deficiencias"))
 
