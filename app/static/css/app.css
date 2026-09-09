@@ -214,7 +214,7 @@ main:focus-visible{outline:none}
 .migas a:hover{color:var(--brand-light);text-decoration:underline}
 .migas b{color:var(--ink);font-weight:600}
 
-.contenido{padding:var(--e5) var(--e4) 5rem;width:100%;max-width:1180px}
+.contenido{padding:var(--e5) var(--e4) 5rem;width:100%;max-width:1180px;margin:0 auto}
 
 /* Cabecera de página: el título pesa, el resto acompaña. */
 .cabecera{display:flex;align-items:flex-end;gap:var(--e3);flex-wrap:wrap;margin-bottom:var(--e5)}
