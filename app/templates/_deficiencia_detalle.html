@@ -1,0 +1,69 @@
+<div class="detalle-cab">
+  {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
+  {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
+  {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
+  {% if o.resuelto %}<span class="pill ok">Resuelta</span>
+  {% elif o.estado_revision == REVISION_APROBADA %}<span class="pill ok">Aprobada</span>
+  {% else %}<span class="pill com">Pendiente</span>{% endif %}
+</div>
+
+<h3 style="margin:.5rem 0 .2rem">{{ o.descripcion }}</h3>
+<p class="tiny" style="margin:0 0 1rem">
+  <a href="{{ url_for('principal.instalacion', instalacion_id=o.instalacion_id) }}">
+    {{ o.instalacion.cliente.nombre }} · {{ o.instalacion.nombre }}</a>
+  {%- if o.equipo %} · <span class="mono">{{ o.equipo.codigo or o.equipo.nombre }}</span>{% endif %}
+  {%- if o.visita_id %} ·
+    <a href="{{ url_for('principal.visita', visita_id=o.visita_id) }}">visita #{{ o.visita_id }}</a>
+  {%- endif %}
+</p>
+
+<div class="campo-d">
+  <b>Fecha</b>{{ o.fecha_carga.strftime('%d/%m/%Y') }}
+</div>
+
+<div class="campo-d">
+  <b>Estado</b>
+  {% if o.resuelto %}
+    Resuelta{% if o.fecha_resolucion %} el {{ o.fecha_resolucion.strftime('%d/%m/%Y') }}{% endif %}.
+  {% elif o.estado_revision == REVISION_APROBADA %}
+    Aprobada
+    {%- if o.aprobacion_automatica %} automáticamente — la cargó un jefe técnico.
+    {%- elif o.aprobada_por %} por {{ o.aprobada_por.nombre_completo }}.
+    {%- endif %}
+  {% else %}
+    Pendiente de aprobación — el cliente todavía no la ve.
+  {% endif %}
+</div>
+
+{% if o.respuesta and o.respuesta.disparo_automatico %}
+  <div class="campo-d"><b>Origen</b>Marcada sola por estar fuera del rango esperado del checklist.</div>
+{% endif %}
+
+{% if o.presupuesto %}
+  <div class="campo-d">
+    <b>Presupuesto</b>
+    <a href="{{ url_for('principal.presupuesto', presupuesto_id=o.presupuesto.id) }}">
+      {{ o.presupuesto.codigo }} · {{ o.presupuesto.estado }}</a>
+  </div>
+{% endif %}
+
+{% if current_user.puede_aprobar %}
+  <div class="acciones-d">
+    {% if o.estado_revision != REVISION_APROBADA %}
+      <form method="post" action="{{ url_for('principal.aprobar', observacion_id=o.id) }}">
+        <button class="btn sm" type="submit">Aprobar</button>
+      </form>
+    {% endif %}
+    {% if not o.resuelto %}
+      <form method="post" action="{{ url_for('principal.resolver', observacion_id=o.id) }}"
+            data-resolver-optimista data-obs-id="{{ o.id }}">
+        <button class="btn ghost sm" type="submit">Resolver</button>
+      </form>
+    {% endif %}
+    {% if not o.presupuesto and o.clasificacion in (CLASIF_CRITICA, CLASIF_NO_CRITICA) %}
+      <form method="post" action="{{ url_for('principal.presupuesto_solicitar', observacion_id=o.id) }}">
+        <button class="btn ghost sm" type="submit">Solicitar presupuesto</button>
+      </form>
+    {% endif %}
+  </div>
+{% endif %}

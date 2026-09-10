@@ -572,10 +572,39 @@ def coordinacion():
         .order_by(Usuario.nombre_completo).all()
     )
 
+    ver = request.args.get("ver", type=int)
+    seleccionada = next((s for s in solicitudes if s.id == ver), None) if ver else None
+
     return render_template(
         "coordinacion.html", solicitudes=solicitudes,
         tecnicos=tecnicos, anio=anio, mes=mes, MESES=MESES,
         hoy=hoy, sugerida=max(hoy, primero) if hoy <= ultimo else primero,
+        seleccionada=seleccionada, ver=ver,
+    )
+
+
+@principal.route("/solicitud/<int:solicitud_id>/panel")
+@login_required
+def solicitud_panel(solicitud_id):
+    # Fragmento para el maestro-detalle de coordinación — mismo patrón que
+    # observacion_panel() / buscar_vivo().
+    _solo_gestion()
+    s = db.session.get(SolicitudCoordinacion, solicitud_id)
+    if s is None:
+        abort(404)
+    _verificar_empresa(s.servicio.contrato.instalacion.cliente.empresa_id)
+    hoy = date.today()
+    anio, mes = s.anio, s.mes
+    primero = date(anio, mes, 1)
+    ultimo = date(anio, mes, monthrange(anio, mes)[1])
+    tecnicos = (
+        Usuario.query.filter_by(empresa_id=current_user.empresa_id, activo=True)
+        .filter(Usuario.rol.in_(("Técnico", "Jefe técnico")))
+        .order_by(Usuario.nombre_completo).all()
+    )
+    return render_template(
+        "_coordinacion_detalle.html", s=s, tecnicos=tecnicos,
+        sugerida=max(hoy, primero) if hoy <= ultimo else primero,
     )
 
 
@@ -658,7 +687,38 @@ def ordenes():
     lista = query.order_by(
         OrdenTrabajo.fecha_compromiso.asc().nullslast(), OrdenTrabajo.id.desc()
     ).limit(80).all()
-    return render_template("ordenes.html", ordenes=lista, filtro=filtro)
+
+    ver = request.args.get("ver", type=int)
+    seleccionada = None
+    siguiente = None
+    repuestos_disponibles = None
+    if ver:
+        seleccionada = next((o for o in lista if o.id == ver), None)
+        if seleccionada:
+            siguiente = next((i for i in seleccionada.visita.items if not i.formularios), None)
+            repuestos_disponibles = _repuestos_empresa().order_by(Repuesto.nombre).all()
+
+    return render_template(
+        "ordenes.html", ordenes=lista, filtro=filtro, ver=ver,
+        seleccionada=seleccionada, siguiente=siguiente, repuestos_disponibles=repuestos_disponibles,
+    )
+
+
+@principal.route("/orden/<int:orden_id>/panel")
+@login_required
+def orden_panel(orden_id):
+    # Fragmento para el maestro-detalle de órdenes — mismo patrón que
+    # observacion_panel() / solicitud_panel().
+    obj = db.session.get(OrdenTrabajo, orden_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.visita.instalacion.cliente.empresa_id)
+    siguiente = next((i for i in obj.visita.items if not i.formularios), None)
+    repuestos_disponibles = _repuestos_empresa().order_by(Repuesto.nombre).all()
+    return render_template(
+        "_orden_detalle.html", orden=obj, siguiente=siguiente,
+        repuestos_disponibles=repuestos_disponibles,
+    )
 
 
 @principal.route("/ordenes/exportar")
@@ -1579,10 +1639,33 @@ def deficiencias(cliente_id=None):
         Cliente.query.filter_by(empresa_id=current_user.empresa_id)
         .order_by(Cliente.nombre).all()
     )
+
+    # Maestro-detalle: ?ver=<id> se resuelve server-side para que un link
+    # directo (o la carga sin JS) ya traiga el panel lleno, sin depender de
+    # un fetch posterior.
+    ver = request.args.get("ver", type=int)
+    seleccionada = None
+    if ver:
+        seleccionada = next((o for o in observaciones if o.id == ver), None)
+
     return render_template(
         "deficiencias.html", observaciones=observaciones,
         clientes=lista_clientes, cliente_id=cliente_id, filtro=filtro,
+        seleccionada=seleccionada, ver=ver,
     )
+
+
+@principal.route("/observacion/<int:observacion_id>/panel")
+@login_required
+def observacion_panel(observacion_id):
+    # Fragmento para el maestro-detalle de deficiencias — mismo patrón que
+    # buscar_vivo(): una ruta propia devuelve solo el HTML del panel, sin el
+    # resto de la página, para que el JS lo intercambie sin recargar.
+    obj = db.session.get(Observacion, observacion_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.instalacion.cliente.empresa_id)
+    return render_template("_deficiencia_detalle.html", o=obj)
 
 
 @principal.route("/deficiencias/exportar")

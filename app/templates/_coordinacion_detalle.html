@@ -1,0 +1,64 @@
+{% set servicio = s.servicio %}
+{% set inst = servicio.contrato.instalacion %}
+<div class="detalle-cab">
+  <span class="pill {{ 'ok' if s.estado_derivado == 'ejecutada' else 'com' }}">
+    {{ {'sin_coordinar': 'Sin coordinar', 'coordinada': 'Coordinada', 'asignada': 'Asignada',
+        'en_ejecucion': 'En ejecución', 'ejecutada': 'Ejecutada'}[s.estado_derivado] }}</span>
+</div>
+
+<h3 style="margin:.5rem 0 .2rem">{{ inst.cliente.nombre }} · {{ inst.nombre }}</h3>
+<p class="tiny" style="margin:0 0 1rem">{{ servicio.categoria.nombre }}</p>
+
+{% if s.coordinada %}
+  <div class="campo-d">
+    <b>Coordinada</b>
+    para el {{ s.fecha_coordinada.strftime('%d/%m/%Y') }}
+    {%- if s.orden %} · <a href="{{ url_for('principal.orden', orden_id=s.orden.id) }}">{{ s.orden.numero }}</a>
+      {%- if s.orden.tecnico %} · {{ s.orden.tecnico.nombre_completo }}{% endif -%}
+    {% endif %}
+  </div>
+{% endif %}
+
+<form method="post" action="{{ url_for('principal.solicitud_coordinar', solicitud_id=s.id) }}"
+      class="fila" style="flex-wrap:wrap;margin-top:var(--e3)">
+  <label class="campo" style="min-width:9rem">
+    <span class="rotulo">{{ 'Recoordinar a' if s.coordinada else 'Fecha acordada' }}</span>
+    <input type="date" name="fecha" required value="{{ (s.fecha_coordinada or sugerida).isoformat() }}">
+  </label>
+  <label class="campo" style="min-width:10rem">
+    <span class="rotulo">Técnico</span>
+    <select name="tecnico_id">
+      <option value="">— sin asignar —</option>
+      {% for t in tecnicos %}
+        <option value="{{ t.id }}" {{ 'selected' if s.orden and s.orden.tecnico_id == t.id }}>
+          {{ t.nombre_completo or t.username }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="campo" style="flex:1;min-width:12rem">
+    <span class="rotulo">Notas</span>
+    <input type="text" name="notas" value="{{ s.notas or '' }}">
+  </label>
+  <button class="btn sm" type="submit">{{ 'Recoordinar' if s.coordinada else 'Confirmar' }}</button>
+</form>
+
+{% if s.auditoria %}
+  <details style="margin-top:var(--e4)">
+    <summary class="tiny">Historial de coordinación ({{ s.auditoria|length }})</summary>
+    <div class="stack" style="margin-top:.4rem">
+      {% for a in s.auditoria %}
+        <div class="item">
+          <span class="chip neu">{{ ico('reloj') }}</span>
+          <span class="t">
+            <b>{% if a.fecha_anterior %}{{ a.fecha_anterior.strftime('%d/%m/%Y') }} → {% endif %}{{ a.fecha_nueva.strftime('%d/%m/%Y') }}</b>
+            <span>
+              {{ a.fecha_cambio.strftime('%d/%m/%Y %H:%M') }}
+              {%- if a.usuario %} · {{ a.usuario.nombre_completo }}{% endif %}
+              {%- if a.nota %} · {{ a.nota }}{% endif %}
+            </span>
+          </span>
+        </div>
+      {% endfor %}
+    </div>
+  </details>
+{% endif %}

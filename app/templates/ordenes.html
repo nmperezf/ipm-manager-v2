@@ -29,43 +29,97 @@
 </div>
 
 {% if ordenes %}
-<div class="tabla-wrap apilada">
-  <table class="apilable">
-    <thead>
-      <tr>
-        <th class="froz">OT</th><th>Cliente</th><th>Instalación</th>
-        <th>Técnico</th><th>Compromiso</th><th>Estado</th><th>Hallazgos</th>
-      </tr>
-    </thead>
-    <tbody>
+<div class="maestro {{ 'con-seleccion' if ver }}" id="maestro-ordenes">
+  <div class="lista-m">
     {% for o in ordenes %}
       {% set criticas = o.visita.observaciones | selectattr('clasificacion', 'equalto', CLASIF_CRITICA) | list %}
-      <tr>
-        <td data-th="OT" class="froz mono">
-          <a href="{{ url_for('principal.orden', orden_id=o.id) }}">{{ o.numero or '#' ~ o.id }}</a>
-        </td>
-        <td data-th="Cliente">{{ o.visita.instalacion.cliente.nombre }}</td>
-        <td data-th="Instalación">{{ o.visita.instalacion.nombre }}</td>
-        <td data-th="Técnico">{{ o.tecnico.nombre_completo if o.tecnico else '—' }}</td>
-        <td data-th="Compromiso" class="mono">
-          {{ o.fecha_compromiso.strftime('%d/%m/%y') if o.fecha_compromiso else '—' }}
-          {% if o.vencida %}<span class="pill crit">vencida</span>{% endif %}
-        </td>
-        <td data-th="Estado">
+      <a class="fila-m {{ 'sel' if seleccionada and seleccionada.id == o.id }}"
+         href="{{ url_for('principal.ordenes', estado=filtro, ver=o.id) }}"
+         data-fila-orden="{{ o.id }}" data-ver="{{ o.id }}">
+        <span class="fila-m-pills">
           {% if o.estado == OT_CERRADA %}<span class="pill ok">{{ o.estado }}</span>
           {% elif o.estado == OT_EN_REVISION %}<span class="pill nocrit">{{ o.estado }}</span>
           {% else %}<span class="pill com">{{ o.estado }}</span>{% endif %}
-        </td>
-        <td data-th="Hallazgos">
-          {% if criticas %}<span class="pill crit">{{ criticas|length }} crítica(s)</span>
-          {% elif o.visita.observaciones %}<span class="pill nocrit">{{ o.visita.observaciones|length }}</span>
-          {% else %}—{% endif %}
-        </td>
-      </tr>
+          {% if o.vencida %}<span class="pill crit">vencida</span>{% endif %}
+          {% if criticas %}<span class="pill crit">{{ criticas|length }} crítica(s)</span>{% endif %}
+        </span>
+        <b class="mono">{{ o.numero or '#' ~ o.id }}</b>
+        <span>
+          {{ o.visita.instalacion.cliente.nombre }} · {{ o.visita.instalacion.nombre }}
+          · {{ o.tecnico.nombre_completo if o.tecnico else 'sin asignar' }}
+        </span>
+      </a>
     {% endfor %}
-    </tbody>
-  </table>
+  </div>
+
+  <div class="detalle-m">
+    <a class="tiny volver-lista" href="{{ url_for('principal.ordenes', estado=filtro) }}">← Volver a la lista</a>
+    <div id="panel-detalle">
+      {% if seleccionada %}
+        {% set orden = seleccionada %}
+        {% include "_orden_detalle.html" %}
+      {% else %}
+        <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
+          <span class="chip neu">{{ ico('visitas') }}</span>
+          <b>Elegí una orden de la lista</b>
+          <p>El detalle, el checklist y las acciones aparecen acá.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
 </div>
+<template id="panel-vacio-tpl">
+  <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
+    <span class="chip neu">{{ ico('visitas') }}</span>
+    <b>Elegí una orden de la lista</b>
+    <p>El detalle, el checklist y las acciones aparecen acá.</p>
+  </div>
+</template>
+
+<script>
+(function () {
+  var maestro = document.getElementById('maestro-ordenes');
+  if (!maestro) return;
+  var panel = document.getElementById('panel-detalle');
+  var plantillaVacia = document.getElementById('panel-vacio-tpl');
+
+  function marcarSeleccion(id) {
+    maestro.querySelectorAll('.fila-m').forEach(function (a) {
+      a.classList.toggle('sel', a.dataset.ver === String(id));
+    });
+    maestro.classList.toggle('con-seleccion', !!id);
+  }
+
+  function mostrarVacio() {
+    panel.innerHTML = '';
+    panel.appendChild(plantillaVacia.content.cloneNode(true));
+  }
+
+  function cargarPanel(id, url) {
+    fetch('/orden/' + id + '/panel')
+      .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
+      .then(function (html) { panel.innerHTML = html; marcarSeleccion(id); })
+      .catch(function () { window.location.href = url; });
+  }
+
+  maestro.addEventListener('click', function (ev) {
+    var fila = ev.target.closest('.fila-m');
+    if (!fila) return;
+    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1) return;
+    ev.preventDefault();
+    var id = fila.dataset.ver;
+    history.pushState({ ver: id }, '', fila.href);
+    cargarPanel(id, fila.href);
+  });
+
+  window.addEventListener('popstate', function () {
+    var params = new URLSearchParams(window.location.search);
+    var id = params.get('ver');
+    if (id) cargarPanel(id, window.location.href);
+    else { mostrarVacio(); marcarSeleccion(null); }
+  });
+})();
+</script>
 {% elif filtro %}
 <div class="vacio">
   <span class="chip ok">{{ ico('check') }}</span>

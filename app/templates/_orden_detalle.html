@@ -1,0 +1,197 @@
+{% set visita = orden.visita %}
+{% set inst = visita.instalacion %}
+<div class="detalle-cab" style="align-items:center;flex-wrap:wrap">
+  {% if orden.estado == OT_CERRADA %}<span class="pill ok">{{ orden.estado }}</span>
+  {% elif orden.estado == OT_EN_REVISION %}<span class="pill nocrit">{{ orden.estado }}</span>
+  {% else %}<span class="pill com">{{ orden.estado }}</span>{% endif %}
+  {% if orden.vencida %}<span class="pill crit">vencida</span>{% endif %}
+  <span class="sp"></span>
+  <a class="btn ghost sm" href="{{ url_for('principal.visita_informe', visita_id=visita.id) }}" target="_blank">
+    Informe (PDF)</a>
+</div>
+
+<h3 style="margin:.5rem 0 .2rem"><span class="mono">{{ orden.numero }}</span></h3>
+<p class="tiny" style="margin:0 0 1rem">
+  <a href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">
+    {{ inst.cliente.nombre }} · {{ inst.nombre }}</a>
+  · {{ orden.tecnico.nombre_completo if orden.tecnico else 'sin asignar' }}
+</p>
+
+{% if siguiente and orden.estado != OT_CERRADA %}
+<div class="card" style="border-left:3px solid var(--brand-light);margin-bottom:var(--e3)">
+  <div class="fila">
+    <span class="chip neu">{{ ico('visitas') }}</span>
+    <div style="flex:1;min-width:0">
+      <b style="font-size:.9rem;display:block">Falta cargar {{ siguiente.categoria.nombre }}</b>
+      <span class="tiny">rutina {{ siguiente.rutina }}</span>
+    </div>
+    <a class="btn" href="{{ url_for('principal.checklist', item_id=siguiente.id) }}">
+      Cargar checklist</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:var(--e3)">
+  <h3 style="margin-bottom:.6rem">Datos de la orden</h3>
+  <div class="tabla-wrap">
+    <table>
+      <tbody>
+        <tr><th style="width:9rem">Tipo</th><td>{{ orden.tipo }}</td></tr>
+        <tr><th>Prioridad</th><td>{{ orden.prioridad }}</td></tr>
+        <tr><th>Apertura</th><td class="mono">{{ orden.fecha_apertura.strftime('%d/%m/%Y') }}</td></tr>
+        <tr>
+          <th>Compromiso</th>
+          <td class="mono">{{ orden.fecha_compromiso.strftime('%d/%m/%Y') if orden.fecha_compromiso else '—' }}</td>
+        </tr>
+        {% if orden.fecha_cierre %}
+          <tr><th>Cierre</th><td class="mono">{{ orden.fecha_cierre.strftime('%d/%m/%Y') }}</td></tr>
+        {% endif %}
+        <tr>
+          <th>Visita</th>
+          <td><a href="{{ url_for('principal.visita', visita_id=visita.id) }}">#{{ visita.id }}</a>
+            · {{ visita.fecha.strftime('%d/%m/%Y') }}</td>
+        </tr>
+        {% if orden.descripcion %}
+          <tr><th>Descripción</th><td>{{ orden.descripcion }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:var(--e3)">
+  <h3 style="margin-bottom:.6rem">Trabajo a realizar</h3>
+  <div class="stack">
+    {% for item in visita.items %}
+      {% set cargados = item.formularios | length %}
+      <div class="item">
+        <span class="chip {{ 'ok' if cargados else 'neu' }}">
+          {% if cargados %}{{ ico('check') }}{% else %}{{ ico('visitas') }}{% endif %}</span>
+        <span class="t">
+          <b>{{ item.categoria.nombre }}</b>
+          <span>
+            rutina {{ item.rutina }} ·
+            {% if cargados %}{{ cargados }} formulario(s) cargado(s){% else %}sin cargar{% endif %}
+          </span>
+        </span>
+        {% if orden.estado != OT_CERRADA %}
+          <a class="btn ghost sm" href="{{ url_for('principal.checklist', item_id=item.id) }}">
+            {% if cargados %}Revisar{% else %}Cargar{% endif %}</a>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% set deficiencias = visita.observaciones | rejectattr('clasificacion', 'equalto', 'Comentario') | list %}
+{% set notas = visita.observaciones | selectattr('clasificacion', 'equalto', 'Comentario') | list %}
+
+{% if deficiencias %}
+<div class="card" style="margin-bottom:var(--e3)">
+  <h3 style="margin-bottom:.6rem">Deficiencias</h3>
+  <div class="stack">
+    {% for o in deficiencias %}
+      <div class="item {{ 'crit' if o.clasificacion == CLASIF_CRITICA }}">
+        <span class="chip {{ 'crit' if o.clasificacion == CLASIF_CRITICA else 'warn' }}">
+          {{ ico('deficiencias') }}</span>
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span>{% if o.equipo %}<span class="mono">{{ o.equipo.codigo or o.equipo.nombre }}</span>{% endif %}</span>
+        </span>
+        {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
+        {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
+        {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
+        {% if o.estado_revision != REVISION_APROBADA %}<span class="pill com">Sin aprobar</span>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if orden.presupuesto_origen %}
+<div class="card" style="margin-bottom:var(--e3)">
+  <h3 style="margin-bottom:.6rem">Presupuesto de origen</h3>
+  <a class="item" href="{{ url_for('principal.presupuesto', presupuesto_id=orden.presupuesto_origen.id) }}">
+    <span class="chip neu">{{ ico('presupuesto') }}</span>
+    <span class="t"><b><span class="mono">{{ orden.presupuesto_origen.codigo }}</span></b>
+      <span>{{ orden.presupuesto_origen.estado }}</span></span>
+    {{ ico('chevron') }}
+  </a>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:var(--e3)">
+  <h3 style="margin-bottom:.6rem">Repuestos usados</h3>
+  <div class="stack">
+    {% for c in orden.consumos %}
+      <div class="item">
+        <span class="chip neu">{{ ico('repuesto') }}</span>
+        <span class="t"><b>{{ c.repuesto.nombre }}</b>
+          <span>{{ c.cantidad }} {{ c.repuesto.unidad }}(s) · {{ c.fecha.strftime('%d/%m/%Y') }}
+            {%- if c.equipo %} · {{ c.equipo.etiqueta }}{% endif %}</span></span>
+      </div>
+    {% else %}
+      <p class="tiny">Sin repuestos registrados en esta orden.</p>
+    {% endfor %}
+  </div>
+  {% if orden.estado != OT_CERRADA and repuestos_disponibles %}
+  <form method="post" action="{{ url_for('principal.orden_repuesto_consumir', orden_id=orden.id) }}"
+        class="stack" style="margin-top:.6rem;gap:.4rem">
+    <select name="repuesto_id" required>
+      {% for r in repuestos_disponibles %}
+        <option value="{{ r.id }}">{{ r.nombre }} (stock {{ r.stock_actual }})</option>
+      {% endfor %}
+    </select>
+    <div class="fila" style="flex-wrap:wrap">
+      <input type="number" name="cantidad" min="1" value="1" style="width:6rem" required>
+      {% if orden.visita.instalacion.equipos %}
+        <select name="equipo_id" style="flex:1;min-width:10rem">
+          <option value="">— sin equipo puntual —</option>
+          {% for e in orden.visita.instalacion.equipos if e.activo %}
+            <option value="{{ e.id }}">{{ e.etiqueta }}</option>
+          {% endfor %}
+        </select>
+      {% endif %}
+      <button class="btn ghost sm" type="submit">Registrar consumo</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+
+{% if notas %}
+<div class="card" style="margin-bottom:var(--e3)">
+  <h3 style="margin-bottom:.6rem">Notas</h3>
+  <p class="tiny" style="margin-bottom:.6rem">
+    Comentarios dejados en puntos conformes. No son deficiencias.</p>
+  <div class="stack">
+    {% for o in notas %}
+      <div class="item">
+        <span class="chip neu">{{ ico('check') }}</span>
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span>{% if o.equipo %}<span class="mono">{{ o.equipo.codigo or o.equipo.nombre }}</span>{% endif %}</span>
+        </span>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 style="margin-bottom:.6rem">Estado</h3>
+  <div class="fila" style="flex-wrap:wrap">
+    {% for e in ESTADOS_OT %}
+      {% if e != orden.estado and orden.puede_pasar_a(e, current_user) %}
+        <form method="post" action="{{ url_for('principal.orden_estado', orden_id=orden.id) }}">
+          <input type="hidden" name="estado" value="{{ e }}">
+          <button class="btn {{ '' if e == OT_EN_REVISION else 'ghost' }} sm" type="submit">
+            Pasar a {{ e }}</button>
+        </form>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <p class="tiny" style="margin:.6rem 0 0">
+    El técnico la empuja hasta dejarla <b>En revisión</b>; cerrarla es de gestión.
+    Cargar un checklist la pone <b>En curso</b> sola.
+  </p>
+</div>

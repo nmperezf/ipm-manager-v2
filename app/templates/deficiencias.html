@@ -39,77 +39,49 @@
 </div>
 
 {% if observaciones %}
-<div class="tabla-wrap apilada">
-  <table class="apilable">
-    <thead>
-      <tr><th>Clase</th><th>Descripción</th><th>Equipo</th><th>Fecha</th><th>Estado</th><th></th></tr>
-    </thead>
-    <tbody>
+<div class="maestro {{ 'con-seleccion' if ver }}" id="maestro-deficiencias">
+  <div class="lista-m">
     {% for o in observaciones %}
-      <tr data-fila-observacion="{{ o.id }}">
-        <td data-th="Clase">
+      <a class="fila-m {{ 'sel' if seleccionada and seleccionada.id == o.id }}"
+         href="{{ url_for('principal.deficiencias', cliente_id=cliente_id, estado=filtro, ver=o.id) }}"
+         data-fila-observacion="{{ o.id }}" data-ver="{{ o.id }}">
+        <span class="fila-m-pills">
           {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
           {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
           {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
-        </td>
-        <td data-th="Descripción">
-          {{ o.descripcion }}
-          <span class="tiny" style="display:block">
-            <a href="{{ url_for('principal.instalacion', instalacion_id=o.instalacion_id) }}">
-              {{ o.instalacion.cliente.nombre }} · {{ o.instalacion.nombre }}</a>
-            {%- if o.visita_id %} ·
-              <a href="{{ url_for('principal.visita', visita_id=o.visita_id) }}">visita #{{ o.visita_id }}</a>
-            {%- endif %}
-            {%- if o.respuesta and o.respuesta.disparo_automatico %} · marcado solo por rango{% endif %}
-          </span>
-        </td>
-        <td data-th="Equipo" class="mono">{{ o.equipo.codigo if o.equipo and o.equipo.codigo else '—' }}</td>
-        <td data-th="Fecha" class="mono">{{ o.fecha_carga.strftime('%d/%m/%y') }}</td>
-        <td data-th="Estado">
-          {% if o.resuelto %}
-            <span class="pill ok">Resuelta</span>
-          {% elif o.estado_revision == REVISION_APROBADA %}
-            <span class="pill ok">Aprobada</span>
-            {% if o.aprobacion_automatica %}
-              <span class="tiny" style="display:block">automática — la cargó un jefe</span>
-            {% elif o.aprobada_por %}
-              <span class="tiny" style="display:block">por {{ o.aprobada_por.nombre_completo }}</span>
-            {% endif %}
-          {% else %}
-            <span class="pill com">Pendiente</span>
-            <span class="tiny" style="display:block">el cliente no la ve</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if current_user.puede_aprobar %}
-            <div class="fila" style="gap:.3rem">
-              {% if o.estado_revision != REVISION_APROBADA %}
-                <form method="post" action="{{ url_for('principal.aprobar', observacion_id=o.id) }}">
-                  <button class="btn sm" type="submit">Aprobar</button>
-                </form>
-              {% endif %}
-              {% if not o.resuelto %}
-                <form method="post" action="{{ url_for('principal.resolver', observacion_id=o.id) }}"
-                      data-resolver-optimista>
-                  <button class="btn ghost sm" type="submit">Resolver</button>
-                </form>
-              {% endif %}
-              {% if o.presupuesto %}
-                <a class="btn ghost sm" href="{{ url_for('principal.presupuesto', presupuesto_id=o.presupuesto.id) }}">
-                  {{ o.presupuesto.codigo }}</a>
-              {% elif o.clasificacion in (CLASIF_CRITICA, CLASIF_NO_CRITICA) %}
-                <form method="post" action="{{ url_for('principal.presupuesto_solicitar', observacion_id=o.id) }}">
-                  <button class="btn ghost sm" type="submit">Solicitar presupuesto</button>
-                </form>
-              {% endif %}
-            </div>
-          {% endif %}
-        </td>
-      </tr>
+          {% if o.resuelto %}<span class="pill ok">Resuelta</span>
+          {% elif o.estado_revision == REVISION_APROBADA %}<span class="pill ok">Aprobada</span>
+          {% else %}<span class="pill com">Pendiente</span>{% endif %}
+        </span>
+        <b>{{ o.descripcion }}</b>
+        <span>{{ o.instalacion.cliente.nombre }} · {{ o.instalacion.nombre }} · {{ o.fecha_carga.strftime('%d/%m/%y') }}</span>
+      </a>
     {% endfor %}
-    </tbody>
-  </table>
+  </div>
+
+  <div class="detalle-m">
+    <a class="tiny volver-lista" href="{{ url_for('principal.deficiencias', cliente_id=cliente_id, estado=filtro) }}">← Volver a la lista</a>
+    <div id="panel-detalle">
+      {% if seleccionada %}
+        {% set o = seleccionada %}
+        {% include "_deficiencia_detalle.html" %}
+      {% else %}
+        <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
+          <span class="chip neu">{{ ico('deficiencias') }}</span>
+          <b>Elegí una deficiencia de la lista</b>
+          <p>El detalle y las acciones aparecen acá, sin salir de esta pantalla.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
 </div>
+<template id="panel-vacio-tpl">
+  <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
+    <span class="chip neu">{{ ico('deficiencias') }}</span>
+    <b>Elegí una deficiencia de la lista</b>
+    <p>El detalle y las acciones aparecen acá, sin salir de esta pantalla.</p>
+  </div>
+</template>
 {% elif filtro or cliente_id %}
 <div class="vacio">
   <span class="chip ok">{{ ico('check') }}</span>
@@ -131,15 +103,65 @@
 </div>
 
 <script>
-{# Piloto de acción optimista (única pantalla, ver plan de implementación):
-   al resolver, la fila se apaga en el momento y el pedido real recién sale
-   si nadie tocó "Deshacer" en 5s — así el deshacer no necesita una ruta de
-   "revertir" en el servidor, alcanza con no haber mandado nada todavía. #}
+{# Maestro-detalle (ver plan de implementación): la fila es un <a> real con
+   ?ver=<id> — sin JS, hacer click navega y el server ya trae el panel
+   lleno. Con JS, se pide solo el fragmento del panel (mismo patrón que
+   /buscar/vivo) y se actualiza la URL con pushState, sin recargar. #}
+(function () {
+  var maestro = document.getElementById('maestro-deficiencias');
+  if (!maestro) return;
+  var panel = document.getElementById('panel-detalle');
+  var plantillaVacia = document.getElementById('panel-vacio-tpl');
+
+  function marcarSeleccion(id) {
+    maestro.querySelectorAll('.fila-m').forEach(function (a) {
+      a.classList.toggle('sel', a.dataset.ver === String(id));
+    });
+    maestro.classList.toggle('con-seleccion', !!id);
+  }
+
+  function mostrarVacio() {
+    panel.innerHTML = '';
+    panel.appendChild(plantillaVacia.content.cloneNode(true));
+  }
+
+  function cargarPanel(id, url) {
+    fetch('/observacion/' + id + '/panel')
+      .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
+      .then(function (html) {
+        panel.innerHTML = html;
+        marcarSeleccion(id);
+      })
+      .catch(function () { window.location.href = url; }); // algo raro: navegación normal de respaldo
+  }
+
+  maestro.addEventListener('click', function (ev) {
+    var fila = ev.target.closest('.fila-m');
+    if (!fila) return;
+    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1) return; // abrir en pestaña nueva, sin interceptar
+    ev.preventDefault();
+    var id = fila.dataset.ver;
+    history.pushState({ ver: id }, '', fila.href);
+    cargarPanel(id, fila.href);
+  });
+
+  window.addEventListener('popstate', function () {
+    var params = new URLSearchParams(window.location.search);
+    var id = params.get('ver');
+    if (id) cargarPanel(id, window.location.href);
+    else { mostrarVacio(); marcarSeleccion(null); }
+  });
+})();
+
+{# Piloto de acción optimista (ver plan de implementación): al resolver, el
+   panel se apaga en el momento y el pedido real recién sale si nadie tocó
+   "Deshacer" en 5s — así el deshacer no necesita una ruta de "revertir" en
+   el servidor, alcanza con no haber mandado nada todavía. #}
 (function () {
   var toast = document.getElementById('toast-resolver');
   var toastTexto = toast.querySelector('span');
   var toastDeshacer = toast.querySelector('[data-deshacer]');
-  var pendiente = null; // {fila, url, temporizador}
+  var pendiente = null; // {contenedor, url, id, temporizador}
 
   function cancelarToast() {
     toast.hidden = true;
@@ -161,12 +183,13 @@
       enviar(pendiente);
     }
 
-    var fila = form.closest('tr');
-    fila.style.transition = 'opacity var(--t-fast) var(--e-out)';
-    fila.style.opacity = '.35';
-    fila.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+    var fila = document.querySelector('[data-fila-observacion="' + form.dataset.obsId + '"]');
+    var contenedor = form.closest('.detalle-m');
+    contenedor.style.transition = 'opacity var(--t-fast) var(--e-out)';
+    contenedor.style.opacity = '.35';
+    contenedor.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
 
-    var item = { fila: fila, url: form.action };
+    var item = { contenedor: contenedor, fila: fila, url: form.action, id: form.dataset.obsId };
     item.temporizador = setTimeout(function () { toast.hidden = true; enviar(item); }, 5000);
     pendiente = item;
     mostrarToast('Marcada como resuelta.');
@@ -178,11 +201,24 @@
       .then(function (r) { return r.json(); })
       .then(function (datos) {
         if (!datos.ok) throw new Error(datos.error || 'No se pudo resolver.');
-        item.fila.remove();
+        if (item.fila) item.fila.remove();
+
+        var maestro = document.getElementById('maestro-deficiencias');
+        var panel = document.getElementById('panel-detalle');
+        var panelVacio = document.getElementById('panel-vacio-tpl');
+        panel.innerHTML = '';
+        panel.appendChild(panelVacio.content.cloneNode(true));
+        if (maestro) maestro.classList.remove('con-seleccion');
+        item.contenedor.style.opacity = '';
+
+        var params = new URLSearchParams(window.location.search);
+        params.delete('ver');
+        var query = params.toString();
+        history.pushState({}, '', window.location.pathname + (query ? '?' + query : ''));
       })
       .catch(function (err) {
-        item.fila.style.opacity = '';
-        item.fila.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+        item.contenedor.style.opacity = '';
+        item.contenedor.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
         alert(err.message || 'No se pudo resolver. Probá de nuevo.');
       });
   }
@@ -190,8 +226,8 @@
   toastDeshacer.addEventListener('click', function () {
     if (!pendiente) { cancelarToast(); return; }
     clearTimeout(pendiente.temporizador);
-    pendiente.fila.style.opacity = '';
-    pendiente.fila.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+    pendiente.contenedor.style.opacity = '';
+    pendiente.contenedor.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
     cancelarToast();
   });
 })();
