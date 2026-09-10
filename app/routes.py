@@ -1230,7 +1230,37 @@ def visitas():
     if current_user.rol == "Técnico":
         query = query.filter(Visita.tecnico_id == current_user.id)
     lista = query.order_by(Visita.fecha.desc(), Visita.id.desc()).limit(60).all()
-    return render_template("visitas.html", visitas=lista)
+
+    ver = request.args.get("ver", type=int)
+    seleccionada = None
+    observaciones_sel = None
+    if ver:
+        seleccionada = next((v for v in lista if v.id == ver), None)
+        if seleccionada:
+            observaciones_sel = (
+                Observacion.query.filter_by(visita_id=seleccionada.id).order_by(Observacion.id).all()
+            )
+
+    return render_template(
+        "visitas.html", visitas=lista, ver=ver,
+        seleccionada=seleccionada, observaciones=observaciones_sel,
+    )
+
+
+@principal.route("/visita/<int:visita_id>/panel")
+@login_required
+def visita_panel(visita_id):
+    # Fragmento para el maestro-detalle de visitas — mismo patrón que los
+    # otros paneles. Sin <script> propio: el init de los canvas de firma
+    # vive en visitas.html y se vuelve a correr después de cada swap.
+    obj = db.session.get(Visita, visita_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.instalacion.cliente.empresa_id)
+    observaciones = (
+        Observacion.query.filter_by(visita_id=obj.id).order_by(Observacion.id).all()
+    )
+    return render_template("_visita_detalle.html", visita=obj, observaciones=observaciones)
 
 
 @principal.route("/visitas/exportar")
@@ -1787,9 +1817,27 @@ def presupuestos():
         lista = query.order_by(Presupuesto.fecha_creacion.desc()).all()
 
     por_estado = {e: [p for p in lista if p.estado == e] for e in ESTADOS_PRESUPUESTO} if not filtro else None
+
+    ver = request.args.get("ver", type=int)
+    seleccionada = next((p for p in lista if p.id == ver), None) if ver else None
+
     return render_template(
         "presupuestos.html", presupuestos=lista, por_estado=por_estado, filtro=filtro,
+        ver=ver, seleccionada=seleccionada,
     )
+
+
+@principal.route("/presupuesto/<int:presupuesto_id>/panel")
+@login_required
+def presupuesto_panel(presupuesto_id):
+    # Fragmento para el maestro-detalle de presupuestos — mismo patrón que
+    # observacion_panel() / solicitud_panel() / orden_panel().
+    _solo_gestion()
+    obj = db.session.get(Presupuesto, presupuesto_id)
+    if obj is None:
+        abort(404)
+    _verificar_empresa(obj.empresa_id)
+    return render_template("_presupuesto_detalle.html", presupuesto=obj)
 
 
 @principal.route("/presupuesto/<int:presupuesto_id>", methods=["GET", "POST"])

@@ -9,6 +9,63 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+<script>
+// Compartida entre visita.html (página completa) y visitas.html
+// (maestro-detalle). Definida en el <head> a propósito: si viviera en un
+// <script> más abajo en el body, un script del bloque de contenido que se
+// ejecuta antes (orden del documento) la encontraría todavía indefinida —
+// pasó justo así la primera vez. Un <script> dentro de un fragmento
+// insertado con innerHTML tampoco se ejecuta solo, así que el panel de
+// visitas la llama de nuevo después de cada swap en vez de traer su
+// propia copia.
+window.ipmInicializarFirmas = function (root) {
+  root.querySelectorAll('canvas.ec-firma').forEach(function (canvas) {
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.strokeStyle = '#12191F';
+    var dibujando = false;
+    canvas.dataset.sucio = '0';
+
+    function posicion(ev) {
+      var r = canvas.getBoundingClientRect();
+      var p = ev.touches ? ev.touches[0] : ev;
+      return [(p.clientX - r.left) * canvas.width / r.width, (p.clientY - r.top) * canvas.height / r.height];
+    }
+    function iniciar(ev) {
+      dibujando = true; canvas.dataset.sucio = '1';
+      var p = posicion(ev); ctx.beginPath(); ctx.moveTo(p[0], p[1]); ev.preventDefault();
+    }
+    function mover(ev) {
+      if (!dibujando) return;
+      var p = posicion(ev); ctx.lineTo(p[0], p[1]); ctx.stroke(); ev.preventDefault();
+    }
+    function terminar() { dibujando = false; }
+
+    canvas.addEventListener('pointerdown', iniciar);
+    canvas.addEventListener('pointermove', mover);
+    window.addEventListener('pointerup', terminar);
+  });
+
+  root.querySelectorAll('[data-limpiar-firma]').forEach(function (boton) {
+    boton.addEventListener('click', function () {
+      var canvas = root.querySelector('canvas[data-firma="' + boton.dataset.limpiarFirma + '"]');
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      canvas.dataset.sucio = '0';
+    });
+  });
+
+  root.querySelectorAll('.form-firmas').forEach(function (form) {
+    form.addEventListener('submit', function () {
+      form.querySelectorAll('[data-input-firma]').forEach(function (input) {
+        var tipo = input.dataset.inputFirma;
+        var canvas = form.querySelector('canvas[data-firma="' + tipo + '"]');
+        input.value = canvas.dataset.sucio === '1' ? canvas.toDataURL('image/png') : '';
+      });
+    });
+  });
+};
+</script>
 </head>
 <body>
 

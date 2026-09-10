@@ -1,0 +1,124 @@
+{% set inst = visita.instalacion %}
+<div class="detalle-cab" style="align-items:center;flex-wrap:wrap">
+  {% if visita.fecha_firma %}
+    <span class="pill ok">Firmada el {{ visita.fecha_firma.strftime('%d/%m/%Y %H:%M') }}</span>
+  {% endif %}
+  <span class="sp"></span>
+  <a class="btn ghost sm" href="{{ url_for('principal.visita_informe', visita_id=visita.id) }}" target="_blank">
+    Descargar informe (PDF)</a>
+</div>
+
+<h3 style="margin:.5rem 0 .2rem">Visita <span class="mono">#{{ visita.id }}</span></h3>
+<p class="tiny" style="margin:0 0 1rem">
+  {{ visita.fecha.strftime('%d/%m/%Y') }} ·
+  {{ visita.tecnico.nombre_completo if visita.tecnico else 'sin técnico' }} ·
+  <a href="{{ url_for('principal.instalacion', instalacion_id=inst.id) }}">
+    {{ inst.cliente.nombre }} · {{ inst.nombre }}</a>
+</p>
+
+{% for item in visita.items %}
+  {% set cargados = item.formularios | length %}
+  <div class="card" style="margin-bottom:var(--e3)">
+    <div class="fila" style="margin-bottom:.5rem">
+      <h3>{{ item.categoria.nombre }}</h3>
+      <span class="pill nocrit">rutina {{ item.rutina }}</span>
+      <span class="sp"></span>
+      <a class="btn sm" href="{{ url_for('principal.checklist', item_id=item.id) }}">
+        {% if cargados %}Seguir cargando{% else %}Cargar checklist{% endif %}</a>
+    </div>
+
+    {% if cargados %}
+      <div class="stack">
+        {% for f in item.formularios %}
+          {% set nc = f.respuestas | selectattr('estado', 'equalto', ESTADO_NO_CONFORME) | list %}
+          <div class="item {{ 'crit' if nc }}">
+            <span class="chip {{ 'crit' if nc else 'ok' }}">
+              {% if nc %}{{ ico('deficiencias') }}{% else %}{{ ico('check') }}{% endif %}</span>
+            <span class="t">
+              <b>{{ f.tipo_formulario.nombre }}</b>
+              <span>
+                {% if f.equipo %}<span class="mono">{{ f.equipo.codigo or f.equipo.nombre }}</span> · {% endif %}
+                {{ f.respuestas|length }} punto(s) cargado(s)
+                {%- if nc %} · {{ nc|length }} no conforme(s){% endif %}
+              </span>
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted" style="margin:0">Todavía sin cargar.</p>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="vacio" style="margin-bottom:var(--e3)">
+    <span class="chip neu">{{ ico('visitas') }}</span>
+    <b>Esta visita no tiene categorías asignadas</b>
+    <p>Volvé a la instalación y arrancá una inspección eligiendo la categoría y la rutina.</p>
+  </div>
+{% endfor %}
+
+<div class="card" style="margin-bottom:var(--e3)">
+  <h3 style="margin-bottom:.6rem">Deficiencias de esta visita</h3>
+  <div class="stack">
+    {% for o in observaciones %}
+      <div class="item {{ 'crit' if o.clasificacion == CLASIF_CRITICA }}">
+        <span class="chip {{ 'crit' if o.clasificacion == CLASIF_CRITICA else 'warn' }}">
+          {{ ico('deficiencias') }}</span>
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span>
+            {% if o.equipo %}<span class="mono">{{ o.equipo.codigo or o.equipo.nombre }}</span>{% endif %}
+            {%- if o.respuesta and o.respuesta.disparo_automatico %} · marcado solo por rango{% endif %}
+          </span>
+        </span>
+        {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
+        {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
+        {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
+
+        {% if o.estado_revision == REVISION_APROBADA %}
+          <span class="pill ok">Aprobada</span>
+        {% elif current_user.puede_aprobar %}
+          <form method="post" action="{{ url_for('principal.aprobar', observacion_id=o.id) }}">
+            <button class="btn sm" type="submit">Aprobar</button>
+          </form>
+        {% else %}
+          <span class="pill com">Pendiente</span>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="muted" style="margin:0">Ninguna. Todo lo cargado dio conforme.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="fila" style="margin-bottom:.6rem">
+    <h3>Firmas de cierre</h3>
+    <span class="sp"></span>
+    {% if visita.fecha_firma %}
+      <span class="pill ok">Firmada el {{ visita.fecha_firma.strftime('%d/%m/%Y %H:%M') }}</span>
+    {% endif %}
+  </div>
+
+  <form method="post" action="{{ url_for('principal.visita_firmar', visita_id=visita.id) }}" class="form-firmas">
+    <div class="fila" style="align-items:flex-start;flex-wrap:wrap;gap:1rem">
+      <div style="flex:1;min-width:16rem">
+        <span class="rotulo">Firma del técnico</span>
+        <canvas class="ec-firma" data-firma="tecnico" width="320" height="140"></canvas>
+        <button type="button" class="btn ghost sm" data-limpiar-firma="tecnico">Borrar</button>
+      </div>
+      <div style="flex:1;min-width:16rem">
+        <label class="campo" style="margin-bottom:.3rem">
+          <span class="rotulo">Nombre de quien firma por el cliente</span>
+          <input type="text" name="firma_cliente_nombre" value="{{ visita.firma_cliente_nombre or '' }}">
+        </label>
+        <span class="rotulo">Firma del cliente</span>
+        <canvas class="ec-firma" data-firma="cliente" width="320" height="140"></canvas>
+        <button type="button" class="btn ghost sm" data-limpiar-firma="cliente">Borrar</button>
+      </div>
+    </div>
+    <input type="hidden" name="firma_tecnico" data-input-firma="tecnico">
+    <input type="hidden" name="firma_cliente" data-input-firma="cliente">
+    <button class="btn sm" type="submit" style="margin-top:.7rem">Guardar firmas</button>
+  </form>
+</div>

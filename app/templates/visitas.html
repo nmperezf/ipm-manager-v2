@@ -19,40 +19,102 @@
 </div>
 
 {% if visitas %}
-<div class="tabla-wrap apilada">
-  <table class="apilable">
-    <thead>
-      <tr>
-        <th class="froz">Visita</th><th>Cliente</th><th>Instalación</th>
-        <th>Fecha</th><th>Técnico</th><th>Rutina</th><th>Deficiencias</th>
-      </tr>
-    </thead>
-    <tbody>
+<div class="maestro {{ 'con-seleccion' if ver }}" id="maestro-visitas">
+  <div class="lista-m">
     {% for v in visitas %}
       {% set criticas = v.observaciones | selectattr('clasificacion', 'equalto', CLASIF_CRITICA) | list %}
-      <tr>
-        <td data-th="Visita" class="froz mono">
-          <a href="{{ url_for('principal.visita', visita_id=v.id) }}">#{{ v.id }}</a>
-        </td>
-        <td data-th="Cliente">{{ v.instalacion.cliente.nombre }}</td>
-        <td data-th="Instalación">{{ v.instalacion.nombre }}</td>
-        <td data-th="Fecha" class="mono">{{ v.fecha.strftime('%d/%m/%y') }}</td>
-        <td data-th="Técnico">{{ v.tecnico.nombre_completo if v.tecnico else '—' }}</td>
-        <td data-th="Rutina">
-          {% for item in v.items %}
-            <span class="pill com">{{ item.rutina }}</span>
-          {% else %}—{% endfor %}
-        </td>
-        <td data-th="Deficiencias">
+      <a class="fila-m {{ 'sel' if seleccionada and seleccionada.id == v.id }}"
+         href="{{ url_for('principal.visitas', ver=v.id) }}"
+         data-fila-visita="{{ v.id }}" data-ver="{{ v.id }}">
+        <span class="fila-m-pills">
           {% if criticas %}<span class="pill crit">{{ criticas|length }} crítica(s)</span>
           {% elif v.observaciones %}<span class="pill nocrit">{{ v.observaciones|length }}</span>
           {% else %}<span class="pill ok">sin hallazgos</span>{% endif %}
-        </td>
-      </tr>
+        </span>
+        <b class="mono">#{{ v.id }}</b>
+        <span>
+          {{ v.instalacion.cliente.nombre }} · {{ v.instalacion.nombre }}
+          · {{ v.fecha.strftime('%d/%m/%y') }}
+          · {{ v.tecnico.nombre_completo if v.tecnico else 'sin técnico' }}
+        </span>
+      </a>
     {% endfor %}
-    </tbody>
-  </table>
+  </div>
+
+  <div class="detalle-m">
+    <a class="tiny volver-lista" href="{{ url_for('principal.visitas') }}">← Volver a la lista</a>
+    <div id="panel-detalle">
+      {% if seleccionada %}
+        {% set visita = seleccionada %}
+        {% include "_visita_detalle.html" %}
+      {% else %}
+        <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
+          <span class="chip neu">{{ ico('visitas') }}</span>
+          <b>Elegí una visita de la lista</b>
+          <p>El checklist, las deficiencias y las firmas aparecen acá.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
 </div>
+<template id="panel-vacio-tpl">
+  <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
+    <span class="chip neu">{{ ico('visitas') }}</span>
+    <b>Elegí una visita de la lista</b>
+    <p>El checklist, las deficiencias y las firmas aparecen acá.</p>
+  </div>
+</template>
+
+<script>
+(function () {
+  var maestro = document.getElementById('maestro-visitas');
+  if (!maestro) return;
+  var panel = document.getElementById('panel-detalle');
+  var plantillaVacia = document.getElementById('panel-vacio-tpl');
+
+  window.ipmInicializarFirmas(panel);
+
+  function marcarSeleccion(id) {
+    maestro.querySelectorAll('.fila-m').forEach(function (a) {
+      a.classList.toggle('sel', a.dataset.ver === String(id));
+    });
+    maestro.classList.toggle('con-seleccion', !!id);
+  }
+
+  function mostrarVacio() {
+    panel.innerHTML = '';
+    panel.appendChild(plantillaVacia.content.cloneNode(true));
+  }
+
+  function cargarPanel(id, url) {
+    fetch('/visita/' + id + '/panel')
+      .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
+      .then(function (html) {
+        panel.innerHTML = html;
+        marcarSeleccion(id);
+        window.ipmInicializarFirmas(panel);
+      })
+      .catch(function () { window.location.href = url; });
+  }
+
+  maestro.addEventListener('click', function (ev) {
+    var fila = ev.target.closest('.fila-m');
+    if (!fila) return;
+    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1) return;
+    ev.preventDefault();
+    var id = fila.dataset.ver;
+    history.pushState({ ver: id }, '', fila.href);
+    cargarPanel(id, fila.href);
+  });
+
+  window.addEventListener('popstate', function () {
+    var params = new URLSearchParams(window.location.search);
+    var id = params.get('ver');
+    if (id) cargarPanel(id, window.location.href);
+    else { mostrarVacio(); marcarSeleccion(null); }
+  });
+})();
+</script>
 {% else %}
 <div class="vacio">
   <span class="chip neu">{{ ico('visitas') }}</span>
