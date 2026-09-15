@@ -1,3 +1,4 @@
+{% from "base.html" import ico with context %}
 {% set obs = presupuesto.observacion %}
 <div class="detalle-cab">
   <span class="pill {{ 'ok' if presupuesto.estado == PRESUP_CERRADO else 'com' }}">{{ presupuesto.estado }}</span>

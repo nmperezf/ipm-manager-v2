@@ -36,89 +36,58 @@
 {% endif %}
 
 {% if presupuestos %}
-<div class="maestro {{ 'con-seleccion' if ver }}" id="maestro-presupuestos">
-  <div class="lista-m">
-    {% for p in presupuestos %}
-      <a class="fila-m {{ 'sel' if seleccionada and seleccionada.id == p.id }}"
-         href="{{ url_for('principal.presupuestos', estado=filtro, ver=p.id) }}"
-         data-fila-presupuesto="{{ p.id }}" data-ver="{{ p.id }}">
-        <span class="fila-m-pills">
-          <span class="pill {{ 'ok' if p.estado == PRESUP_CERRADO else 'com' }}">{{ p.estado }}</span>
+<div class="lista-ac" id="lista-presupuestos">
+  {% for p in presupuestos %}
+    <details class="ac-tj {{ 'ok' if p.estado == PRESUP_CERRADO else 'com' }}"
+              data-pre-id="{{ p.id }}" {{ 'open' if seleccionada and seleccionada.id == p.id }}>
+      <summary class="ac-cab">
+        <span class="t">
+          <b class="mono">{{ p.codigo }}</b>
+          <span class="meta">
+            {{ p.observacion.instalacion.cliente.nombre }} · {{ p.observacion.descripcion }}
+            · {{ p.dias_abierto }} día(s)
+          </span>
         </span>
-        <b class="mono">{{ p.codigo }}</b>
-        <span>
-          {{ p.observacion.instalacion.cliente.nombre }} · {{ p.observacion.descripcion }}
-          · {{ p.dias_abierto }} día(s)
-        </span>
-      </a>
-    {% endfor %}
-  </div>
-
-  <div class="detalle-m">
-    <a class="tiny volver-lista" href="{{ url_for('principal.presupuestos', estado=filtro) }}">← Volver a la lista</a>
-    <div id="panel-detalle">
-      {% if seleccionada %}
-        {% set presupuesto = seleccionada %}
-        {% include "_presupuesto_detalle.html" %}
-      {% else %}
-        <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
-          <span class="chip neu">{{ ico('presupuesto') }}</span>
-          <b>Elegí un presupuesto de la lista</b>
-          <p>El detalle, el historial y las acciones aparecen acá.</p>
-        </div>
-      {% endif %}
-    </div>
-  </div>
+        <span class="pill {{ 'ok' if p.estado == PRESUP_CERRADO else 'com' }}">{{ p.estado }}</span>
+        <span class="ac-chevron">{{ ico('chevron') }}</span>
+      </summary>
+      <div class="ac-cuerpo"><div class="ac-cuerpo-inner"><div class="ac-cuerpo-inner-pad">
+        {% if seleccionada and seleccionada.id == p.id %}
+          {% set presupuesto = seleccionada %}
+          {% include "_presupuesto_detalle.html" %}
+        {% else %}
+          <div class="ac-cargando">Cargando…</div>
+        {% endif %}
+      </div></div></div>
+    </details>
+  {% endfor %}
 </div>
-<template id="panel-vacio-tpl">
-  <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
-    <span class="chip neu">{{ ico('presupuesto') }}</span>
-    <b>Elegí un presupuesto de la lista</b>
-    <p>El detalle, el historial y las acciones aparecen acá.</p>
-  </div>
-</template>
 
 <script>
 (function () {
-  var maestro = document.getElementById('maestro-presupuestos');
-  if (!maestro) return;
-  var panel = document.getElementById('panel-detalle');
-  var plantillaVacia = document.getElementById('panel-vacio-tpl');
+  var lista = document.getElementById('lista-presupuestos');
+  if (!lista) return;
 
-  function marcarSeleccion(id) {
-    maestro.querySelectorAll('.fila-m').forEach(function (a) {
-      a.classList.toggle('sel', a.dataset.ver === String(id));
-    });
-    maestro.classList.toggle('con-seleccion', !!id);
-  }
+  function cuerpoDe(det) { return det.querySelector('.ac-cuerpo-inner-pad'); }
 
-  function mostrarVacio() {
-    panel.innerHTML = '';
-    panel.appendChild(plantillaVacia.content.cloneNode(true));
-  }
-
-  function cargarPanel(id, url) {
-    fetch('/presupuesto/' + id + '/panel')
+  function cargar(det) {
+    if (det.dataset.cargado) return;
+    det.dataset.cargado = '1';
+    fetch('/presupuesto/' + det.dataset.preId + '/panel')
       .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
-      .then(function (html) { panel.innerHTML = html; marcarSeleccion(id); })
-      .catch(function () { window.location.href = url; });
+      .then(function (html) { cuerpoDe(det).innerHTML = html; })
+      .catch(function () { det.dataset.cargado = ''; cuerpoDe(det).innerHTML = 'No se pudo cargar. Probá de nuevo.'; });
   }
 
-  maestro.addEventListener('click', function (ev) {
-    var fila = ev.target.closest('.fila-m');
-    if (!fila) return;
-    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1) return;
-    ev.preventDefault();
-    var id = fila.dataset.ver;
-    history.pushState({ ver: id }, '', fila.href);
-    cargarPanel(id, fila.href);
-  });
-
-  window.addEventListener('popstate', function () {
-    var params = new URLSearchParams(window.location.search);
-    var id = params.get('ver');
-    if (id) cargarPanel(id, window.location.href);
-    else { mostrarVacio(); marcarSeleccion(null); }
+  lista.querySelectorAll('.ac-tj').forEach(function (det) {
+    if (det.open) det.dataset.cargado = '1';
+    det.addEventListener('toggle', function () {
+      var params = new URLSearchParams(window.location.search);
+      if (det.open) { cargar(det); params.set('ver', det.dataset.preId); }
+      else if (params.get('ver') === det.dataset.preId) { params.delete('ver'); }
+      var query = params.toString();
+      history.replaceState({}, '', window.location.pathname + (query ? '?' + query : ''));
+    });
   });
 })();
 </script>

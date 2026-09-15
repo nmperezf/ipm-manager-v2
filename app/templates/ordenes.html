@@ -29,94 +29,63 @@
 </div>
 
 {% if ordenes %}
-<div class="maestro {{ 'con-seleccion' if ver }}" id="maestro-ordenes">
-  <div class="lista-m">
-    {% for o in ordenes %}
-      {% set criticas = o.visita.observaciones | selectattr('clasificacion', 'equalto', CLASIF_CRITICA) | list %}
-      <a class="fila-m {{ 'sel' if seleccionada and seleccionada.id == o.id }}"
-         href="{{ url_for('principal.ordenes', estado=filtro, ver=o.id) }}"
-         data-fila-orden="{{ o.id }}" data-ver="{{ o.id }}">
-        <span class="fila-m-pills">
-          {% if o.estado == OT_CERRADA %}<span class="pill ok">{{ o.estado }}</span>
-          {% elif o.estado == OT_EN_REVISION %}<span class="pill nocrit">{{ o.estado }}</span>
-          {% else %}<span class="pill com">{{ o.estado }}</span>{% endif %}
-          {% if o.vencida %}<span class="pill crit">vencida</span>{% endif %}
-          {% if criticas %}<span class="pill crit">{{ criticas|length }} crítica(s)</span>{% endif %}
+<div class="lista-ac" id="lista-ordenes">
+  {% for o in ordenes %}
+    {% set criticas = o.visita.observaciones | selectattr('clasificacion', 'equalto', CLASIF_CRITICA) | list %}
+    {% set clase = 'ok' if o.estado == OT_CERRADA else (('crit' if (o.vencida or criticas) else 'com')) %}
+    <details class="ac-tj {{ clase }}" data-ot-id="{{ o.id }}" {{ 'open' if seleccionada and seleccionada.id == o.id }}>
+      <summary class="ac-cab">
+        <span class="t">
+          <b class="mono">{{ o.numero or '#' ~ o.id }}</b>
+          <span class="meta">
+            {{ o.visita.instalacion.cliente.nombre }} · {{ o.visita.instalacion.nombre }}
+            · {{ o.tecnico.nombre_completo if o.tecnico else 'sin asignar' }}
+          </span>
         </span>
-        <b class="mono">{{ o.numero or '#' ~ o.id }}</b>
-        <span>
-          {{ o.visita.instalacion.cliente.nombre }} · {{ o.visita.instalacion.nombre }}
-          · {{ o.tecnico.nombre_completo if o.tecnico else 'sin asignar' }}
-        </span>
-      </a>
-    {% endfor %}
-  </div>
-
-  <div class="detalle-m">
-    <a class="tiny volver-lista" href="{{ url_for('principal.ordenes', estado=filtro) }}">← Volver a la lista</a>
-    <div id="panel-detalle">
-      {% if seleccionada %}
-        {% set orden = seleccionada %}
-        {% include "_orden_detalle.html" %}
-      {% else %}
-        <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
-          <span class="chip neu">{{ ico('visitas') }}</span>
-          <b>Elegí una orden de la lista</b>
-          <p>El detalle, el checklist y las acciones aparecen acá.</p>
-        </div>
-      {% endif %}
-    </div>
-  </div>
+        {% if o.estado == OT_CERRADA %}<span class="pill ok">{{ o.estado }}</span>
+        {% elif o.estado == OT_EN_REVISION %}<span class="pill nocrit">{{ o.estado }}</span>
+        {% else %}<span class="pill com">{{ o.estado }}</span>{% endif %}
+        {% if o.vencida %}<span class="pill crit">vencida</span>{% endif %}
+        {% if criticas %}<span class="pill crit">{{ criticas|length }} crítica(s)</span>{% endif %}
+        <span class="ac-chevron">{{ ico('chevron') }}</span>
+      </summary>
+      <div class="ac-cuerpo"><div class="ac-cuerpo-inner"><div class="ac-cuerpo-inner-pad">
+        {% if seleccionada and seleccionada.id == o.id %}
+          {% set orden = seleccionada %}
+          {% include "_orden_detalle.html" %}
+        {% else %}
+          <div class="ac-cargando">Cargando…</div>
+        {% endif %}
+      </div></div></div>
+    </details>
+  {% endfor %}
 </div>
-<template id="panel-vacio-tpl">
-  <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
-    <span class="chip neu">{{ ico('visitas') }}</span>
-    <b>Elegí una orden de la lista</b>
-    <p>El detalle, el checklist y las acciones aparecen acá.</p>
-  </div>
-</template>
 
 <script>
 (function () {
-  var maestro = document.getElementById('maestro-ordenes');
-  if (!maestro) return;
-  var panel = document.getElementById('panel-detalle');
-  var plantillaVacia = document.getElementById('panel-vacio-tpl');
+  var lista = document.getElementById('lista-ordenes');
+  if (!lista) return;
 
-  function marcarSeleccion(id) {
-    maestro.querySelectorAll('.fila-m').forEach(function (a) {
-      a.classList.toggle('sel', a.dataset.ver === String(id));
-    });
-    maestro.classList.toggle('con-seleccion', !!id);
-  }
+  function cuerpoDe(det) { return det.querySelector('.ac-cuerpo-inner-pad'); }
 
-  function mostrarVacio() {
-    panel.innerHTML = '';
-    panel.appendChild(plantillaVacia.content.cloneNode(true));
-  }
-
-  function cargarPanel(id, url) {
-    fetch('/orden/' + id + '/panel')
+  function cargar(det) {
+    if (det.dataset.cargado) return;
+    det.dataset.cargado = '1';
+    fetch('/orden/' + det.dataset.otId + '/panel')
       .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
-      .then(function (html) { panel.innerHTML = html; marcarSeleccion(id); })
-      .catch(function () { window.location.href = url; });
+      .then(function (html) { cuerpoDe(det).innerHTML = html; })
+      .catch(function () { det.dataset.cargado = ''; cuerpoDe(det).innerHTML = 'No se pudo cargar. Probá de nuevo.'; });
   }
 
-  maestro.addEventListener('click', function (ev) {
-    var fila = ev.target.closest('.fila-m');
-    if (!fila) return;
-    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1) return;
-    ev.preventDefault();
-    var id = fila.dataset.ver;
-    history.pushState({ ver: id }, '', fila.href);
-    cargarPanel(id, fila.href);
-  });
-
-  window.addEventListener('popstate', function () {
-    var params = new URLSearchParams(window.location.search);
-    var id = params.get('ver');
-    if (id) cargarPanel(id, window.location.href);
-    else { mostrarVacio(); marcarSeleccion(null); }
+  lista.querySelectorAll('.ac-tj').forEach(function (det) {
+    if (det.open) det.dataset.cargado = '1';
+    det.addEventListener('toggle', function () {
+      var params = new URLSearchParams(window.location.search);
+      if (det.open) { cargar(det); params.set('ver', det.dataset.otId); }
+      else if (params.get('ver') === det.dataset.otId) { params.delete('ver'); }
+      var query = params.toString();
+      history.replaceState({}, '', window.location.pathname + (query ? '?' + query : ''));
+    });
   });
 })();
 </script>

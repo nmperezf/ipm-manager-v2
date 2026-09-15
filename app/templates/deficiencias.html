@@ -39,49 +39,33 @@
 </div>
 
 {% if observaciones %}
-<div class="maestro {{ 'con-seleccion' if ver }}" id="maestro-deficiencias">
-  <div class="lista-m">
-    {% for o in observaciones %}
-      <a class="fila-m {{ 'sel' if seleccionada and seleccionada.id == o.id }}"
-         href="{{ url_for('principal.deficiencias', cliente_id=cliente_id, estado=filtro, ver=o.id) }}"
-         data-fila-observacion="{{ o.id }}" data-ver="{{ o.id }}">
-        <span class="fila-m-pills">
-          {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
-          {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
-          {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
-          {% if o.resuelto %}<span class="pill ok">Resuelta</span>
-          {% elif o.estado_revision == REVISION_APROBADA %}<span class="pill ok">Aprobada</span>
-          {% else %}<span class="pill com">Pendiente</span>{% endif %}
+<div class="lista-ac" id="lista-deficiencias">
+  {% for o in observaciones %}
+    {% set clase = 'crit' if o.clasificacion == CLASIF_CRITICA else ('ok' if o.resuelto or o.estado_revision == REVISION_APROBADA else 'com') %}
+    <details class="ac-tj {{ clase }}" data-obs-id="{{ o.id }}" {{ 'open' if seleccionada and seleccionada.id == o.id }}>
+      <summary class="ac-cab">
+        <span class="t">
+          <b>{{ o.descripcion }}</b>
+          <span class="meta">{{ o.instalacion.cliente.nombre }} · {{ o.instalacion.nombre }} · {{ o.fecha_carga.strftime('%d/%m/%y') }}</span>
         </span>
-        <b>{{ o.descripcion }}</b>
-        <span>{{ o.instalacion.cliente.nombre }} · {{ o.instalacion.nombre }} · {{ o.fecha_carga.strftime('%d/%m/%y') }}</span>
-      </a>
-    {% endfor %}
-  </div>
-
-  <div class="detalle-m">
-    <a class="tiny volver-lista" href="{{ url_for('principal.deficiencias', cliente_id=cliente_id, estado=filtro) }}">← Volver a la lista</a>
-    <div id="panel-detalle">
-      {% if seleccionada %}
-        {% set o = seleccionada %}
-        {% include "_deficiencia_detalle.html" %}
-      {% else %}
-        <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
-          <span class="chip neu">{{ ico('deficiencias') }}</span>
-          <b>Elegí una deficiencia de la lista</b>
-          <p>El detalle y las acciones aparecen acá, sin salir de esta pantalla.</p>
-        </div>
-      {% endif %}
-    </div>
-  </div>
+        {% if o.clasificacion == CLASIF_CRITICA %}<span class="pill crit">Crítica</span>
+        {% elif o.clasificacion == CLASIF_NO_CRITICA %}<span class="pill nocrit">No crítica</span>
+        {% else %}<span class="pill com">{{ o.clasificacion }}</span>{% endif %}
+        {% if o.resuelto %}<span class="pill ok">Resuelta</span>
+        {% elif o.estado_revision == REVISION_APROBADA %}<span class="pill ok">Aprobada</span>
+        {% else %}<span class="pill com">Pendiente</span>{% endif %}
+        <span class="ac-chevron">{{ ico('chevron') }}</span>
+      </summary>
+      <div class="ac-cuerpo"><div class="ac-cuerpo-inner"><div class="ac-cuerpo-inner-pad">
+        {% if seleccionada and seleccionada.id == o.id %}
+          {% include "_deficiencia_detalle.html" %}
+        {% else %}
+          <div class="ac-cargando">Cargando…</div>
+        {% endif %}
+      </div></div></div>
+    </details>
+  {% endfor %}
 </div>
-<template id="panel-vacio-tpl">
-  <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
-    <span class="chip neu">{{ ico('deficiencias') }}</span>
-    <b>Elegí una deficiencia de la lista</b>
-    <p>El detalle y las acciones aparecen acá, sin salir de esta pantalla.</p>
-  </div>
-</template>
 {% elif filtro or cliente_id %}
 <div class="vacio">
   <span class="chip ok">{{ ico('check') }}</span>
@@ -103,65 +87,47 @@
 </div>
 
 <script>
-{# Maestro-detalle (ver plan de implementación): la fila es un <a> real con
-   ?ver=<id> — sin JS, hacer click navega y el server ya trae el panel
-   lleno. Con JS, se pide solo el fragmento del panel (mismo patrón que
-   /buscar/vivo) y se actualiza la URL con pushState, sin recargar. #}
+{# Acordeón: cada <details> ya funciona sin JS (nativo del navegador). El
+   JS solo agrega dos cosas: traer el detalle real la primera vez que se
+   abre (mismo fragmento /observacion/<id>/panel de siempre) y reflejar
+   cuál está abierto en la URL (?ver=<id>) para que un link directo abra
+   ese ítem server-rendered. #}
 (function () {
-  var maestro = document.getElementById('maestro-deficiencias');
-  if (!maestro) return;
-  var panel = document.getElementById('panel-detalle');
-  var plantillaVacia = document.getElementById('panel-vacio-tpl');
+  var lista = document.getElementById('lista-deficiencias');
+  if (!lista) return;
 
-  function marcarSeleccion(id) {
-    maestro.querySelectorAll('.fila-m').forEach(function (a) {
-      a.classList.toggle('sel', a.dataset.ver === String(id));
-    });
-    maestro.classList.toggle('con-seleccion', !!id);
-  }
+  function cuerpoDe(det) { return det.querySelector('.ac-cuerpo-inner-pad'); }
 
-  function mostrarVacio() {
-    panel.innerHTML = '';
-    panel.appendChild(plantillaVacia.content.cloneNode(true));
-  }
-
-  function cargarPanel(id, url) {
-    fetch('/observacion/' + id + '/panel')
+  function cargar(det) {
+    if (det.dataset.cargado) return;
+    det.dataset.cargado = '1';
+    fetch('/observacion/' + det.dataset.obsId + '/panel')
       .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
-      .then(function (html) {
-        panel.innerHTML = html;
-        marcarSeleccion(id);
-      })
-      .catch(function () { window.location.href = url; }); // algo raro: navegación normal de respaldo
+      .then(function (html) { cuerpoDe(det).innerHTML = html; })
+      .catch(function () { det.dataset.cargado = ''; cuerpoDe(det).innerHTML = 'No se pudo cargar. Probá de nuevo.'; });
   }
 
-  maestro.addEventListener('click', function (ev) {
-    var fila = ev.target.closest('.fila-m');
-    if (!fila) return;
-    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1) return; // abrir en pestaña nueva, sin interceptar
-    ev.preventDefault();
-    var id = fila.dataset.ver;
-    history.pushState({ ver: id }, '', fila.href);
-    cargarPanel(id, fila.href);
-  });
-
-  window.addEventListener('popstate', function () {
-    var params = new URLSearchParams(window.location.search);
-    var id = params.get('ver');
-    if (id) cargarPanel(id, window.location.href);
-    else { mostrarVacio(); marcarSeleccion(null); }
+  lista.querySelectorAll('.ac-tj').forEach(function (det) {
+    if (det.open) det.dataset.cargado = '1'; // ya vino server-rendered
+    det.addEventListener('toggle', function () {
+      var params = new URLSearchParams(window.location.search);
+      if (det.open) { cargar(det); params.set('ver', det.dataset.obsId); }
+      else if (params.get('ver') === det.dataset.obsId) { params.delete('ver'); }
+      var query = params.toString();
+      history.replaceState({}, '', window.location.pathname + (query ? '?' + query : ''));
+    });
   });
 })();
 
-{# Piloto de acción optimista (ver plan de implementación): al resolver, el
-   panel se apaga en el momento y el pedido real recién sale si nadie tocó
-   "Deshacer" en 5s — así el deshacer no necesita una ruta de "revertir" en
-   el servidor, alcanza con no haber mandado nada todavía. #}
+{# Piloto de acción optimista (ver plan de implementación): al resolver, la
+   tarjeta se apaga en el momento y el pedido real recién sale si nadie
+   tocó "Deshacer" en 5s — así el deshacer no necesita una ruta de
+   "revertir" en el servidor, alcanza con no haber mandado nada todavía. #}
 (function () {
   var toast = document.getElementById('toast-resolver');
   var toastTexto = toast.querySelector('span');
   var toastDeshacer = toast.querySelector('[data-deshacer]');
-  var pendiente = null; // {contenedor, url, id, temporizador}
+  var pendiente = null; // {contenedor, url, temporizador}
 
   function cancelarToast() {
     toast.hidden = true;
@@ -183,13 +149,12 @@
       enviar(pendiente);
     }
 
-    var fila = document.querySelector('[data-fila-observacion="' + form.dataset.obsId + '"]');
-    var contenedor = form.closest('.detalle-m');
+    var contenedor = form.closest('.ac-tj');
     contenedor.style.transition = 'opacity var(--t-fast) var(--e-out)';
     contenedor.style.opacity = '.35';
     contenedor.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
 
-    var item = { contenedor: contenedor, fila: fila, url: form.action, id: form.dataset.obsId };
+    var item = { contenedor: contenedor, url: form.action };
     item.temporizador = setTimeout(function () { toast.hidden = true; enviar(item); }, 5000);
     pendiente = item;
     mostrarToast('Marcada como resuelta.');
@@ -201,20 +166,7 @@
       .then(function (r) { return r.json(); })
       .then(function (datos) {
         if (!datos.ok) throw new Error(datos.error || 'No se pudo resolver.');
-        if (item.fila) item.fila.remove();
-
-        var maestro = document.getElementById('maestro-deficiencias');
-        var panel = document.getElementById('panel-detalle');
-        var panelVacio = document.getElementById('panel-vacio-tpl');
-        panel.innerHTML = '';
-        panel.appendChild(panelVacio.content.cloneNode(true));
-        if (maestro) maestro.classList.remove('con-seleccion');
-        item.contenedor.style.opacity = '';
-
-        var params = new URLSearchParams(window.location.search);
-        params.delete('ver');
-        var query = params.toString();
-        history.pushState({}, '', window.location.pathname + (query ? '?' + query : ''));
+        item.contenedor.remove();
       })
       .catch(function (err) {
         item.contenedor.style.opacity = '';

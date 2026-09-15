@@ -41,95 +41,60 @@
 </div>
 
 {% if solicitudes %}
-<div class="maestro {{ 'con-seleccion' if ver }}" id="maestro-coordinacion">
-  <div class="lista-m">
-    {% for s in solicitudes %}
-      {% set inst = s.servicio.contrato.instalacion %}
-      <a class="fila-m {{ 'sel' if seleccionada and seleccionada.id == s.id }}"
-         href="{{ url_for('principal.coordinacion', anio=anio, mes=mes, ver=s.id) }}"
-         data-fila-solicitud="{{ s.id }}" data-ver="{{ s.id }}">
-        <span class="fila-m-pills">
-          <span class="pill {{ 'ok' if s.estado_derivado == 'ejecutada' else 'com' }}">
-            {{ {'sin_coordinar': 'Sin coordinar', 'coordinada': 'Coordinada', 'asignada': 'Asignada',
-                'en_ejecucion': 'En ejecución', 'ejecutada': 'Ejecutada'}[s.estado_derivado] }}</span>
+<div class="lista-ac" id="lista-coordinacion">
+  {% for s in solicitudes %}
+    {% set inst = s.servicio.contrato.instalacion %}
+    {% set clase = 'ok' if s.estado_derivado == 'ejecutada' else ('com' if s.estado_derivado == 'sin_coordinar' else 'ok') %}
+    <details class="ac-tj {{ clase }}" data-sol-id="{{ s.id }}" {{ 'open' if seleccionada and seleccionada.id == s.id }}>
+      <summary class="ac-cab">
+        <span class="t">
+          <b>{{ inst.cliente.nombre }} · {{ inst.nombre }}</b>
+          <span class="meta">
+            {{ s.servicio.categoria.nombre }}
+            {%- if s.coordinada %} · {{ s.fecha_coordinada.strftime('%d/%m/%y') }}{% endif %}
+          </span>
         </span>
-        <b>{{ inst.cliente.nombre }} · {{ inst.nombre }}</b>
-        <span>
-          {{ s.servicio.categoria.nombre }}
-          {%- if s.coordinada %} · {{ s.fecha_coordinada.strftime('%d/%m/%y') }}{% endif %}
-        </span>
-      </a>
-    {% endfor %}
-  </div>
-
-  <div class="detalle-m">
-    <a class="tiny volver-lista" href="{{ url_for('principal.coordinacion', anio=anio, mes=mes) }}">← Volver a la lista</a>
-    <div id="panel-detalle">
-      {% if seleccionada %}
-        {% set s = seleccionada %}
-        {% include "_coordinacion_detalle.html" %}
-      {% else %}
-        <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
-          <span class="chip neu">{{ ico('visitas') }}</span>
-          <b>Elegí una solicitud de la lista</b>
-          <p>El detalle y el formulario de coordinación aparecen acá.</p>
-        </div>
-      {% endif %}
-    </div>
-  </div>
+        <span class="pill {{ 'ok' if s.estado_derivado == 'ejecutada' else 'com' }}">
+          {{ {'sin_coordinar': 'Sin coordinar', 'coordinada': 'Coordinada', 'asignada': 'Asignada',
+              'en_ejecucion': 'En ejecución', 'ejecutada': 'Ejecutada'}[s.estado_derivado] }}</span>
+        <span class="ac-chevron">{{ ico('chevron') }}</span>
+      </summary>
+      <div class="ac-cuerpo"><div class="ac-cuerpo-inner"><div class="ac-cuerpo-inner-pad">
+        {% if seleccionada and seleccionada.id == s.id %}
+          {% include "_coordinacion_detalle.html" %}
+        {% else %}
+          <div class="ac-cargando">Cargando…</div>
+        {% endif %}
+      </div></div></div>
+    </details>
+  {% endfor %}
 </div>
-<template id="panel-vacio-tpl">
-  <div class="vacio" style="border:0;box-shadow:none;padding:var(--e6) var(--e4) 0">
-    <span class="chip neu">{{ ico('visitas') }}</span>
-    <b>Elegí una solicitud de la lista</b>
-    <p>El detalle y el formulario de coordinación aparecen acá.</p>
-  </div>
-</template>
 
 <script>
-{# Maestro-detalle forzado a pedido — ver plan de implementación. Mismo
-   patrón que deficiencias.html: fila real con ?ver=<id>, JS pide solo el
-   fragmento del panel y actualiza la URL con pushState sin recargar. #}
 (function () {
-  var maestro = document.getElementById('maestro-coordinacion');
-  if (!maestro) return;
-  var panel = document.getElementById('panel-detalle');
-  var plantillaVacia = document.getElementById('panel-vacio-tpl');
+  var lista = document.getElementById('lista-coordinacion');
+  if (!lista) return;
 
-  function marcarSeleccion(id) {
-    maestro.querySelectorAll('.fila-m').forEach(function (a) {
-      a.classList.toggle('sel', a.dataset.ver === String(id));
-    });
-    maestro.classList.toggle('con-seleccion', !!id);
-  }
+  function cuerpoDe(det) { return det.querySelector('.ac-cuerpo-inner-pad'); }
 
-  function mostrarVacio() {
-    panel.innerHTML = '';
-    panel.appendChild(plantillaVacia.content.cloneNode(true));
-  }
-
-  function cargarPanel(id, url) {
-    fetch('/solicitud/' + id + '/panel')
+  function cargar(det) {
+    if (det.dataset.cargado) return;
+    det.dataset.cargado = '1';
+    fetch('/solicitud/' + det.dataset.solId + '/panel')
       .then(function (r) { if (!r.ok) throw new Error(); return r.text(); })
-      .then(function (html) { panel.innerHTML = html; marcarSeleccion(id); })
-      .catch(function () { window.location.href = url; });
+      .then(function (html) { cuerpoDe(det).innerHTML = html; })
+      .catch(function () { det.dataset.cargado = ''; cuerpoDe(det).innerHTML = 'No se pudo cargar. Probá de nuevo.'; });
   }
 
-  maestro.addEventListener('click', function (ev) {
-    var fila = ev.target.closest('.fila-m');
-    if (!fila) return;
-    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1) return;
-    ev.preventDefault();
-    var id = fila.dataset.ver;
-    history.pushState({ ver: id }, '', fila.href);
-    cargarPanel(id, fila.href);
-  });
-
-  window.addEventListener('popstate', function () {
-    var params = new URLSearchParams(window.location.search);
-    var id = params.get('ver');
-    if (id) cargarPanel(id, window.location.href);
-    else { mostrarVacio(); marcarSeleccion(null); }
+  lista.querySelectorAll('.ac-tj').forEach(function (det) {
+    if (det.open) det.dataset.cargado = '1';
+    det.addEventListener('toggle', function () {
+      var params = new URLSearchParams(window.location.search);
+      if (det.open) { cargar(det); params.set('ver', det.dataset.solId); }
+      else if (params.get('ver') === det.dataset.solId) { params.delete('ver'); }
+      var query = params.toString();
+      history.replaceState({}, '', window.location.pathname + (query ? '?' + query : ''));
+    });
   });
 })();
 </script>
